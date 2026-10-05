@@ -2,7 +2,11 @@
 
 ## ScrapeGraphAI
 
-A API gerenciada usa o cabeçalho `SGAI-APIKEY` e deve ser chamada pelo backend para evitar exposição da credencial. O MVP entrega a interface, o contrato de proveniência e o estado de configuração; chamadas reais só são ativadas quando `SGAI_API_KEY` for inserida por meio do gerenciador seguro de segredos.
+O provedor padrão da aplicação é o **ScrapeGraphAI v2**, com base URL `https://v2-api.scrapegraphai.com` e endpoint `POST /api/extract`. A API gerenciada usa o cabeçalho `SGAI-APIKEY` e é chamada exclusivamente pelos handlers server-side `/api/integrations/scrapegraph/*`; a chave nunca é enviada ao bundle do navegador.
+
+O prompt e o JSON Schema do Prospectra extraem nome, descrição, setor, porte aproximado, sinais públicos recentes e canais públicos. O retorno preserva `requestId`, URL de origem e data de coleta. Se `SGAI_API_KEY` não estiver configurada, a UI exibe **Aguardando chave** e não simula um resultado. Quando configurada, o formulário de enriquecimento executa a chamada real e apresenta a resposta como sugestão revisável.
+
+O endpoint v2 é utilizado porque os hosts e nomes v1 (`api.scrapegraphai.com/v1`, `smartscraper`, `markdownify`) estão depreciados na documentação atual do provedor. A aplicação aceita `SGAI_BASE_URL` para ambientes controlados, mas o valor padrão não deve ser trocado sem validar o contrato v2.
 
 A biblioteca open source `Scrapegraph-ai` também é uma alternativa MIT, mas exige uma execução Python, modelo LLM próprio e, em cenários de páginas JavaScript, Playwright e infraestrutura operacional. O produto não deve habilitar proxies ou mecanismos anti-bot por padrão.
 
