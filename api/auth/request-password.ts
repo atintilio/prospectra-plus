@@ -4,5 +4,46 @@ import { digestToken, randomToken } from '../_lib/crypto.js';
 import { json, methodNotAllowed, parseBody, publicOrigin } from '../_lib/http.js';
 import { sendPasswordSetupEmail } from '../_lib/mailer.js';
 import type { ApiRequest, ApiResponse, StoredUser } from '../_lib/types.js';
+
 const MASTER_EMAIL = (process.env.MASTER_USER_EMAIL ?? 'atintilio@argusprime.com.br').trim().toLowerCase();
-export default async function handler(req: ApiRequest, res: ApiResponse) { if (req.method !== 'POST') return methodNotAllowed(res, ['POST']); try { const body = parseBody(req); const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''; if (!email || !email.includes('@')) return json(res, 400, { error: 'invalid_email' }); if (email !== MASTER_EMAIL) return json(res, 200, { ok: true, message: 'Se o endereço estiver autorizado, você receberá um link.' }); const store = await loadAuthStore(); const now = new Date().toISOString(); let user = store.users.find((item) => item.email === email); if (!user) { user = { id: randomUUID(), email, name: 'Administrador Prospectra+', role: 'admin', passwordHash: null, active: true, createdAt: now, updatedAt: now } satisfies StoredUser; store.users.push(user); } const rawToken = randomToken(); store.resets = store.resets.filter((reset) => reset.userId !== user.id && new Date(reset.expiresAt).getTime() > Date.now()); store.resets.push({ id: randomUUID(), userId: user.id, tokenHash: digestToken(rawToken), expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(), createdAt: now }); await saveAuthStore(store); const setupUrl = `${publicOrigin(req)}/definir-senha?token=${encodeURIComponent(rawToken)}`; try { await sendPasswordSetupEmail(email, setupUrl); } catch (error) { const current = await loadAuthStore(); current.resets = current.resets.filter((reset) => reset.tokenHash !== digestToken(rawToken)); await saveAuthStore(current); const code = error instanceof Error ? error.message : 'EMAIL_SEND_FAILED'; if (code.includes('NOT_CONFIGURED')) return json(res, 503, { error: 'email_not_configured' }); return json(res, 502, { error: 'email_provider_failed' }); } return json(res, 200, { ok: true, message: 'Se o endereço estiver autorizado, você receberá um link.' }); } catch (error) { const code = error instanceof Error ? error.message : 'PASSWORD_REQUEST_FAILED'; if (code.includes('NOT_CONFIGURED')) return json(res, 503, { error: 'auth_not_configured' }); return json(res, 500, { error: 'password_request_failed' }); } }
+
+export default async function handler(req: ApiRequest, res: ApiResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  try {
+    const body = parseBody(req);
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    if (!email || !email.includes('@')) return json(res, 400, { error: 'invalid_email' });
+    if (email !== MASTER_EMAIL) return json(res, 200, { ok: true, message: 'Se o endereço estiver autorizado, você receberá um link.' });
+
+    const store = await loadAuthStore();
+    const now = new Date().toISOString();
+    let user = store.users.find((item) => item.email === email);
+    if (!user) {
+      user = { id: randomUUID(), email, name: 'Administrador Prospectra+', role: 'admin', passwordHash: null, active: true, createdAt: now, updatedAt: now } satisfies StoredUser;
+      store.users.push(user);
+    }
+    const rawToken = randomToken();
+    store.resets = store.resets.filter((reset) => reset.userId !== user.id && new Date(reset.expiresAt).getTime() > Date.now());
+    store.resets.push({ id: randomUUID(), userId: user.id, tokenHash: digestToken(rawToken), expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(), createdAt: now });
+    await saveAuthStore(store);
+
+    const setupUrl = `${publicOrigin(req)}/definir-senha?token=${encodeURIComponent(rawToken)}`;
+    try {
+      await sendPasswordSetupEmail(email, setupUrl);
+    } catch (error) {
+      const current = await loadAuthStore();
+      current.resets = current.resets.filter((reset) => reset.tokenHash !== digestToken(rawToken));
+      await saveAuthStore(current);
+      const code = error instanceof Error ? error.message : 'EMAIL_SEND_FAILED';
+      console.error('prospectra_email_error', code);
+      if (code.includes('NOT_CONFIGURED')) return json(res, 503, { error: 'email_not_configured' });
+      return json(res, 502, { error: 'email_provider_failed' });
+    }
+    return json(res, 200, { ok: true, message: 'Se o endereço estiver autorizado, você receberá um link.' });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'PASSWORD_REQUEST_FAILED';
+    console.error('prospectra_password_request_error', code);
+    if (code.includes('NOT_CONFIGURED')) return json(res, 503, { error: 'auth_not_configured' });
+    return json(res, 500, { error: 'password_request_failed' });
+  }
+}
