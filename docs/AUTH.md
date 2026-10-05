@@ -12,12 +12,14 @@ A sessão usa cookie `prospectra_session`, assinatura HMAC e `SameSite=None; Sec
 
 ## Office 365
 
-O envio é server-side via Microsoft Graph `POST /v1.0/users/{sender}/sendMail` usando `client_credentials`. O App Registration deve possuir `Mail.Send` como permissão **Application** com admin consent. Os valores ficam somente nas variáveis protegidas do Vercel:
+O envio é server-side via Microsoft Graph `POST /v1.0/users/{sender}/sendMail` usando `client_credentials`, no mesmo padrão já funcional do Reversa. O App Registration deve possuir `Mail.Send` como permissão **Application** com admin consent. O adaptador aceita os nomes `OFFICE365_*` do Prospectra ou os nomes `MS_*` já existentes no Reversa:
 
 - `OFFICE365_TENANT_ID`
 - `OFFICE365_CLIENT_ID`
 - `OFFICE365_CLIENT_SECRET`
 - `OFFICE365_SENDER_EMAIL`
+
+Também são aceitos `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_GRAPH_USER_ID` e `MAIL_FROM`. O banco, as sessões e os usuários continuam separados por projeto.
 
 ## Primeiro acesso
 
