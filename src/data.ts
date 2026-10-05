@@ -1,4 +1,67 @@
-import type { ProspectraState } from './types';
+import type { Account, ProspectraState } from './types';
+
+function makeDemoAccount(input: {
+  id: string;
+  name: string;
+  domain: string;
+  sector: string;
+  employees: string;
+  tier: Account['tier'];
+  journey: Account['journey'];
+  relationship: Account['relationship'];
+  owner: string;
+  score: number;
+  scoreReason: string;
+  stage: string;
+  contactName: string;
+  contactRole: string;
+  signal: string;
+  paused?: boolean;
+  suppressed?: boolean;
+}): Account {
+  return {
+    id: input.id,
+    name: input.name,
+    domain: input.domain,
+    sector: input.sector,
+    employees: input.employees,
+    tier: input.tier,
+    journey: input.journey,
+    relationship: input.relationship,
+    owner: input.owner,
+    score: input.score,
+    scoreReason: input.scoreReason,
+    stage: input.stage,
+    paused: input.paused ?? false,
+    suppressed: input.suppressed ?? false,
+    contacts: [{ id: `${input.id}-p1`, name: input.contactName, role: input.contactRole, email: `${input.id}@${input.domain}`, linkedin: `linkedin.com/in/${input.id}`, reviewedAt: 'Hoje', status: 'Revisado' }],
+    evidence: [{ id: `${input.id}-e1`, title: `${input.signal} · contexto público`, url: `https://${input.domain}/noticias`, excerpt: `Registro demonstrativo: ${input.signal.toLowerCase()}.`, source: 'Web pública', collectedAt: 'Hoje, 08:30', verified: true }],
+    activities: [{ id: `${input.id}-at1`, kind: input.suppressed ? 'Resposta' : 'Evidência', text: input.suppressed ? 'Oposição persistente registrada; nenhuma ação automática permanece habilitada.' : `${input.signal} associado à conta e aguardando próxima decisão humana.`, createdAt: 'Hoje, 08:30', actor: input.suppressed ? 'Inbox assistido' : 'Pesquisa' }],
+  };
+}
+
+const additionalAccounts: Account[] = [
+  makeDemoAccount({ id: 'a7', name: 'Metrópole Mobilidade', domain: 'metropole-mobilidade.example', sector: 'Mobilidade urbana', employees: '1.500–3.000', tier: 'Tier 1', journey: 'Aquisição', relationship: 'Prospect', owner: 'Camila Rocha', score: 82, scoreReason: 'Licitação nova + operação distribuída + decisor revisado', stage: 'Qualificação', contactName: 'Renata Azevedo', contactRole: 'Diretora de Operações', signal: 'Nova licitação de mobilidade'  }),
+  makeDemoAccount({ id: 'a8', name: 'CampoClaro Agro', domain: 'campoclaroagro.example', sector: 'Agronegócio', employees: '800–1.500', tier: 'Tier 2', journey: 'Expansão / ABM', relationship: 'Cliente', owner: 'André Tintilio', score: 76, scoreReason: 'Cliente ativo + novas regiões + hipótese de expansão', stage: 'Mapa de conta', contactName: 'Gustavo Neri', contactRole: 'Head de Compras', signal: 'Expansão para novas regiões'  }),
+  makeDemoAccount({ id: 'a9', name: 'PontoNorte Educação', domain: 'pontonorte.example', sector: 'Educação corporativa', employees: '300–700', tier: 'Tier 2', journey: 'Reativação', relationship: 'Ex-cliente', owner: 'Marina Costa', score: 68, scoreReason: 'Nova liderança + relacionamento anterior + timing revisado', stage: 'Reativação', contactName: 'Isabela Freire', contactRole: 'Diretora de Pessoas', signal: 'Nova liderança de RH'  }),
+  makeDemoAccount({ id: 'a10', name: 'Vértice Fintech', domain: 'verticefintech.example', sector: 'Serviços financeiros', employees: '500–1.000', tier: 'Tier 1', journey: 'Aquisição', relationship: 'Prospect', owner: 'Camila Rocha', score: 74, scoreReason: 'Rodada anunciada + contratação de receita + fit alto', stage: 'Pesquisa validada', contactName: 'Diego Sampaio', contactRole: 'Chief Revenue Officer', signal: 'Rodada de crescimento anunciada'  }),
+  makeDemoAccount({ id: 'a11', name: 'Prisma Construção', domain: 'prismaconstrucao.example', sector: 'Construção civil', employees: '2.000–5.000', tier: 'Tier 1', journey: 'Expansão / ABM', relationship: 'Cliente', owner: 'André Tintilio', score: 79, scoreReason: 'Carteira ativa + obras simultâneas + comitê mapeado', stage: 'Comitê de expansão', contactName: 'Marcelo Tavares', contactRole: 'Diretor de Suprimentos', signal: 'Obras simultâneas em novos estados'  }),
+  makeDemoAccount({ id: 'a12', name: 'Lumina Telecom', domain: 'luminatelecom.example', sector: 'Telecomunicações', employees: '3.000–7.000', tier: 'Tier 1', journey: 'Aquisição', relationship: 'Prospect', owner: 'Marina Costa', score: 72, scoreReason: 'Programa de transformação + decisora revisada', stage: 'Descoberta', contactName: 'Priscila Moura', contactRole: 'VP de Transformação', signal: 'Programa de transformação operacional'  }),
+  makeDemoAccount({ id: 'a13', name: 'NovaMares Turismo', domain: 'novamares.example', sector: 'Turismo e hospitalidade', employees: '500–1.000', tier: 'Tier 2', journey: 'Reativação', relationship: 'Dormente', owner: 'Camila Rocha', score: 56, scoreReason: 'Conta dormente + temporada favorável + evidência inicial', stage: 'Nutrição', contactName: 'Tânia Ribeiro', contactRole: 'Diretora Comercial', signal: 'Nova temporada de expansão', paused: false  }),
+  makeDemoAccount({ id: 'a14', name: 'Axis Pharma', domain: 'axispharma.example', sector: 'Indústria farmacêutica', employees: '1.000–2.000', tier: 'Tier 1', journey: 'Expansão / ABM', relationship: 'Cliente', owner: 'André Tintilio', score: 81, scoreReason: 'Novo centro de distribuição + conta estratégica', stage: 'Expansão aprovada', contactName: 'Helena Castro', contactRole: 'Diretora de Supply Chain', signal: 'Novo centro de distribuição'  }),
+  makeDemoAccount({ id: 'a15', name: 'Cobalto Segurança', domain: 'cobaltoseguranca.example', sector: 'Segurança patrimonial', employees: '700–1.200', tier: 'Tier 2', journey: 'Aquisição', relationship: 'Prospect', owner: 'Marina Costa', score: 69, scoreReason: 'Contratos regionais + fit de operação + contato a revisar', stage: 'A revisar', contactName: 'Sérgio Paiva', contactRole: 'Diretor de Operações', signal: 'Novos contratos regionais'  }),
+  makeDemoAccount({ id: 'a16', name: 'Estação Mídia', domain: 'estacaomidia.example', sector: 'Mídia e entretenimento', employees: '200–500', tier: 'Tier 3', journey: 'Reativação', relationship: 'Ex-cliente', owner: 'Camila Rocha', score: 61, scoreReason: 'Sinal de reposicionamento + histórico de relacionamento', stage: 'Revisão de contexto', contactName: 'Amanda Luz', contactRole: 'Head de Parcerias', signal: 'Reposicionamento comercial publicado'  }),
+  makeDemoAccount({ id: 'a17', name: 'RotaSul Distribuição', domain: 'rotasul.example', sector: 'Distribuição', employees: '1.000–2.000', tier: 'Tier 1', journey: 'Aquisição', relationship: 'Prospect', owner: 'André Tintilio', score: 77, scoreReason: 'Novo hub logístico + ICP aderente + contato validado', stage: 'Qualificação', contactName: 'Fábio Mendes', contactRole: 'Diretor de Logística', signal: 'Novo hub logístico anunciado'  }),
+  makeDemoAccount({ id: 'a18', name: 'ArcoNuvem', domain: 'arconuvem.example', sector: 'Tecnologia B2B', employees: '300–700', tier: 'Tier 2', journey: 'Expansão / ABM', relationship: 'Cliente', owner: 'Marina Costa', score: 73, scoreReason: 'Uso crescente + nova unidade de negócios + whitespace', stage: 'Hipótese de expansão', contactName: 'Nina Duarte', contactRole: 'VP de Customer Success', signal: 'Nova unidade de negócios'  }),
+  makeDemoAccount({ id: 'a19', name: 'CasaViva', domain: 'casaviva.example', sector: 'Varejo e decoração', employees: '500–1.000', tier: 'Tier 2', journey: 'Reativação', relationship: 'Dormente', owner: 'Camila Rocha', score: 59, scoreReason: 'Sazonalidade próxima + contato histórico a revisar', stage: 'Nutrição', contactName: 'Paula Reis', contactRole: 'Gerente de E-commerce', signal: 'Calendário comercial renovado'  }),
+  makeDemoAccount({ id: 'a20', name: 'Solis Água', domain: 'solisagua.example', sector: 'Saneamento', employees: '1.500–3.000', tier: 'Tier 1', journey: 'Expansão / ABM', relationship: 'Cliente', owner: 'André Tintilio', score: 75, scoreReason: 'Contrato em renovação + novas concessões mapeadas', stage: 'Comitê de expansão', contactName: 'Otávio Barros', contactRole: 'Diretor de Planejamento', signal: 'Novas concessões em consulta pública'  }),
+  makeDemoAccount({ id: 'a21', name: 'Futura RH', domain: 'futurarh.example', sector: 'Serviços corporativos', employees: '200–500', tier: 'Tier 3', journey: 'Aquisição', relationship: 'Prospect', owner: 'Marina Costa', score: 66, scoreReason: 'Crescimento de carteira + contratação de vendas', stage: 'Descoberta', contactName: 'Michele Ramos', contactRole: 'CEO', signal: 'Contratação de liderança comercial'  }),
+  makeDemoAccount({ id: 'a22', name: 'Brava Mineração', domain: 'bravamin.example', sector: 'Mineração', employees: '2.000–5.000', tier: 'Tier 1', journey: 'Expansão / ABM', relationship: 'Cliente', owner: 'Camila Rocha', score: 83, scoreReason: 'Capex anunciado + operação crítica + decisores mapeados', stage: 'Expansão aprovada', contactName: 'Ricardo Lobo', contactRole: 'Diretor de Operações', signal: 'Plano de investimento aprovado'  }),
+  makeDemoAccount({ id: 'a23', name: 'OndaSat', domain: 'ondasat.example', sector: 'Conectividade', employees: '500–1.000', tier: 'Tier 2', journey: 'Aquisição', relationship: 'Prospect', owner: 'André Tintilio', score: 64, scoreReason: 'Nova cobertura regional + evidência ainda parcial', stage: 'A revisar', contactName: 'Aline Gomes', contactRole: 'Head de Produto', signal: 'Nova cobertura regional'  }),
+  makeDemoAccount({ id: 'a24', name: 'Aliança Clínicas', domain: 'aliancaclinicas.example', sector: 'Saúde', employees: '1.000–2.000', tier: 'Tier 1', journey: 'Expansão / ABM', relationship: 'Cliente', owner: 'Marina Costa', score: 70, scoreReason: 'Aquisições recentes + comitê financeiro revisado', stage: 'Mapa de conta', contactName: 'Juliana Pires', contactRole: 'Diretora Financeira', signal: 'Aquisições de novas clínicas'  }),
+  makeDemoAccount({ id: 'a25', name: 'Base Um Industrial', domain: 'baseum.example', sector: 'Indústria', employees: '500–1.000', tier: 'Tier 2', journey: 'Reativação', relationship: 'Perdido', owner: 'Camila Rocha', score: 38, scoreReason: 'Oposição persistente; nenhuma ação pode ser reativada', stage: 'Supressão', contactName: 'Eduardo Paes', contactRole: 'Diretor Administrativo', signal: 'Pedido de encerramento de contato', paused: true, suppressed: true  }),
+  makeDemoAccount({ id: 'a26', name: 'ValeMais Seguros', domain: 'valemais.example', sector: 'Seguros', employees: '800–1.500', tier: 'Tier 2', journey: 'Aquisição', relationship: 'Prospect', owner: 'André Tintilio', score: 67, scoreReason: 'Novo produto + janela de distribuição + fit moderado', stage: 'Pesquisa validada', contactName: 'Lívia Campos', contactRole: 'Diretora de Distribuição', signal: 'Novo produto para empresas'  }),
+];
 
 export const seedState: ProspectraState = {
   selectedAccountId: 'a1',
@@ -84,6 +147,7 @@ export const seedState: ProspectraState = {
       evidence: [{ id: 'e7', title: 'Encerramento de negociação', url: 'https://pulsartec.example/comunicado', excerpt: 'Registro interno demonstra que a conta optou por outro fornecedor.', source: 'Operador', collectedAt: 'Há 30 dias', verified: true }],
       activities: [{ id: 'at9', kind: 'Resposta', text: 'Oposição persistente registrada. Cadências e follow-ups permanecem bloqueados.', createdAt: 'Há 1 dia', actor: 'Inbox assistido' }],
     },
+    ...additionalAccounts,
   ],
   campaigns: [{
     id: 'c1', name: 'Enterprise · Operações', status: 'Ativa', icp: 'Empresas com operação distribuída, 500+ colaboradores e sinal público recente.', accounts: ['a1', 'a2', 'a4', 'a5'],
