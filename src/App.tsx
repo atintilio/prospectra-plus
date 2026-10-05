@@ -10,6 +10,7 @@ import { seedState } from './data';
 import { useAuthUser } from './AuthGate';
 import TeamsAndDiagnoses from './Teams';
 import OwnerConsole from './OwnerConsole';
+import BulkEnrichment from './BulkEnrichment';
 import type { Account, Activity as ActivityItem, AgentProfile, Campaign, ChannelConnection, PlaybookStep, ProspectraState, Signal } from './types';
 
 type View = 'dashboard' | 'crm' | 'enrichment' | 'automation' | 'campaigns' | 'operations' | 'teams' | 'owner' | 'settings';
@@ -247,6 +248,7 @@ function Enrichment({ selected, onEvidence }: { selected: Account; onEvidence: (
       <section className="panel extraction-preview"><div className="panel-head"><div><span className="eyebrow">CONTRATO DE EXTRAÇÃO</span><h2>{result ? 'Resultado revisável' : 'O que será proposto'}</h2></div><FileSearch size={19}/></div>{result ? <div className="extraction-result"><ResultField label="Empresa" value={typeof data.companyName === 'string' ? data.companyName : 'Não identificado'} /><ResultField label="Descrição" value={typeof data.description === 'string' ? data.description : 'Não identificado'} /><ResultField label="Setor" value={typeof data.sector === 'string' ? data.sector : 'Não identificado'} /><ResultField label="Porte" value={typeof data.employees === 'string' ? data.employees : 'Não identificado'} /><div className="result-meta"><BadgeCheck size={15}/><span>Fonte: {result.sourceUrl} · coletado em {new Date(result.extractedAt).toLocaleString('pt-BR')} · request {result.requestId ?? 'n/d'}</span></div>{signals.length > 0 && <div className="result-signals"><strong>Sinais sugeridos</strong>{signals.slice(0, 4).map((signal, index) => <span key={`${String(signal.title ?? 'sinal')}-${index}`}>{String(signal.title ?? signal.detail ?? 'Sinal sem título')}</span>)}</div>}</div> : <><div className="schema-list"><SchemaRow label="Descrição da empresa" state="Sugestão revisável"/><SchemaRow label="Setor e porte" state="Sugestão revisável"/><SchemaRow label="Sinais públicos recentes" state="Exigem evidência"/><SchemaRow label="URLs e canais públicos" state="Preservar origem"/></div><div className="provenance-box"><BadgeCheck size={18}/><div><strong>Proveniência obrigatória</strong><p>Fonte, URL, data de coleta e identificador da requisição são armazenados antes de qualquer aprovação.</p></div></div></>}</section>
     </div>
     <section className="panel queue-panel"><div className="panel-head"><div><span className="eyebrow">FILA DE PESQUISA</span><h2>Última solicitação</h2></div><span className="status-tag neutral">{result ? 'Concluída · revisar' : status === 'configured' ? 'Pronta' : 'Aguardando configuração'}</span></div><div className="queue-row"><div className="queue-icon"><Bot size={17}/></div><div><strong>{selected.name} · {selected.domain}</strong><span>{result ? 'Resultado recebido do ScrapeGraphAI e registrado na linha do tempo da conta.' : 'A fonte será processada pelo endpoint v2 quando a chave estiver configurada.'}</span></div><small>{result ? 'agora' : '—'}</small></div></section>
+    <BulkEnrichment providerConfigured={status === 'configured'} />
   </>;
 }
 

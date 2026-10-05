@@ -8,6 +8,12 @@ O prompt e o JSON Schema do Prospectra extraem nome, descrição, setor, porte a
 
 O endpoint v2 é utilizado porque os hosts e nomes v1 (`api.scrapegraphai.com/v1`, `smartscraper`, `markdownify`) estão depreciados na documentação atual do provedor. A aplicação aceita `SGAI_BASE_URL` para ambientes controlados, mas o valor padrão não deve ser trocado sem validar o contrato v2.
 
+### Enriquecimento em lote por CSV/XLSX
+
+A área **Enriquecimento** também aceita `.csv`, `.xlsx` e `.xls`. O navegador lê a primeira aba do arquivo, sugere a coluna de URL/domínio por nomes como `url`, `site`, `website`, `dominio` ou `link` e permite escolher outra coluna. Uma coluna opcional de empresa pode ser usada para exibição quando a API não encontrar o nome.
+
+Ao iniciar o lote, apenas linhas com URL pública válida entram na fila. Cada linha chama o mesmo endpoint autenticado `/api/integrations/scrapegraph/enrich`; três workers executam em paralelo para preservar estabilidade e o progresso, request ID, status e erro ficam visíveis por linha. O botão **Exportar CSV** gera uma saída local com URL, status, empresa, setor, descrição, request ID e erro. O processamento consome créditos do ScrapeGraphAI por requisição; a aplicação não finge sucesso quando a chave está ausente ou o provedor falha.
+
 A biblioteca open source `Scrapegraph-ai` também é uma alternativa MIT, mas exige uma execução Python, modelo LLM próprio e, em cenários de páginas JavaScript, Playwright e infraestrutura operacional. O produto não deve habilitar proxies ou mecanismos anti-bot por padrão.
 
 ## WhatsApp — decisão do MVP
