@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { clearCookie, header, isLocalRequest, setCookie } from './http';
-import type { ApiRequest, ApiResponse, AuthUser } from './types';
+import { clearCookie, header, isLocalRequest, setCookie } from './http.js';
+import type { ApiRequest, ApiResponse, AuthUser } from './types.js';
 export const SESSION_COOKIE = 'prospectra_session';
 const MAX_AGE = 60 * 60 * 24 * 30;
 type SessionPayload = AuthUser & { exp: number };

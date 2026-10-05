@@ -1,4 +1,4 @@
-import type { ApiRequest, ApiResponse } from './types';
+import type { ApiRequest, ApiResponse } from './types.js';
 
 export function json(res: ApiResponse, status: number, body: unknown) { res.status(status).json(body); }
 export function methodNotAllowed(res: ApiResponse, allowed: string[]) { res.setHeader('Allow', allowed); json(res, 405, { error: 'method_not_allowed' }); }

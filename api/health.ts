@@ -1,5 +1,5 @@
-import { json } from './_lib/http';
-import type { ApiRequest, ApiResponse } from './_lib/types';
+import { json } from './_lib/http.js';
+import type { ApiRequest, ApiResponse } from './_lib/types.js';
 
 export default function handler(_req: ApiRequest, res: ApiResponse) {
   const storage = Boolean(process.env.BLOB_READ_WRITE_TOKEN);

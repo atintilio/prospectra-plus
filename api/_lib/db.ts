@@ -1,5 +1,5 @@
 import { get, put } from '@vercel/blob';
-import type { AuthStore } from './types';
+import type { AuthStore } from './types.js';
 
 const AUTH_PATH = 'prospectra/auth.json';
 let readPromise: Promise<AuthStore> | undefined;

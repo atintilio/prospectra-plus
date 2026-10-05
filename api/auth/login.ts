@@ -1,6 +1,6 @@
-import { loadAuthStore } from '../_lib/db';
-import { verifyPassword } from '../_lib/crypto';
-import { json, methodNotAllowed, parseBody } from '../_lib/http';
-import { issueSession } from '../_lib/session';
-import type { ApiRequest, ApiResponse } from '../_lib/types';
+import { loadAuthStore } from '../_lib/db.js';
+import { verifyPassword } from '../_lib/crypto.js';
+import { json, methodNotAllowed, parseBody } from '../_lib/http.js';
+import { issueSession } from '../_lib/session.js';
+import type { ApiRequest, ApiResponse } from '../_lib/types.js';
 export default async function handler(req: ApiRequest, res: ApiResponse) { if (req.method !== 'POST') return methodNotAllowed(res, ['POST']); try { const body = parseBody(req); const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''; const password = typeof body.password === 'string' ? body.password : ''; if (!email || !password) return json(res, 400, { error: 'invalid_credentials' }); const store = await loadAuthStore(); const user = store.users.find((item) => item.email === email); if (!user || !user.active || !user.passwordHash || !verifyPassword(password, user.passwordHash)) return json(res, 401, { error: 'invalid_credentials' }); issueSession(res, req, { id: user.id, email: user.email, name: user.name, role: user.role, teamId: user.teamId }); return json(res, 200, { ok: true, user: { id: user.id, email: user.email, name: user.name, role: user.role, teamId: user.teamId } }); } catch (error) { const code = error instanceof Error ? error.message : 'AUTH_LOGIN_FAILED'; if (code.includes('NOT_CONFIGURED')) return json(res, 503, { error: 'auth_not_configured' }); return json(res, 500, { error: 'auth_login_failed' }); } }
