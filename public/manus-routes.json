@@ -10,6 +10,7 @@
     { "path": "/campanhas", "title": "Campanhas" },
     { "path": "/operacoes", "title": "Operações" },
     { "path": "/equipes", "title": "Equipes e diagnósticos" },
+    { "path": "/owner", "title": "Painel Owner" },
     { "path": "/configuracoes", "title": "Configurações" }
   ]
 }

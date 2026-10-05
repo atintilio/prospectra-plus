@@ -13,15 +13,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const body = parseBody(req);
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (!email || !email.includes('@')) return json(res, 400, { error: 'invalid_email' });
-    if (email !== MASTER_EMAIL) return json(res, 200, { ok: true, message: 'Se o endereço estiver autorizado, você receberá um link.' });
 
     const store = await loadAuthStore();
     const now = new Date().toISOString();
-    let user = store.users.find((item) => item.email === email);
-    if (!user) {
-      user = { id: randomUUID(), email, name: 'Administrador Prospectra+', role: 'admin', passwordHash: null, active: true, createdAt: now, updatedAt: now } satisfies StoredUser;
+    let user = store.users.find((item) => item.email === email && item.active);
+    if (!user && email === MASTER_EMAIL) {
+      user = { id: randomUUID(), email, name: 'André Tintilio', role: 'admin', passwordHash: null, active: true, createdAt: now, updatedAt: now } satisfies StoredUser;
       store.users.push(user);
     }
+    if (!user) return json(res, 200, { ok: true, message: 'Se o endereço estiver autorizado, você receberá um link.' });
+
     const rawToken = randomToken();
     store.resets = store.resets.filter((reset) => reset.userId !== user.id && new Date(reset.expiresAt).getTime() > Date.now());
     store.resets.push({ id: randomUUID(), userId: user.id, tokenHash: digestToken(rawToken), expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(), createdAt: now });
@@ -29,7 +30,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const setupUrl = `${publicOrigin(req)}/definir-senha?token=${encodeURIComponent(rawToken)}`;
     try {
-      await sendPasswordSetupEmail(email, setupUrl);
+      await sendPasswordSetupEmail(user.email, setupUrl, { recipientName: user.name, invitation: !user.passwordHash });
     } catch (error) {
       const current = await loadAuthStore();
       current.resets = current.resets.filter((reset) => reset.tokenHash !== digestToken(rawToken));

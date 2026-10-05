@@ -1,4 +1,5 @@
 export type UserRole = 'admin' | 'leader' | 'member';
+export type TeamColor = 'purple' | 'emerald' | 'lilac';
 
 export interface ApiRequest {
   method?: string;
@@ -28,6 +29,16 @@ export interface StoredUser extends AuthUser {
   updatedAt: string;
 }
 
+export interface StoredTeam {
+  id: string;
+  name: string;
+  leaderId: string;
+  memberIds: string[];
+  color: TeamColor;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PasswordReset {
   id: string;
   userId: string;
@@ -40,5 +51,6 @@ export interface PasswordReset {
 export interface AuthStore {
   version: 1;
   users: StoredUser[];
+  teams: StoredTeam[];
   resets: PasswordReset[];
 }

@@ -9,9 +9,10 @@ import {
 import { seedState } from './data';
 import { useAuthUser } from './AuthGate';
 import TeamsAndDiagnoses from './Teams';
+import OwnerConsole from './OwnerConsole';
 import type { Account, Activity as ActivityItem, AgentProfile, Campaign, ChannelConnection, PlaybookStep, ProspectraState, Signal } from './types';
 
-type View = 'dashboard' | 'crm' | 'enrichment' | 'automation' | 'campaigns' | 'operations' | 'teams' | 'settings';
+type View = 'dashboard' | 'crm' | 'enrichment' | 'automation' | 'campaigns' | 'operations' | 'teams' | 'owner' | 'settings';
 const STORAGE_KEY = 'prospectra-plus-mvp-v2';
 const nav: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard },
@@ -21,6 +22,7 @@ const nav: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'campaigns', label: 'Campanhas', icon: Target },
   { id: 'operations', label: 'Operações', icon: ClipboardCheck },
   { id: 'teams', label: 'Equipes e diagnósticos', icon: FileText },
+  { id: 'owner', label: 'Painel Owner', icon: ShieldCheck },
   { id: 'settings', label: 'Configurações', icon: Settings2 },
 ];
 const viewPaths: Record<View, string> = {
@@ -31,6 +33,7 @@ const viewPaths: Record<View, string> = {
   campaigns: '/campanhas',
   operations: '/operacoes',
   teams: '/equipes',
+  owner: '/owner',
   settings: '/configuracoes',
 };
 const pathViews = Object.fromEntries(Object.entries(viewPaths).map(([view, path]) => [path, view])) as Record<string, View>;
@@ -127,14 +130,14 @@ export default function App() {
           <ChevronRight size={16} />
         </div>
         <nav>
-          {nav.map(({ id, label, icon: Icon }) => (
+          {nav.filter((item) => item.id !== 'owner' || authUser?.role === 'admin').map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => navigate(id)} className={`nav-item ${view === id ? 'active' : ''}`}>
               <Icon size={18} /><span>{label}</span>{id === 'operations' && pendingTasks > 0 && <b>{pendingTasks}</b>}
             </button>
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div className="operator"><div className="avatar">AT</div><div><strong>André Tintilio</strong><span>Gestor</span></div><MoreHorizontal size={18}/></div>
+          <div className="operator"><div className="avatar">{(authUser?.name ?? 'AT').slice(0, 2).toUpperCase()}</div><div><strong>{authUser?.name ?? 'André Tintilio'}</strong><span>{authUser?.role === 'admin' ? 'Owner' : authUser?.role === 'leader' ? 'Líder' : 'Liderado'}</span></div><MoreHorizontal size={18}/></div>
         </div>
       </aside>
 
@@ -157,6 +160,8 @@ export default function App() {
           {view === 'campaigns' && <Campaigns campaign={selectedCampaign} accounts={state.accounts} onChange={(next) => setState((current) => ({ ...current, campaigns: current.campaigns.map((campaign) => campaign.id === next.id ? next : campaign) }))} onPauseAccount={(accountId) => { updateAccount(accountId, { paused: true }, { kind: 'Tarefa', actor: 'Campanha', text: 'Ações da campanha pausadas manualmente pelo operador.' }); setToast('Ações da conta pausadas.'); }} />}
           {view === 'operations' && <Operations accounts={state.accounts} campaign={selectedCampaign} onComplete={(taskId) => { const next: Campaign = { ...selectedCampaign, tasks: selectedCampaign.tasks.map((task) => task.id === taskId ? { ...task, state: 'Concluído' } : task) }; setState((current) => ({ ...current, campaigns: current.campaigns.map((campaign) => campaign.id === next.id ? next : campaign) })); setToast('Tarefa assistida concluída e auditada.'); }} />}
           {view === 'teams' && <TeamsAndDiagnoses user={authUser} teams={state.teams} members={state.members} opportunities={state.opportunities} diagnoses={state.diagnoses} accounts={state.accounts} />}
+          {view === 'owner' && authUser?.role === 'admin' && <OwnerConsole currentUser={authUser} onOrganizationChange={(organization) => setState((current) => ({ ...current, members: organization.users.map((user) => ({ id: user.id, name: user.name, email: user.email, role: user.role === 'admin' ? 'Administrador' : user.role === 'leader' ? 'Líder' : 'Liderado', teamId: user.teamId ?? undefined })), teams: organization.teams.map((team) => ({ id: team.id, name: team.name, leaderId: team.leaderId, memberIds: team.memberIds, color: team.color })) }))} />}
+          {view === 'owner' && authUser?.role !== 'admin' && <AccessRestricted />}
           {view === 'settings' && <Settings onReset={resetDemo} />}
         </section>
       </main>
@@ -166,8 +171,10 @@ export default function App() {
 }
 
 function DemoNotice() {
-  return <div className="demo-notice"><CircleAlert size={16}/><span><strong>Ambiente demonstrativo.</strong> Os dados são fictícios e ficam neste navegador. Conectores reais permanecem desligados até configuração e autorização.</span><button>Ver limites</button></div>;
+  return <div className="demo-notice"><CircleAlert size={16}/><span><strong>CRM em demonstração.</strong> Contas e campanhas exibidas são fictícias; autenticação, usuários, equipes e convites do painel Owner usam armazenamento privado e Office 365.</span><button>Ver limites</button></div>;
 }
+
+function AccessRestricted() { return <div className="owner-error"><strong>Acesso restrito ao Owner.</strong><span>Usuários líderes e liderados não administram pessoas, equipes ou permissões do workspace.</span></div>; }
 
 function Dashboard({ accounts, activeAccounts, reviewedContacts, verifiedEvidence, pendingTasks, onOpen }: { accounts: Account[]; activeAccounts: number; reviewedContacts: number; verifiedEvidence: number; pendingTasks: number; onOpen: (id: string) => void }) {
   return <>
