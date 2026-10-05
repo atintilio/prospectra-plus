@@ -1,4 +1,4 @@
-import type { Account, ProspectraState } from './types';
+import type { Account, Diagnosis, Opportunity, ProspectraState, Team, TeamMember } from './types';
 
 function makeDemoAccount(input: {
   id: string;
@@ -63,6 +63,37 @@ const additionalAccounts: Account[] = [
   makeDemoAccount({ id: 'a26', name: 'ValeMais Seguros', domain: 'valemais.example', sector: 'Seguros', employees: '800–1.500', tier: 'Tier 2', journey: 'Aquisição', relationship: 'Prospect', owner: 'André Tintilio', score: 67, scoreReason: 'Novo produto + janela de distribuição + fit moderado', stage: 'Pesquisa validada', contactName: 'Lívia Campos', contactRole: 'Diretora de Distribuição', signal: 'Novo produto para empresas'  }),
 ];
 
+const members: TeamMember[] = [
+  { id: 'm0', name: 'André Tintilio', email: 'atintilio@argusprime.com.br', role: 'Administrador' },
+  { id: 'm1', name: 'Marina Costa', email: 'marina.costa@argusprime.com.br', role: 'Líder', teamId: 'team-receita' },
+  { id: 'm2', name: 'João Pedro Martins', email: 'joao.martins@argusprime.com.br', role: 'Liderado', teamId: 'team-receita' },
+  { id: 'm3', name: 'Camila Rocha', email: 'camila.rocha@argusprime.com.br', role: 'Líder', teamId: 'team-expansao' },
+  { id: 'm4', name: 'Felipe Moura', email: 'felipe.moura@argusprime.com.br', role: 'Liderado', teamId: 'team-expansao' },
+  { id: 'm5', name: 'André Vasconcelos', email: 'andre.vasconcelos@argusprime.com.br', role: 'Líder', teamId: 'team-reativacao' },
+  { id: 'm6', name: 'Rafael Lima', email: 'rafael.lima@argusprime.com.br', role: 'Liderado', teamId: 'team-reativacao' },
+];
+
+const teams: Team[] = [
+  { id: 'team-receita', name: 'Receita Enterprise', leaderId: 'm1', memberIds: ['m1', 'm2'], color: 'purple' },
+  { id: 'team-expansao', name: 'Expansão e ABM', leaderId: 'm3', memberIds: ['m3', 'm4'], color: 'emerald' },
+  { id: 'team-reativacao', name: 'Reativação', leaderId: 'm5', memberIds: ['m5', 'm6'], color: 'lilac' },
+];
+
+const opportunities: Opportunity[] = [
+  { id: 'opp1', teamId: 'team-receita', ownerId: 'm1', accountId: 'a1', thesis: 'Recuperação de créditos PIS/Cofins', stage: 'Diagnóstico em revisão', potential: 1800000, confidence: 82, updatedAt: 'Hoje, 10:42' },
+  { id: 'opp2', teamId: 'team-receita', ownerId: 'm2', accountId: 'a4', thesis: 'Revisão de cadeia de insumos', stage: 'Oportunidade qualificada', potential: 980000, confidence: 71, updatedAt: 'Hoje, 09:12' },
+  { id: 'opp3', teamId: 'team-expansao', ownerId: 'm3', accountId: 'a5', thesis: 'Expansão de escopo para operações', stage: 'Comitê executivo', potential: 2400000, confidence: 76, updatedAt: 'Hoje, 08:20' },
+  { id: 'opp4', teamId: 'team-expansao', ownerId: 'm4', accountId: 'a11', thesis: 'Créditos sobre despesas operacionais', stage: 'Dados solicitados', potential: 1200000, confidence: 64, updatedAt: 'Ontem, 16:10' },
+  { id: 'opp5', teamId: 'team-reativacao', ownerId: 'm5', accountId: 'a2', thesis: 'Revisão de apuração histórica', stage: 'Reunião de retomada', potential: 640000, confidence: 69, updatedAt: 'Ontem, 15:10' },
+  { id: 'opp6', teamId: 'team-reativacao', ownerId: 'm6', accountId: 'a9', thesis: 'Diagnóstico de créditos não aproveitados', stage: 'Contexto a revisar', potential: 390000, confidence: 55, updatedAt: 'Há 2 dias' },
+];
+
+const diagnoses: Diagnosis[] = [
+  { id: 'diag1', opportunityId: 'opp1', title: 'Diagnóstico executivo · Nexo Logística', introduction: 'Avaliação da oportunidade a partir do perfil operacional, do período analisado e das evidências documentais disponíveis.', legalBasis: ['Legislação aplicável à tese selecionada', 'Soluções de consulta e precedentes a validar pelo responsável técnico', 'Premissas do período e da documentação fornecida'], calculationMemory: ['Receita e operações elegíveis por período', 'Base potencial × alíquota aplicável', 'Ajustes, limites, compensações e atualização', 'Valor líquido sujeito à validação documental'], evidence: ['Expansão de centro de distribuição · fonte pública · hoje', 'Perfil da conta e contato decisor revisado', 'Dados operacionais aguardando validação'], recommendation: 'Priorizar reunião executiva e coleta dos documentos que suportam a memória de cálculo.', status: 'Em revisão' },
+  { id: 'diag2', opportunityId: 'opp2', title: 'Diagnóstico executivo · Atlas Varejo Digital', introduction: 'Leitura executiva da cadeia de insumos e do momento de expansão do canal digital.', legalBasis: ['Base legal da tese e período analisado', 'Critérios de elegibilidade e documentação comprobatória', 'Validação jurídica e contábil antes de qualquer conclusão'], calculationMemory: ['Mapeamento de despesas elegíveis', 'Aplicação das alíquotas e exclusões', 'Conciliação com documentos fiscais', 'Estimativa de potencial e sensibilidade'], evidence: ['Nova liderança de operações', 'Plano de integração de canais', 'Contato de operações revisado'], recommendation: 'Avançar para diagnóstico documental com o comitê financeiro.', status: 'Gerado' },
+  { id: 'diag3', opportunityId: 'opp3', title: 'Diagnóstico executivo · Horizonte Energia', introduction: 'Análise da hipótese de expansão para suprimentos e novas unidades do cliente.', legalBasis: ['Tese aplicável ao escopo de expansão', 'Referências normativas e jurisprudenciais vinculadas', 'Premissas e limitações do escopo contratado'], calculationMemory: ['Unidades e centros de custo incluídos', 'Histórico do período elegível', 'Cenários conservador, base e potencial', 'Descontos e riscos de documentação'], evidence: ['Portfólio de novas usinas', 'Conta cliente com whitespace identificado', 'Comitê de expansão em formação'], recommendation: 'Apresentar cenário base ao cliente e confirmar o escopo da documentação.', status: 'Em revisão' },
+];
+
 export const seedState: ProspectraState = {
   selectedAccountId: 'a1',
   selectedCampaignId: 'c1',
@@ -92,6 +123,10 @@ export const seedState: ProspectraState = {
     { id: 's5', channel: 'WhatsApp', title: 'Janela de expansão identificada', detail: 'Comitê do cliente abriu discussão sobre novas unidades.', accountId: 'a5', priority: 'Média', state: 'Novo', createdAt: 'há 3 h' },
     { id: 's6', channel: 'LinkedIn', title: 'Oposição registrada', detail: 'Conta pediu para não receber novos contatos comerciais.', accountId: 'a6', priority: 'Alta', state: 'Resolvido', createdAt: 'há 1 dia' },
   ],
+  teams,
+  members,
+  opportunities,
+  diagnoses,
   accounts: [
     {
       id: 'a1', name: 'Nexo Logística', domain: 'nexologistica.example', sector: 'Logística e transporte', employees: '1.200–2.000', tier: 'Tier 1', journey: 'Aquisição', relationship: 'Prospect', owner: 'Marina Costa', score: 86,

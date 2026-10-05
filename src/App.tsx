@@ -2,14 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowUpRight, BadgeCheck, Bell, Bot, BriefcaseBusiness, Building2,
   ChevronRight, CircleAlert, ClipboardCheck, Compass, CopyCheck, Database,
-  ExternalLink, FileSearch, Gauge, LayoutDashboard, Link2, LoaderCircle,
+  ExternalLink, FileSearch, FileText, Gauge, LayoutDashboard, Link2, LoaderCircle,
   MessageSquareText, MoreHorizontal, PauseCircle, Plus, Search, Settings2,
   ShieldCheck, Sparkles, Target, UsersRound, X,
 } from 'lucide-react';
 import { seedState } from './data';
+import { useAuthUser } from './AuthGate';
+import TeamsAndDiagnoses from './Teams';
 import type { Account, Activity as ActivityItem, AgentProfile, Campaign, ChannelConnection, PlaybookStep, ProspectraState, Signal } from './types';
 
-type View = 'dashboard' | 'crm' | 'enrichment' | 'automation' | 'campaigns' | 'operations' | 'settings';
+type View = 'dashboard' | 'crm' | 'enrichment' | 'automation' | 'campaigns' | 'operations' | 'teams' | 'settings';
 const STORAGE_KEY = 'prospectra-plus-mvp-v2';
 const nav: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard },
@@ -18,6 +20,7 @@ const nav: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'automation', label: 'Automação', icon: Bot },
   { id: 'campaigns', label: 'Campanhas', icon: Target },
   { id: 'operations', label: 'Operações', icon: ClipboardCheck },
+  { id: 'teams', label: 'Equipes e diagnósticos', icon: FileText },
   { id: 'settings', label: 'Configurações', icon: Settings2 },
 ];
 const viewPaths: Record<View, string> = {
@@ -27,6 +30,7 @@ const viewPaths: Record<View, string> = {
   automation: '/automacao',
   campaigns: '/campanhas',
   operations: '/operacoes',
+  teams: '/equipes',
   settings: '/configuracoes',
 };
 const pathViews = Object.fromEntries(Object.entries(viewPaths).map(([view, path]) => [path, view])) as Record<string, View>;
@@ -55,10 +59,13 @@ export default function App() {
   const [view, setView] = useState<View>(() => resolveView(window.location.pathname));
   const [state, setState] = useState<ProspectraState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) as ProspectraState : seedState;
+    if (!saved) return seedState;
+    const parsed = JSON.parse(saved) as Partial<ProspectraState>;
+    return { ...seedState, ...parsed, teams: parsed.teams ?? seedState.teams, members: parsed.members ?? seedState.members, opportunities: parsed.opportunities ?? seedState.opportunities, diagnoses: parsed.diagnoses ?? seedState.diagnoses };
   });
   const [toast, setToast] = useState('');
   const [search, setSearch] = useState('');
+  const authUser = useAuthUser();
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(state)), [state]);
   useEffect(() => {
@@ -149,6 +156,7 @@ export default function App() {
           {view === 'automation' && <Automation channels={state.channels} agent={state.agent} playbook={state.playbook} signals={state.signals} accounts={state.accounts} onChange={(next) => setState((current) => ({ ...current, ...next }))} onToast={setToast} />}
           {view === 'campaigns' && <Campaigns campaign={selectedCampaign} accounts={state.accounts} onChange={(next) => setState((current) => ({ ...current, campaigns: current.campaigns.map((campaign) => campaign.id === next.id ? next : campaign) }))} onPauseAccount={(accountId) => { updateAccount(accountId, { paused: true }, { kind: 'Tarefa', actor: 'Campanha', text: 'Ações da campanha pausadas manualmente pelo operador.' }); setToast('Ações da conta pausadas.'); }} />}
           {view === 'operations' && <Operations accounts={state.accounts} campaign={selectedCampaign} onComplete={(taskId) => { const next: Campaign = { ...selectedCampaign, tasks: selectedCampaign.tasks.map((task) => task.id === taskId ? { ...task, state: 'Concluído' } : task) }; setState((current) => ({ ...current, campaigns: current.campaigns.map((campaign) => campaign.id === next.id ? next : campaign) })); setToast('Tarefa assistida concluída e auditada.'); }} />}
+          {view === 'teams' && <TeamsAndDiagnoses user={authUser} teams={state.teams} members={state.members} opportunities={state.opportunities} diagnoses={state.diagnoses} accounts={state.accounts} />}
           {view === 'settings' && <Settings onReset={resetDemo} />}
         </section>
       </main>

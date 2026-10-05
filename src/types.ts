@@ -121,6 +121,48 @@ export interface Signal {
   createdAt: string;
 }
 
+export type TeamRole = 'Administrador' | 'Líder' | 'Liderado';
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: TeamRole;
+  teamId?: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  leaderId: string;
+  memberIds: string[];
+  color: 'purple' | 'emerald' | 'lilac';
+}
+
+export interface Opportunity {
+  id: string;
+  teamId: string;
+  ownerId: string;
+  accountId: string;
+  thesis: string;
+  stage: string;
+  potential: number;
+  confidence: number;
+  updatedAt: string;
+}
+
+export interface Diagnosis {
+  id: string;
+  opportunityId: string;
+  title: string;
+  introduction: string;
+  legalBasis: string[];
+  calculationMemory: string[];
+  evidence: string[];
+  recommendation: string;
+  status: 'Gerado' | 'Em revisão';
+}
+
 export interface ProspectraState {
   accounts: Account[];
   campaigns: Campaign[];
@@ -128,6 +170,10 @@ export interface ProspectraState {
   agent: AgentProfile;
   playbook: PlaybookStep[];
   signals: Signal[];
+  teams: Team[];
+  members: TeamMember[];
+  opportunities: Opportunity[];
+  diagnoses: Diagnosis[];
   selectedAccountId: string;
   selectedCampaignId: string;
 }

@@ -1,11 +1,15 @@
 {
   "routes": [
+    { "path": "/login", "title": "Login" },
+    { "path": "/recuperar-senha", "title": "Recuperar senha" },
+    { "path": "/definir-senha", "title": "Definir senha" },
     { "path": "/", "title": "Visão geral" },
     { "path": "/crm", "title": "CRM" },
     { "path": "/enriquecimento", "title": "Enriquecimento" },
     { "path": "/automacao", "title": "Automação" },
     { "path": "/campanhas", "title": "Campanhas" },
     { "path": "/operacoes", "title": "Operações" },
+    { "path": "/equipes", "title": "Equipes e diagnósticos" },
     { "path": "/configuracoes", "title": "Configurações" }
   ]
 }
