@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Prospectra+ Trilha</title>
+  <desc id="desc">Símbolo abstrato de uma trilha ascendente com três sinais, em lilás, branco e esmeralda.</desc>
+  <defs>
+    <linearGradient id="bg" x1="14" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A8066"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="route" x1="34" y1="95" x2="96" y2="31" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset=".52" stop-color="#E8FFF7"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="34" fill="url(#bg)"/>
+  <path d="M31 94c19-1 20-24 34-29 12-4 14-26 31-31" fill="none" stroke="url(#route)" stroke-width="11" stroke-linecap="round"/>
+  <path d="M31 94c19-1 20-24 34-29 12-4 14-26 31-31" fill="none" stroke="#fff" stroke-opacity=".24" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="31" cy="94" r="10" fill="#10B981" stroke="#fff" stroke-width="5"/>
+  <circle cx="65" cy="65" r="9" fill="#A18BE6" stroke="#fff" stroke-width="5"/>
+  <circle cx="96" cy="34" r="10" fill="#10B981" stroke="#fff" stroke-width="5"/>
+</svg>

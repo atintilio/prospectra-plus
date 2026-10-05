@@ -1,0 +1,11 @@
+{
+  "routes": [
+    { "path": "/", "title": "Visão geral" },
+    { "path": "/crm", "title": "CRM" },
+    { "path": "/enriquecimento", "title": "Enriquecimento" },
+    { "path": "/automacao", "title": "Automação" },
+    { "path": "/campanhas", "title": "Campanhas" },
+    { "path": "/operacoes", "title": "Operações" },
+    { "path": "/configuracoes", "title": "Configurações" }
+  ]
+}
