@@ -1,5 +1,18 @@
 {
   "buildCommand": "pnpm build",
   "outputDirectory": "dist",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/recuperar-senha", "destination": "/index.html" },
+    { "source": "/definir-senha", "destination": "/index.html" },
+    { "source": "/crm", "destination": "/index.html" },
+    { "source": "/enriquecimento", "destination": "/index.html" },
+    { "source": "/automacao", "destination": "/index.html" },
+    { "source": "/campanhas", "destination": "/index.html" },
+    { "source": "/operacoes", "destination": "/index.html" },
+    { "source": "/equipes", "destination": "/index.html" },
+    { "source": "/owner", "destination": "/index.html" },
+    { "source": "/configuracoes", "destination": "/index.html" }
+  ]
 }
