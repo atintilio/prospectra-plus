@@ -8,10 +8,12 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit --pretty false",
+    "typecheck:api": "tsc -p tsconfig.api.json --noEmit --pretty false",
     "test": "vitest run"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
+    "mysql2": "^3.11.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

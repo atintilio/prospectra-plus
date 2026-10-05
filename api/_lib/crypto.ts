@@ -1,0 +1,33 @@
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+
+const SCRYPT_N = 16_384;
+const SCRYPT_R = 8;
+const SCRYPT_P = 1;
+
+export function randomToken(bytes = 32): string {
+  return randomBytes(bytes).toString('base64url');
+}
+
+export function digestToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString('base64url');
+  const derived = scryptSync(password, salt, 64, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P }).toString('base64url');
+  return `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt}$${derived}`;
+}
+
+export function verifyPassword(password: string, encoded: string): boolean {
+  const [algorithm, n, r, p, salt, stored] = encoded.split('$');
+  if (algorithm !== 'scrypt' || !n || !r || !p || !salt || !stored) return false;
+  const actual = scryptSync(password, salt, 64, { N: Number(n), r: Number(r), p: Number(p) });
+  const expected = Buffer.from(stored, 'base64url');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+export function validatePassword(password: unknown): string | null {
+  if (typeof password !== 'string' || password.length < 12 || password.length > 200) return 'A senha deve ter entre 12 e 200 caracteres.';
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) return 'Use pelo menos uma letra maiúscula, uma minúscula e um número.';
+  return null;
+}
