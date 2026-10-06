@@ -46,3 +46,4 @@
 
 - [x] **Gateway Baileys não oficial:** criar serviço Node separado do Vercel, com API autenticada, QR Code, sessão persistente, reconexão, status seguro, envio de texto somente com `approved=true` e `optIn=true`, recibos e webhook assinado para o Prospectra. O produto não marca a conta como conectada antes do pareamento real.
 - [x] **Operação do gateway:** documentar execução local/Docker, volume `data/auth`, segredo de API, segredo de webhook, HTTPS e a dependência de um processo persistente. O serviço continua sendo uma alternativa não oficial, sujeita a desconexão ou bloqueio pelo WhatsApp.
+- [x] **Abridge multiusuário:** qualquer usuário cadastrado e ativo pode criar, parear e revogar o próprio dispositivo em Configurações → Desktop Bridge; a API filtra dispositivos por `userId` e não exige papel Owner.

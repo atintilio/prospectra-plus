@@ -16,7 +16,7 @@
 - Gateway Baileys separado com API autenticada, QR Code, sessão persistente, reconexão, envio aprovado, recibos e webhook; o Prospectra tem adaptador server-side e health check sem expor token.
 - Equipes com diagnóstico consolidado para líderes/liderados e diagnóstico executivo completo para Owner.
 - Menu de três pontos no Owner para editar nome/e-mail/papel/equipe/estado, reenviar convite e desativar acesso reversivelmente, com proteção server-side do master.
-- Abridge Desktop em construção com empacotamento para Windows, macOS e Linux, Chrome visível em perfil dedicado, polling HTTPS, fila de tarefas, confirmação local para mensagens/convites, leitura de perfis e organograma a partir de URLs informadas, sem exportar cookies.
+- Abridge Desktop disponível para qualquer usuário cadastrado e ativo em **Configurações → Desktop Bridge**, com empacotamento para Windows, macOS e Linux, Chrome visível em perfil dedicado, polling HTTPS, fila de tarefas, confirmação local para mensagens/convites, leitura de perfis e organograma a partir de URLs informadas, sem exportar cookies. Cada usuário cria e revoga somente o próprio dispositivo. Download Windows: https://files.manuscdn.com/user_upload_by_module/session_file/310419663029693892/msyBOtxEqaDZfSiL.zip
 
 ## Não é apresentado como conectado
 

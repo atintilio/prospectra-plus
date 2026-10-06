@@ -23,6 +23,10 @@ O formulário de usuário não dispara e-mail sem a escolha explícita **“Envi
 
 O painel Owner é escondido da navegação de líderes e liderados e a API `/api/admin/organization` também exige sessão válida de administrador. A interface nunca é a única barreira: a verificação do papel ocorre no servidor contra o armazenamento privado.
 
+## Exceção: Desktop Bridge por usuário
+
+O **Prospectra Abridge não é um recurso exclusivo do Owner**. Todo usuário cadastrado com sessão ativa — Administrador, Líder ou Liderado — pode abrir **Configurações → Desktop Bridge**, criar o próprio dispositivo, copiar o token uma única vez e revogar somente os dispositivos vinculados ao seu usuário. A API valida apenas a sessão ativa e o vínculo do dispositivo; ela não exige o papel `admin`. Um usuário nunca lista, usa ou revoga o dispositivo de outra pessoa.
+
 ## Ordem recomendada de operação
 
 1. Cadastre a pessoa com papel **Líder**.

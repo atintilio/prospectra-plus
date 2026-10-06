@@ -20,7 +20,7 @@ A versão atual inclui dois caminhos **provider-first**:
 4. `GET /api/integrations/prospecting/accounts` exibe somente as conexões do usuário autenticado.
 5. A tela **Configurações** oferece Hosted Auth opcional, pareamento do Abridge e configuração da Evolution API. A conexão não habilita envio automático por si só: o Prospectra exige tarefa aprovada, evidência, limite e reconciliação.
 
-O caminho sem assinatura para LinkedIn é o **Abridge**: um único aplicativo desktop abre Chrome visível, usa uma sessão que o operador autenticou manualmente e chama o `linkout-scraper` para ler perfis/posts públicos ou executar uma tarefa de escrita somente após confirmação local. O Prospectra não recebe senha ou cookie. A Evolution API é o caminho de WhatsApp quando o servidor persistente, QR Code e webhook estão configurados.
+O caminho sem assinatura para LinkedIn é o **Abridge**: um único aplicativo desktop abre Chrome visível, usa uma sessão que o operador autenticou manualmente e chama o `linkout-scraper` para ler perfis/posts públicos ou executar uma tarefa de escrita somente após confirmação local. O Prospectra não recebe senha ou cookie. O Abridge é **multiusuário**: qualquer usuário cadastrado e ativo cria e revoga o próprio dispositivo; o backend filtra dispositivos e tarefas pelo `userId` e não exige papel Owner. A configuração global do gateway de WhatsApp continua restrita ao Owner, mas a execução local pelo Abridge pertence ao usuário que pareou o computador. A Evolution API é o caminho de WhatsApp quando o servidor persistente, QR Code e webhook estão configurados.
 
 ## Decisão recomendada
 
