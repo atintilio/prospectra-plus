@@ -1,6 +1,6 @@
 # Prospectra+ — arquitetura do MVP
 
-O MVP usa uma interface React persistida no `localStorage` do navegador exclusivamente para demonstrar os fluxos de CRM, evidência, aprovação, tarefas e pausas. O banner de ambiente deixa explícito que os dados são fictícios e não representam um backend conectado.
+O workspace autenticado usa o Blob privado do projeto para persistir contas, campanhas, pausas, tarefas assistidas e auditoria. O `localStorage` permanece apenas como fallback transitório quando o endpoint server-side não responde; a interface informa esse estado e não o apresenta como sincronizado.
 
 O modelo de domínio segue os princípios do pacote Prospectra: conta, contato, evidência, atividade, oportunidade, tarefa, campanha, aprovação e supressão. Uma implementação de produção deve mover esse estado para o banco gerenciado, sempre derivando `organizationId` da sessão autenticada e aplicando isolamento em todas as consultas. Não aceitar `organizationId` no corpo de requisições é um requisito de segurança.
 
@@ -17,3 +17,7 @@ O MVP mostra somente tarefas assistidas. Ele não armazena cookies, não automat
 ## Guardas de operação
 
 Uma mudança de copy invalida aprovação anterior. Uma resposta pausa a conta. Uma oposição mantém supressão persistente. Nenhum estado de tarefa assistida comprova entrega pelo provedor externo.
+
+## Operação da interface
+
+O sino abre a central de notificações e navega para a origem do sinal ou tarefa. CRM, auditoria, criação de conta, exportação, filtros e configurações possuem handlers explícitos. O endpoint `GET/PUT /api/workspace/state` exige sessão; apenas `admin` grava o snapshot completo, e leituras de `leader`/`member` são filtradas por equipe/carteira. `GET /api/integrations/channels/health` consulta provedores server-side e nunca expõe credenciais.

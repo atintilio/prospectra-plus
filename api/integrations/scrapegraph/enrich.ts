@@ -1,11 +1,13 @@
+import { requireActiveSession, requireSameOrigin } from '../../_lib/access.js';
 import { enrichCompany } from '../../../server/integrations/scrapegraph.js';
 import { json, methodNotAllowed, parseBody } from '../../_lib/http.js';
-import { readSession } from '../../_lib/session.js';
 import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  if (!readSession(req)) return json(res, 401, { error: 'not_authenticated' });
+  const context = await requireActiveSession(req, res);
+  if (!context) return;
+  if (!requireSameOrigin(req, res)) return;
   try {
     const body = parseBody(req);
     const url = typeof body.url === 'string' ? body.url.trim() : '';

@@ -69,6 +69,13 @@ export interface CampaignTask {
   capability: ChannelCapability;
   state: TaskState;
   due: string;
+  approval?: {
+    copyRevision: number;
+    contactId: string;
+    channel: Channel;
+    evidenceIds: string[];
+    approvedAt: string;
+  };
 }
 
 export interface Campaign {

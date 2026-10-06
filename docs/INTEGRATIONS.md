@@ -24,7 +24,11 @@ WPPConnect Server permanece como fallback para fluxos de customização profunda
 
 ## LinkedIn
 
-O Prospectra usará um adaptador não oficial configurável para o LinkedIn, conforme definido pelo usuário. O adaptador deve ficar isolado no servidor e expor health, send, webhook e status; não armazena cookies do navegador nem simula cliques. A operação depende de credencial, base URL, escopos do provedor, quota, custo e reconciliação de estados.
+O Prospectra mantém o LinkedIn assistido por padrão: abrir perfil, copiar copy aprovada e registrar a ação humana. A conexão opcional de conta foi estruturada com Hosted Auth do Unipile em `/api/integrations/prospecting/*`, usando link temporário, callback protegido e armazenamento privado somente do estado/identificador. Ela exige `UNIPILE_DSN`, `UNIPILE_API_KEY` e `UNIPILE_WEBHOOK_SECRET` no Vercel; sem esses valores a UI informa que o provedor não está configurado.
+
+Conectar uma conta **não autoriza automaticamente convites ou mensagens**. O adapter não armazena cookies, não simula cliques e não envia nada no estado atual; qualquer provider futuro precisa comprovar escopos, quota, custo, webhook assinado, reconciliação e compatibilidade contratual antes de habilitar transporte.
+
+O produto também não promete que a automação do LinkedIn seja permitida pelo LinkedIn: a política pública da plataforma proíbe crawlers, bots, extensões e métodos automatizados não autorizados para copiar dados ou enviar mensagens/convites. A opção desktop segue separada, pois exigiria aplicativo assinado, atualização, máquina ativa e suporte operacional.
 
 ## CRM
 

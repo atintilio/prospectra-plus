@@ -3,12 +3,14 @@ import { header, json, publicOrigin } from './http.js';
 import { readSession } from './session.js';
 import type { ApiRequest, ApiResponse, AuthStore, StoredUser } from './types.js';
 
-export interface OwnerContext {
+export interface ActiveSessionContext {
   store: AuthStore;
   user: StoredUser;
 }
 
-export async function requireOwner(req: ApiRequest, res: ApiResponse): Promise<OwnerContext | null> {
+export interface OwnerContext extends ActiveSessionContext {}
+
+export async function requireActiveSession(req: ApiRequest, res: ApiResponse): Promise<ActiveSessionContext | null> {
   const session = readSession(req);
   if (!session) {
     json(res, 401, { error: 'not_authenticated' });
@@ -20,11 +22,17 @@ export async function requireOwner(req: ApiRequest, res: ApiResponse): Promise<O
     json(res, 401, { error: 'not_authenticated' });
     return null;
   }
-  if (user.role !== 'admin') {
+  return { store, user };
+}
+
+export async function requireOwner(req: ApiRequest, res: ApiResponse): Promise<OwnerContext | null> {
+  const context = await requireActiveSession(req, res);
+  if (!context) return null;
+  if (context.user.role !== 'admin') {
     json(res, 403, { error: 'owner_access_required' });
     return null;
   }
-  return { store, user };
+  return context;
 }
 
 export function requireSameOrigin(req: ApiRequest, res: ApiResponse): boolean {
