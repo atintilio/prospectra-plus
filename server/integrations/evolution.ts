@@ -68,6 +68,15 @@ export async function connectEvolutionInstance() {
   return evolutionRequest(`/instance/connect/${encodeURIComponent(config.instance)}`);
 }
 
+export function redactEvolutionPayload(value: unknown, depth = 0): unknown {
+  if (depth > 5 || value === null || typeof value === 'undefined') return undefined;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (Array.isArray(value)) return value.slice(0, 20).map((item) => redactEvolutionPayload(item, depth + 1));
+  if (typeof value !== 'object') return undefined;
+  const allowed = new Set(['base64', 'qrcode', 'qr', 'qrCode', 'state', 'status', 'connectionStatus', 'instance', 'instanceName', 'name', 'message', 'count']);
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key]) => allowed.has(key)).map(([key, entry]) => [key, redactEvolutionPayload(entry, depth + 1)]));
+}
+
 export async function connectionState() {
   const config = evolutionConfig();
   return evolutionRequest(`/instance/connectionState/${encodeURIComponent(config.instance)}`);

@@ -33,7 +33,7 @@ export default function EvolutionPanel({ onToast }: EvolutionPanelProps) {
       setConfigured(Boolean(payload.configured));
       setInstances(Array.isArray(payload.instances) ? payload.instances as Instance[] : []);
     } catch (error) {
-      setMessage(error instanceof Error && error.message === 'evolution_unavailable' ? 'A Evolution API não respondeu. Verifique o domínio HTTPS e a API key.' : 'Configure as variáveis Evolution no backend antes de operar o WhatsApp.');
+      setMessage(error instanceof Error && error.message === 'evolution_unavailable' ? 'A Evolution API não respondeu. Verifique o domínio HTTPS e a API key.' : 'Configure URL, API key, instância e segredo do webhook Evolution no backend antes de operar o WhatsApp.');
     } finally { setBusy(false); }
   };
 
@@ -52,7 +52,7 @@ export default function EvolutionPanel({ onToast }: EvolutionPanelProps) {
   const connect = async () => {
     setBusy(true); setMessage('');
     try {
-      const response = await fetch('/api/integrations/whatsapp/connect', { credentials: 'include' });
+      const response = await fetch('/api/integrations/whatsapp/connect', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(payload.error ?? 'evolution_connect_failed'));
       const image = extractQr(payload);

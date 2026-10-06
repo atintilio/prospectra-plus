@@ -1,4 +1,4 @@
-import { requireActiveSession } from '../../../_lib/access.js';
+import { requireActiveSession, requireSameOrigin } from '../../../_lib/access.js';
 import { createBridgeDevice, loadBridgeStore, redactDevice, requestBody, saveBridgeStore } from '../../../_lib/bridge.js';
 import { json, methodNotAllowed } from '../../../_lib/http.js';
 import type { ApiRequest, ApiResponse } from '../../../_lib/types.js';
@@ -12,11 +12,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return json(res, 200, { ok: true, devices: store.devices.filter((device) => device.userId === context.user.id).map(redactDevice) });
     }
     if (req.method === 'POST') {
+      if (!requireSameOrigin(req, res)) return;
       const body = requestBody(req);
       const created = await createBridgeDevice(context.user, typeof body.name === 'string' ? body.name : 'Abridge local');
       return json(res, 201, { ok: true, ...created, warning: 'Copie o token agora. Ele não será exibido novamente.' });
     }
     if (req.method === 'DELETE') {
+      if (!requireSameOrigin(req, res)) return;
       const deviceId = typeof req.query?.deviceId === 'string' ? req.query.deviceId : '';
       const store = await loadBridgeStore();
       const device = store.devices.find((entry) => entry.id === deviceId && entry.userId === context.user.id);

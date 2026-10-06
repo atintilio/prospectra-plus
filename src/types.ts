@@ -70,6 +70,9 @@ export interface CampaignTask {
   capability: ChannelCapability;
   state: TaskState;
   due: string;
+  providerMessageId?: string;
+  providerStatus?: string;
+  completedAt?: string;
   approval?: {
     copyRevision: number;
     contactId: string;

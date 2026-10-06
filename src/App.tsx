@@ -35,7 +35,7 @@ function scoreTone(score: number) { return score >= 80 ? 'score-high' : score >=
 function statusTone(value: string) { return ['Ativa', 'Aprovado', 'Revisado', 'Concluído'].includes(value) ? 'good' : ['Pausado', 'Invalidado'].includes(value) ? 'danger' : 'neutral'; }
 function csvCell(value: unknown) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
 function downloadCsv(filename: string, rows: unknown[][]) { const blob = new Blob([`\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\n')}`], { type: 'text/csv;charset=utf-8' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url); }
-function profileUrl(value: string) { return /^https?:\/\//i.test(value) ? value : `https://${value}`; }
+function profileUrl(value: string) { const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`; try { const url = new URL(candidate); if (url.hostname.toLowerCase() === 'linkedin.com') url.hostname = 'www.linkedin.com'; return url.toString(); } catch { return candidate; } }
 function normalizedImportHeader(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
 function importValue(values: Record<string, string>, hints: string[]) { const entry = Object.entries(values).find(([key, value]) => hints.some((hint) => normalizedImportHeader(key).includes(hint)) && value.trim()); return entry?.[1]?.trim() ?? ''; }
 function importBoolean(value: string) { return ['true', '1', 'sim', 'yes', 'verified', 'verificado', 'revisado'].includes(normalizedImportHeader(value)); }
