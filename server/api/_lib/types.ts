@@ -56,3 +56,41 @@ export interface AuthStore {
   teams: StoredTeam[];
   resets: PasswordReset[];
 }
+
+export interface BridgeDevice {
+  id: string;
+  userId: string;
+  name: string;
+  tokenHash: string;
+  createdAt: string;
+  updatedAt: string;
+  lastSeenAt?: string;
+  lastStatus?: string;
+  lastPlatform?: string;
+  active: boolean;
+}
+
+export interface BridgeTaskRecord {
+  id: string;
+  deviceId?: string;
+  userId: string;
+  action: 'sync_profile' | 'sync_inbox' | 'send_connection' | 'send_message';
+  profileUrl?: string;
+  threadUrl?: string;
+  message?: string;
+  requestedAt: string;
+  leasedAt?: string;
+  completedAt?: string;
+  state: 'queued' | 'leased' | 'success' | 'failed' | 'skipped';
+  requiresConfirmation: boolean;
+  campaignTaskId?: string;
+  accountId?: string;
+  contactId?: string;
+  result?: Record<string, unknown>;
+}
+
+export interface BridgeStore {
+  version: 1;
+  devices: BridgeDevice[];
+  tasks: BridgeTaskRecord[];
+}

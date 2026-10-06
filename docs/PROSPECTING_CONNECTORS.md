@@ -32,9 +32,21 @@ Use o Prospectra com enriquecimento, CRM, copy aprovada, fila de tarefa assistid
 
 Para conectar contas e sincronizar inbox/calendário sem construir um desktop agent, o Unipile é o caminho técnico mais curto. A documentação oficial descreve link temporário, callback com `account_id`, reconexão e armazenamento da chave de API no backend. A página de preços informa mínimo de **€49/mês (ou US$55/mês) para até 10 contas conectadas**, teste grátis de sete dias e cobrança por identidade conectada. O próprio fornecedor informa que LinkedIn, WhatsApp e Instagram usam engenharia reversa, enquanto e-mail/calendário usam integrações oficiais. Isso é custo recorrente e risco operacional/contratual a ser aceito conscientemente; não é “gratuito”.
 
-### Fase 3 — Desktop Bridge próprio
+### Fase 3 — Abridge próprio
 
-Um aplicativo desktop no modelo LeadHunter pode evitar uma assinatura de provedor, mas não é gratuito: exige desenvolvimento e manutenção de Electron/Tauri, código assinado, instalação para Windows/macOS/Linux, atualização automática, suporte, telemetria e uma política clara sobre execução quando a máquina estiver desligada. O Prospectra já separa esse caminho no contrato de conector, mas não inclui um desktop agent nesta entrega web/Vercel.
+O Prospectra agora possui a base do **Abridge**, um único aplicativo desktop empacotado para Windows, macOS e Linux. O aplicativo abre um Chrome visível com perfil dedicado, mantém a sessão local, consulta uma fila HTTPS autenticada, executa tarefas aprovadas com `linkout-scraper` e devolve apenas resultado/status. O Vercel não acessa `localhost`, cookies ou senha do operador.
+
+O produto fica dividido em dois aplicativos para o usuário: **Prospectra+ Web** e **Prospectra Abridge Desktop**. Não há dois bridges diferentes: o mesmo código é empacotado como `.exe` para Windows e `.dmg` para macOS. A primeira fila exige confirmação visível no Abridge para convites e mensagens; leituras podem ser sincronizadas automaticamente.
+
+Endpoints do contrato:
+
+- `POST/GET/DELETE /api/integrations/prospecting/bridge/devices` — pareamento e revogação;
+- `POST/GET /api/integrations/prospecting/bridge/tasks` — criar e consultar tarefas;
+- `GET /api/integrations/prospecting/bridge/jobs` — lease de tarefas pelo dispositivo;
+- `POST /api/integrations/prospecting/bridge/results` — retorno da execução;
+- `POST /api/integrations/prospecting/bridge/heartbeat` — status de presença.
+
+O token de pareamento é exibido uma única vez e armazenado no servidor somente como hash. O Abridge guarda o token localmente e usa `Bearer` sobre HTTPS.
 
 ### Alternativa de referência
 

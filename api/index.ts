@@ -12,6 +12,11 @@ import unipileWebhook from '../server/api/integrations/prospecting/unipile-webho
 import scrapegraphEnrich from '../server/api/integrations/scrapegraph/enrich.js';
 import scrapegraphHealth from '../server/api/integrations/scrapegraph/health.js';
 import workspaceState from '../server/api/workspace/state.js';
+import bridgeDevices from '../server/api/integrations/prospecting/bridge/devices.js';
+import bridgeTasks from '../server/api/integrations/prospecting/bridge/tasks.js';
+import bridgeJobs from '../server/api/integrations/prospecting/bridge/jobs.js';
+import bridgeResults from '../server/api/integrations/prospecting/bridge/results.js';
+import bridgeHeartbeat from '../server/api/integrations/prospecting/bridge/heartbeat.js';
 import type { ApiRequest, ApiResponse } from '../server/api/_lib/types.js';
 
 type Handler = (req: ApiRequest, res: ApiResponse) => unknown | Promise<unknown>;
@@ -30,6 +35,11 @@ const routes: Record<string, Handler> = {
   'integrations/scrapegraph/enrich': scrapegraphEnrich,
   'integrations/scrapegraph/health': scrapegraphHealth,
   'workspace/state': workspaceState,
+  'integrations/prospecting/bridge/devices': bridgeDevices,
+  'integrations/prospecting/bridge/tasks': bridgeTasks,
+  'integrations/prospecting/bridge/jobs': bridgeJobs,
+  'integrations/prospecting/bridge/results': bridgeResults,
+  'integrations/prospecting/bridge/heartbeat': bridgeHeartbeat,
 };
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
