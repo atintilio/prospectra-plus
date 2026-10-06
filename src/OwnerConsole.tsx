@@ -36,6 +36,7 @@ interface ApiResult {
   ok?: boolean;
   error?: string;
   organization?: OrganizationSnapshot;
+  inviteSentTo?: string;
 }
 
 function roleLabel(role: ManagedRole) {
@@ -66,7 +67,7 @@ function errorText(code?: string) {
   return messages[code ?? ''] ?? 'Não foi possível salvar esta alteração. Tente novamente.';
 }
 
-async function organizationRequest(method: 'GET' | 'POST' | 'PATCH', body?: Record<string, unknown>): Promise<OrganizationSnapshot> {
+async function organizationRequest(method: 'GET' | 'POST' | 'PATCH', body?: Record<string, unknown>): Promise<ApiResult> {
   const response = await fetch('/api/admin/organization', {
     method,
     credentials: 'include',
@@ -75,7 +76,7 @@ async function organizationRequest(method: 'GET' | 'POST' | 'PATCH', body?: Reco
   });
   const data = await response.json().catch(() => ({})) as ApiResult;
   if (!response.ok || !data.organization) throw new Error(data.error ?? 'organization_request_failed');
-  return data.organization;
+  return data;
 }
 
 export default function OwnerConsole({ currentUser, onOrganizationChange }: { currentUser: SessionUser; onOrganizationChange: (organization: OrganizationSnapshot) => void }) {
@@ -95,7 +96,7 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
   const load = async () => {
     setLoading(true);
     setError('');
-    try { apply(await organizationRequest('GET')); }
+    try { apply((await organizationRequest('GET')).organization!); }
     catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); }
     finally { setLoading(false); }
   };
@@ -106,14 +107,14 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
     event.preventDefault();
     setBusy('create-user'); setError(''); setNotice('');
     try {
-      const next = await organizationRequest('POST', {
+      const result = await organizationRequest('POST', {
         action: 'create-user', name: newUser.name, email: newUser.email, role: newUser.role,
         teamId: newUser.role === 'member' && newUser.teamId ? newUser.teamId : undefined,
         sendInvite: newUser.sendInvite,
       });
-      apply(next);
+      apply(result.organization!);
       setNewUser({ name: '', email: '', role: 'member', teamId: '', sendInvite: false });
-      setNotice(newUser.sendInvite ? 'Usuário criado e convite enviado pelo Office 365.' : 'Usuário criado. Envie o convite quando estiver pronto.');
+      setNotice(newUser.sendInvite ? `Usuário criado. Convite enviado para ${result.inviteSentTo ?? newUser.email.trim().toLowerCase()}.` : 'Usuário criado. Envie o convite quando estiver pronto.');
     } catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); }
     finally { setBusy(''); }
   };
@@ -122,8 +123,8 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
     event.preventDefault();
     setBusy('create-team'); setError(''); setNotice('');
     try {
-      const next = await organizationRequest('POST', { action: 'create-team', ...newTeam });
-      apply(next);
+      const result = await organizationRequest('POST', { action: 'create-team', ...newTeam });
+      apply(result.organization!);
       setNewTeam({ name: '', leaderId: '', color: 'purple' });
       setNotice('Equipe criada. Agora inclua os liderados no editor da equipe.');
     } catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); }
@@ -133,8 +134,8 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
   const updateUser = async (user: ManagedUser, patch: Partial<Pick<ManagedUser, 'name' | 'email' | 'role' | 'active' | 'teamId'>>) => {
     setBusy(`user-${user.id}`); setError(''); setNotice('');
     try {
-      const next = await organizationRequest('PATCH', { action: 'update-user', userId: user.id, ...patch });
-      apply(next); setNotice(`Acesso de ${user.name} atualizado.`);
+      const result = await organizationRequest('PATCH', { action: 'update-user', userId: user.id, ...patch });
+      apply(result.organization!); setNotice(`Acesso de ${user.name} atualizado.`);
       return true;
     } catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); return false; }
     finally { setBusy(''); }
@@ -143,8 +144,8 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
   const inviteUser = async (user: ManagedUser) => {
     setBusy(`invite-${user.id}`); setError(''); setNotice('');
     try {
-      const next = await organizationRequest('PATCH', { action: 'send-invite', userId: user.id });
-      apply(next); setNotice(`Link de acesso enviado para ${user.email} pelo Office 365.`);
+      const result = await organizationRequest('PATCH', { action: 'send-invite', userId: user.id });
+      apply(result.organization!); setNotice(`Link de acesso enviado para ${result.inviteSentTo ?? user.email} pelo Office 365.`);
     } catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); }
     finally { setBusy(''); }
   };
@@ -152,14 +153,15 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
   const updateTeam = async (team: ManagedTeam, patch: Pick<ManagedTeam, 'name' | 'leaderId' | 'memberIds' | 'color'>) => {
     setBusy(`team-${team.id}`); setError(''); setNotice('');
     try {
-      const next = await organizationRequest('PATCH', { action: 'update-team', teamId: team.id, ...patch });
-      apply(next); setNotice(`Equipe ${patch.name} atualizada.`);
+      const result = await organizationRequest('PATCH', { action: 'update-team', teamId: team.id, ...patch });
+      apply(result.organization!); setNotice(`Equipe ${patch.name} atualizada.`);
     } catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); }
     finally { setBusy(''); }
   };
 
   const leaders = useMemo(() => organization?.users.filter((user) => user.active && user.role === 'leader' && !user.teamId) ?? [], [organization]);
   const pending = organization?.users.filter((user) => user.invitationState === 'pending').length ?? 0;
+  const inviteEmailWarning = /@argusprime\.om\.br$/i.test(newUser.email.trim()) ? 'Atenção: você digitou @argusprime.om.br. O domínio corporativo usual é @argusprime.com.br.' : '';
 
   if (loading) return <div className="owner-loading"><LoaderCircle className="spin" size={19} /> Carregando administração segura…</div>;
   if (!organization) return <div className="owner-error"><strong>Não foi possível abrir o painel Owner.</strong><span>{error || 'Tente atualizar a página.'}</span><button className="outline-button" onClick={() => void load()}>Tentar novamente</button></div>;
@@ -179,7 +181,7 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
       <article><UserCog size={19}/><span>Líderes em operação</span><strong>{organization.users.filter((user) => user.active && user.role === 'leader').length}</strong></article>
     </div>
     <div className="owner-setup-grid">
-      <section className="panel owner-form-card"><div className="panel-head"><div><span className="eyebrow">NOVO USUÁRIO</span><h2>Cadastrar e convidar</h2></div><UserPlus size={19}/></div><form onSubmit={createUser} className="owner-form"><label>Nome completo<input required value={newUser.name} onChange={(event) => setNewUser((current) => ({ ...current, name: event.target.value }))} placeholder="Nome da pessoa" /></label><label>E-mail corporativo<input required type="email" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} placeholder="pessoa@argusprime.com.br" /></label><div className="owner-form-row"><label>Papel<select value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as ManagedRole, teamId: event.target.value === 'member' ? current.teamId : '' }))}><option value="member">Liderado</option><option value="leader">Líder</option><option value="admin">Administrador</option></select></label><label>Equipe<select disabled={newUser.role !== 'member'} value={newUser.teamId} onChange={(event) => setNewUser((current) => ({ ...current, teamId: event.target.value }))}><option value="">Sem equipe agora</option>{organization.teams.map((team) => <option value={team.id} key={team.id}>{team.name}</option>)}</select></label></div><label className="owner-check"><input type="checkbox" checked={newUser.sendInvite} onChange={(event) => setNewUser((current) => ({ ...current, sendInvite: event.target.checked }))} /><span>Enviar convite de criação de senha pelo Office 365 agora</span></label><button className="new-button" disabled={busy === 'create-user'}>{busy === 'create-user' ? <LoaderCircle className="spin" size={16}/> : <UserPlus size={16}/>} Criar usuário</button></form></section>
+      <section className="panel owner-form-card"><div className="panel-head"><div><span className="eyebrow">NOVO USUÁRIO</span><h2>Cadastrar e convidar</h2></div><UserPlus size={19}/></div><form onSubmit={createUser} className="owner-form"><label>Nome completo<input required value={newUser.name} onChange={(event) => setNewUser((current) => ({ ...current, name: event.target.value }))} placeholder="Nome da pessoa" /></label><label>E-mail corporativo<input required type="email" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} placeholder="pessoa@argusprime.com.br" />{inviteEmailWarning && <small className="owner-email-warning">{inviteEmailWarning}</small>}</label><div className="owner-form-row"><label>Papel<select value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as ManagedRole, teamId: event.target.value === 'member' ? current.teamId : '' }))}><option value="member">Liderado</option><option value="leader">Líder</option><option value="admin">Administrador</option></select></label><label>Equipe<select disabled={newUser.role !== 'member'} value={newUser.teamId} onChange={(event) => setNewUser((current) => ({ ...current, teamId: event.target.value }))}><option value="">Sem equipe agora</option>{organization.teams.map((team) => <option value={team.id} key={team.id}>{team.name}</option>)}</select></label></div><label className="owner-check"><input type="checkbox" checked={newUser.sendInvite} onChange={(event) => setNewUser((current) => ({ ...current, sendInvite: event.target.checked }))} /><span>Enviar convite de criação de senha pelo Office 365 agora</span></label><button className="new-button" disabled={busy === 'create-user'}>{busy === 'create-user' ? <LoaderCircle className="spin" size={16}/> : <UserPlus size={16}/>} Criar usuário</button></form></section>
       <section className="panel owner-form-card"><div className="panel-head"><div><span className="eyebrow">NOVA EQUIPE</span><h2>Definir liderança</h2></div><Building2 size={19}/></div><form onSubmit={createTeam} className="owner-form"><label>Nome da equipe<input required value={newTeam.name} onChange={(event) => setNewTeam((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: Receita Enterprise" /></label><label>Líder<select required value={newTeam.leaderId} onChange={(event) => setNewTeam((current) => ({ ...current, leaderId: event.target.value }))}><option value="">Selecione um líder</option>{leaders.map((leader) => <option value={leader.id} key={leader.id}>{leader.name}</option>)}</select></label><label>Identidade visual<select value={newTeam.color} onChange={(event) => setNewTeam((current) => ({ ...current, color: event.target.value as TeamColor }))}><option value="purple">Roxo</option><option value="emerald">Esmeralda</option><option value="lilac">Lilás</option></select></label><p className="owner-help">Primeiro cadastre a pessoa como <strong>Líder</strong>. Depois, crie a equipe e inclua os liderados no editor abaixo.</p><button className="outline-button" disabled={busy === 'create-team'}>{busy === 'create-team' ? <LoaderCircle className="spin" size={16}/> : <UsersRound size={16}/>} Criar equipe</button></form></section>
     </div>
     <section className="panel owner-roster"><div className="panel-head"><div><span className="eyebrow">DIRETÓRIO DO WORKSPACE</span><h2>Acessos e convites</h2></div><span className="status-tag neutral">{organization.users.length} cadastrados</span></div><div className="owner-user-list">{organization.users.map((user) => <UserRow key={user.id} user={user} teams={organization.teams} ownerId={currentUser.id} busy={busy} onSave={updateUser} onInvite={inviteUser} />)}</div></section>

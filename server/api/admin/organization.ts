@@ -91,6 +91,7 @@ async function issueInvite(req: ApiRequest, store: AuthStore, user: StoredUser) 
     await saveAuthStore(store);
     throw error;
   }
+  return user.email;
 }
 
 function responseForError(res: ApiResponse, error: unknown) {
@@ -126,8 +127,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         setTeamMembership(context.store, team, [...team.memberIds, user.id]);
       }
       await saveAuthStore(context.store);
-      if (body.sendInvite === true) await issueInvite(req, context.store, user);
-      return json(res, 201, { ok: true, organization: organization(context.store) });
+      const inviteSentTo = body.sendInvite === true ? await issueInvite(req, context.store, user) : undefined;
+      return json(res, 201, { ok: true, organization: organization(context.store), ...(inviteSentTo ? { inviteSentTo } : {}) });
     }
 
     if (req.method === 'POST' && body.action === 'create-team') {
@@ -185,8 +186,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const user = context.store.users.find((entry) => entry.id === body.userId);
       if (!user) return json(res, 404, { error: 'user_not_found' });
       if (!user.active) return json(res, 409, { error: 'inactive_user' });
-      await issueInvite(req, context.store, user);
-      return json(res, 200, { ok: true, organization: organization(context.store) });
+      const inviteSentTo = await issueInvite(req, context.store, user);
+      return json(res, 200, { ok: true, organization: organization(context.store), inviteSentTo });
     }
 
     if (req.method === 'PATCH' && body.action === 'update-team') {
