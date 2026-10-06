@@ -39,3 +39,4 @@
 - [x] **Importação de telefone:** CSV/XLSX reconhece telefone, celular, WhatsApp, número e mobile; o modo econômico não chama ScrapeGraphAI.
 - [x] **Abridge organograma:** o aplicativo desktop lê perfis LinkedIn públicos informados pelo operador e opcionalmente até cinco posts recentes por perfil; não solicita senha, não envia cookies e não descobre pessoas por bypass.
 - [ ] **Homologação externa:** configurar URL/chave/instância/segredo/webhook Evolution e testar em um WhatsApp real; homologar Abridge em Windows/macOS.
+- [x] **Alternativa sem cartão:** pacote Docker Desktop para Windows/macOS com PostgreSQL, Redis, volumes persistentes e scripts de Cloudflare Tunnel temporário; depende do computador permanecer ligado.

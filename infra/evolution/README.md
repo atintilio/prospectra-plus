@@ -1,50 +1,175 @@
 # Evolution API para Prospectra+
 
-A Evolution API precisa ficar em um serviço persistente com HTTPS público. O Vercel hospeda o Prospectra, mas não deve hospedar o processo WhatsApp/Baileys nem os volumes de sessão.
+## Por que não usar a Oracle agora?
 
-## 1. Servidor
+A Oracle possui recursos Always Free, mas exige cartão para verificação de identidade. Como você não quer informar cartão, o caminho sem custo recorrente é rodar a Evolution no seu próprio Windows.
 
-Use uma VM/VPS ou Docker Desktop para homologação. Aponte `evolution.argusprime.com.br` para o servidor e coloque TLS reverso (Caddy, Nginx ou proxy equivalente) na frente da porta local `8080`.
+**Limitação importante:** o computador precisa ficar ligado e conectado à internet enquanto o WhatsApp estiver em uso. O Prospectra continua hospedado no Vercel; apenas o motor WhatsApp roda localmente.
 
-## 2. Subir
-
-```bash
-cp .env.example .env
-# substitua CHANGE_ME e defina senhas fortes
-mkdir -p /opt/prospectra-evolution
-# copie docker-compose.yml e .env para essa pasta
-docker compose pull
-docker compose up -d
-docker compose ps
-```
-
-A imagem usada no exemplo é a linha estável `v2.3.7`. Não usar `latest` sem homologar; a série 2.4 introduziu ativação/licenciamento obrigatório.
-
-## 3. Criar a instância
-
-No Prospectra, o Owner abre **Configurações → WhatsApp · Evolution API → Criar/atualizar instância**. A API cria a instância `EVOLUTION_INSTANCE`, registra o webhook e então mostra o QR Code em **Conectar WhatsApp**. O operador lê o QR com o aplicativo WhatsApp Business.
-
-## 4. Variáveis no Vercel
+## Arquitetura sem custo
 
 ```text
-EVOLUTION_API_URL=https://evolution.argusprime.com.br
-EVOLUTION_API_KEY=<mesmo valor de AUTHENTICATION_API_KEY>
+Prospectra no Vercel
+        │ HTTPS
+        ▼
+Cloudflare Tunnel temporário
+        │
+        ▼
+Evolution API no Docker Desktop do Windows
+        ├── PostgreSQL persistente
+        ├── Redis persistente
+        └── volume de sessões WhatsApp
+```
+
+A Evolution API é open source sob Apache 2.0, mas o modo Baileys usa a sessão do WhatsApp Web. Isso não é a API oficial da Meta e pode desconectar ou sofrer restrições. Para produção de maior previsibilidade, a alternativa oficial é a WhatsApp Cloud API.
+
+## 1. Instale no Windows ou macOS
+
+No **macOS**, instale:
+
+1. [Docker Desktop para Mac](https://www.docker.com/products/docker-desktop/)
+2. [Homebrew](https://brew.sh/), caso ainda não esteja instalado
+3. Execute `brew install cloudflared`
+
+No **Windows**, instale:
+
+1. [Docker Desktop para Windows](https://www.docker.com/products/docker-desktop/)
+2. [Cloudflare cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+
+No Windows, o segundo também pode ser instalado pelo PowerShell:
+
+```powershell
+winget install Cloudflare.cloudflared
+```
+
+Não é necessário criar uma conta Oracle nem informar cartão para este caminho.
+
+## 2. Baixe os arquivos
+
+Baixe o pacote `Prospectra-Evolution-Desktop.zip` e extraia em uma pasta simples, por exemplo:
+
+```text
+C:\Prospectra\evolution
+```
+
+No macOS, abra o Terminal nessa pasta. No Windows, abra o PowerShell e permita os scripts apenas para a sessão atual:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+```
+
+## 3. Inicie a Evolution
+
+No macOS:
+
+```bash
+chmod +x start-evolution.sh start-tunnel.sh
+./start-evolution.sh
+```
+
+No Windows:
+
+```powershell
+.\start-evolution.ps1
+```
+
+Na primeira execução, o script cria `.env` com chaves aleatórias e inicia a Evolution, o PostgreSQL e o Redis. Os dados ficam nos volumes Docker:
+
+- `evolution_instances`: sessão do WhatsApp;
+- `evolution_postgres`: estado e mensagens;
+- `evolution_redis`: cache e fila.
+
+Não envie o arquivo `.env` para o GitHub ou para o chat.
+
+## 4. Abra a URL pública HTTPS
+
+No macOS, em outra janela do Terminal:
+
+```bash
+./start-tunnel.sh
+```
+
+No Windows, em outra janela do PowerShell:
+
+```powershell
+.\start-tunnel.ps1
+```
+
+Copie a URL exibida, parecida com:
+
+```text
+https://alguma-coisa.trycloudflare.com
+```
+
+Essa URL temporária muda se o túnel for reiniciado. Ela serve para homologação e para colocar o WhatsApp funcionando hoje sem mensalidade. Para uso contínuo, será necessário um túnel nomeado com domínio próprio ou um servidor persistente.
+
+## 5. Configuração no Vercel
+
+No projeto `prospectra`, abra **Settings → Environment Variables → Production** e crie:
+
+```text
+EVOLUTION_API_URL=https://alguma-coisa.trycloudflare.com
+EVOLUTION_API_KEY=<valor de AUTHENTICATION_API_KEY do .env>
 EVOLUTION_INSTANCE=prospectra-argusprime
-EVOLUTION_WEBHOOK_SECRET=<segredo diferente e aleatório>
+EVOLUTION_WEBHOOK_SECRET=<valor de PROSPECTRA_WEBHOOK_SECRET do .env>
 EVOLUTION_WEBHOOK_URL=https://prospectra.argusprime.com.br/api/integrations/whatsapp/webhook
 EVOLUTION_API_HEALTH_PATH=/
 ```
 
-A chave fica apenas no backend do Prospectra. Nunca colocar a API key no navegador, no CSV ou no repositório.
+Os valores sensíveis devem ser colados diretamente no Vercel. Nunca coloque a API key no navegador, no CSV, no repositório ou nesta conversa.
 
-## 5. Envio
+Depois clique em **Redeploy** no Vercel.
 
-Uma tarefa WhatsApp só pode ser enviada se tiver copy aprovada, contato, número em formato internacional (por exemplo `5511999999999`), evidência e conta não pausada/suprimida. O Prospectra chama `POST /message/sendText/{instance}` com o header `apikey`.
+## 6. Conecte o WhatsApp
 
-## 6. Eventos
+No Prospectra:
 
-O webhook recebe `CONNECTION_UPDATE`, `QRCODE_UPDATED`, `MESSAGES_UPSERT`, `MESSAGES_UPDATE` e `SEND_MESSAGE`. O endpoint valida `x-prospectra-webhook-secret`. Eventos não autenticados são rejeitados.
+1. Entre em **Configurações**.
+2. Abra **WhatsApp · Evolution API**.
+3. Clique em **Criar/atualizar instância**.
+4. Clique em **Gerar QR Code**.
+5. No WhatsApp Business, abra **Aparelhos conectados → Conectar aparelho**.
+6. Leia o QR Code.
+7. Aguarde o health check mostrar **Conectado**.
 
-## 7. Produção
+## 7. Envio protegido
 
-A conexão Baileys usa WhatsApp Web e pode desconectar ou sofrer bloqueio; para maior previsibilidade, migre posteriormente o adapter para a WhatsApp Cloud API oficial. Faça backup dos volumes, limite o acesso à porta 8080 e monitore reconexão, fila e webhooks.
+O Prospectra só envia uma mensagem quando todos os itens abaixo são verdadeiros:
+
+- copy aprovada;
+- destinatário e canal aprovados;
+- evidência válida;
+- conta não pausada;
+- conta não suprimida;
+- telefone internacional válido;
+- Evolution respondendo;
+- recibo do provider retornado.
+
+O ID retornado pela Evolution aparece na auditoria do Prospectra.
+
+## 8. Comandos úteis
+
+```powershell
+# Ver serviços
+ docker compose --env-file .env ps
+
+# Ver logs da Evolution
+ docker compose --env-file .env logs -f evolution-api
+
+# Parar sem apagar os volumes
+ docker compose --env-file .env down
+
+# Reiniciar
+ docker compose --env-file .env up -d
+```
+
+Não use `docker compose down -v`: esse comando apaga a sessão do WhatsApp, o banco e o Redis.
+
+## Limites da alternativa sem cartão
+
+- o Windows precisa permanecer ligado;
+- o túnel temporário possui URL variável;
+- reiniciar o túnel exige atualizar `EVOLUTION_API_URL` no Vercel e fazer redeploy;
+- o Baileys não é a API oficial da Meta;
+- não existe SLA ou backup externo automático;
+- faça backup periódico dos volumes Docker.
