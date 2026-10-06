@@ -4,7 +4,7 @@
 - [x] **Enriquecimento rastreável:** URL gera uma solicitação com evidência, origem, data e estado explícito; sem `SGAI_API_KEY`, nenhum enriquecimento real é apresentado como conectado.
 - [x] **Enriquecimento em lote:** a área de Enriquecimento aceita arquivos CSV, XLSX e XLS, permite escolher a coluna de URL/domínio, identifica linhas elegíveis, executa uma requisição real por linha com progresso e até três requisições concorrentes, mostra sucesso/erro/request ID por registro e exporta os resultados em CSV.
 - [x] **Cadência assistida e aprovação:** copy revisada possui versão e aprovação; edição invalida a aprovação; LinkedIn cria somente tarefa assistida com capacidade exibida.
-- [ ] **Automação multicanal:** Agent Studio, playbooks, limites diários, sinais, handoff humano e fila única para WhatsApp e LinkedIn; Evolution API é o adaptador prioritário de WhatsApp e depende de base URL, credencial, health check e webhook válidos.
+- [x] **Automação multicanal:** Agent Studio, playbooks, limites diários, sinais, handoff humano e fila única para WhatsApp e LinkedIn; Evolution API é o adaptador prioritário de WhatsApp e depende de base URL, credencial, health check e webhook válidos.
 - [x] **Guardas comerciais:** registrar resposta pausa a conta; oposição não expira automaticamente; auditoria registra as mudanças.
 - [x] **Marca e distribuição:** aplicar o logo escolhido pelo usuário, testar interface, criar repositório privado e publicar o Prospectra+ separadamente do Reversa Tax.
 - [x] **Painel Owner/Master funcional:** o usuário administrador cadastra usuários, define os papéis Administrador/Líder/Liderado, cria equipes, escolhe o líder e atribui liderados; alterações ficam no armazenamento privado, o usuário master não pode ser rebaixado/desativado e nenhum líder pode ser removido sem reatribuição da equipe.
@@ -31,3 +31,11 @@
 
 - [x] **Menu de ações no Owner:** o diretório de usuários mostra três pontos por usuário não master; o menu permite editar nome/e-mail/papel/equipe/estado, enviar ou renovar convite Office 365 e desativar acesso de forma reversível. O master permanece protegido server-side.
 - [x] **Importação econômica:** CSV/XLSX/XLS pode ser incorporado ao CRM no modo padrão sem chamar o ScrapeGraphAI; a pesquisa externa é opt-in por lote e exibe origem e request ID para diferenciar consumo de créditos.
+
+## Entregas de operação multicanal — 06/10/2026
+
+- [x] **Evolution API configurável:** o Owner cria/atualiza a instância, gera QR Code e acompanha o estado retornado pelo serviço persistente; a chave permanece no backend.
+- [x] **WhatsApp com aprovação:** campanhas podem criar tarefa WhatsApp, validar contato revisado com telefone, copy aprovada e evidência, enviar pela rota Evolution e registrar o recibo do provider na auditoria.
+- [x] **Importação de telefone:** CSV/XLSX reconhece telefone, celular, WhatsApp, número e mobile; o modo econômico não chama ScrapeGraphAI.
+- [x] **Abridge organograma:** o aplicativo desktop lê perfis LinkedIn públicos informados pelo operador e opcionalmente até cinco posts recentes por perfil; não solicita senha, não envia cookies e não descobre pessoas por bypass.
+- [ ] **Homologação externa:** configurar URL/chave/instância/segredo/webhook Evolution e testar em um WhatsApp real; homologar Abridge em Windows/macOS.

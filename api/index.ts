@@ -17,6 +17,10 @@ import bridgeTasks from '../server/api/integrations/prospecting/bridge/tasks.js'
 import bridgeJobs from '../server/api/integrations/prospecting/bridge/jobs.js';
 import bridgeResults from '../server/api/integrations/prospecting/bridge/results.js';
 import bridgeHeartbeat from '../server/api/integrations/prospecting/bridge/heartbeat.js';
+import whatsappInstances from '../server/api/integrations/whatsapp/instances.js';
+import whatsappConnect from '../server/api/integrations/whatsapp/connect.js';
+import whatsappSend from '../server/api/integrations/whatsapp/send.js';
+import whatsappWebhook from '../server/api/integrations/whatsapp/webhook.js';
 import type { ApiRequest, ApiResponse } from '../server/api/_lib/types.js';
 
 type Handler = (req: ApiRequest, res: ApiResponse) => unknown | Promise<unknown>;
@@ -40,6 +44,10 @@ const routes: Record<string, Handler> = {
   'integrations/prospecting/bridge/jobs': bridgeJobs,
   'integrations/prospecting/bridge/results': bridgeResults,
   'integrations/prospecting/bridge/heartbeat': bridgeHeartbeat,
+  'integrations/whatsapp/instances': whatsappInstances,
+  'integrations/whatsapp/connect': whatsappConnect,
+  'integrations/whatsapp/send': whatsappSend,
+  'integrations/whatsapp/webhook': whatsappWebhook,
 };
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {

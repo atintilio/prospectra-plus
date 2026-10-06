@@ -58,16 +58,21 @@ export async function requireBridgeDevice(req: ApiRequest, res: ApiResponse) {
 
 export function safeTask(body: Record<string, unknown>, userId: string): BridgeTaskRecord | null {
   const action = body.action;
-  if (!['sync_profile', 'sync_inbox', 'send_connection', 'send_message'].includes(String(action))) return null;
+  if (!['sync_profile', 'sync_org_chart', 'sync_inbox', 'send_connection', 'send_message'].includes(String(action))) return null;
   const profileUrl = typeof body.profileUrl === 'string' ? body.profileUrl.trim() : undefined;
+  const profileUrls = Array.isArray(body.profileUrls) ? body.profileUrls.filter((value): value is string => typeof value === 'string').map((value) => value.trim()).filter(Boolean).slice(0, 50) : undefined;
+  const companyName = typeof body.companyName === 'string' ? body.companyName.trim().slice(0, 160) : undefined;
+  const postCount = typeof body.postCount === 'number' ? Math.max(0, Math.min(5, Math.floor(body.postCount))) : undefined;
   const threadUrl = typeof body.threadUrl === 'string' ? body.threadUrl.trim() : undefined;
   const message = typeof body.message === 'string' ? body.message.trim().slice(0, 5000) : undefined;
-  if (action !== 'sync_inbox' && !profileUrl) return null;
+  if (action === 'sync_org_chart' && (!companyName || !profileUrls?.length)) return null;
+  if (action !== 'sync_org_chart' && action !== 'sync_inbox' && !profileUrl) return null;
   if (action === 'sync_inbox' && !threadUrl) return null;
   if ((action === 'send_connection' || action === 'send_message') && !message) return null;
   if (profileUrl && !isLinkedInPath(profileUrl, '/in/')) return null;
+  if (profileUrls && (profileUrls.length === 0 || profileUrls.some((value) => !isLinkedInPath(value, '/in/')))) return null;
   if (threadUrl && !isLinkedInPath(threadUrl, '/messaging/thread/')) return null;
-  return { id: randomUUID(), userId, action: action as BridgeTaskRecord['action'], profileUrl, threadUrl, message, requestedAt: new Date().toISOString(), state: 'queued', requiresConfirmation: action === 'send_connection' || action === 'send_message', ...(typeof body.deviceId === 'string' ? { deviceId: body.deviceId } : {}), ...(typeof body.campaignTaskId === 'string' ? { campaignTaskId: body.campaignTaskId } : {}), ...(typeof body.accountId === 'string' ? { accountId: body.accountId } : {}), ...(typeof body.contactId === 'string' ? { contactId: body.contactId } : {}) };
+  return { id: randomUUID(), userId, action: action as BridgeTaskRecord['action'], profileUrl, profileUrls, companyName, postCount, threadUrl, message, requestedAt: new Date().toISOString(), state: 'queued', requiresConfirmation: action === 'send_connection' || action === 'send_message', ...(typeof body.deviceId === 'string' ? { deviceId: body.deviceId } : {}), ...(typeof body.campaignTaskId === 'string' ? { campaignTaskId: body.campaignTaskId } : {}), ...(typeof body.accountId === 'string' ? { accountId: body.accountId } : {}), ...(typeof body.contactId === 'string' ? { contactId: body.contactId } : {}) };
 }
 
 function isLinkedInPath(value: string, prefix: string) {

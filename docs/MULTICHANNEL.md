@@ -4,11 +4,11 @@ A referência pública do Contatio organiza o produto em **Context Engine, Agent
 
 ## WhatsApp
 
-O conector é provider-neutral e espera uma API não oficial compatível com envio, status e webhook. O endereço da API e as credenciais ficam no servidor. Antes do envio, o Prospectra verifica: conta não suprimida, contato elegível, copy aprovada, evidências associadas, janela/capacidade do provedor e limite diário. Mensagens recebidas pausam a cadência e geram sinal de handoff.
+O conector prioritário é a Evolution API em serviço persistente separado do Vercel, compatível com envio, estado da instância e webhook. O endereço da API e as credenciais ficam no servidor. Antes do envio, o Prospectra verifica: conta não suprimida, contato elegível, copy aprovada, evidências associadas, janela/capacidade do provedor e limite diário. Mensagens recebidas pausam a cadência e geram sinal de handoff.
 
 ## LinkedIn
 
-O conector é tratado da mesma forma, com uma API não oficial escolhida pelo cliente. O adaptador não aceita cookies no navegador nem automatiza uma sessão de Chrome; espera credencial e endpoint de um provedor externo. A interface mostra claramente `API não oficial configurável`, `Conectado`, `Pausado` ou `Não configurado`, sem confundir fila local com entrega externa.
+O caminho sem assinatura é o Abridge: o operador faz login manual no Chrome local visível, e o `linkout-scraper` lê perfil/posts públicos ou executa uma tarefa aprovada na sessão local. O Abridge não envia senha/cookie ao Prospectra. Convites e mensagens exigem confirmação na tela do desktop; a interface não confunde resultado local com `delivered` do LinkedIn.
 
 ## Agente e playbooks
 
@@ -20,7 +20,7 @@ Cada envio grava `channel`, `externalContactId`, `campaignId`, `approvedCopyRevi
 
 ## Configuração necessária
 
-- `WHATSAPP_PROVIDER_BASE_URL`, `WHATSAPP_PROVIDER_API_KEY`, `WHATSAPP_WEBHOOK_SECRET`;
+- `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `EVOLUTION_WEBHOOK_SECRET` e `EVOLUTION_WEBHOOK_URL`;
 - `LINKEDIN_PROVIDER_BASE_URL`, `LINKEDIN_PROVIDER_API_KEY`, `LINKEDIN_WEBHOOK_SECRET`;
 - `SGAI_API_KEY` para pesquisa/enriquecimento.
 

@@ -74,8 +74,11 @@ export interface BridgeTaskRecord {
   id: string;
   deviceId?: string;
   userId: string;
-  action: 'sync_profile' | 'sync_inbox' | 'send_connection' | 'send_message';
+  action: 'sync_profile' | 'sync_org_chart' | 'sync_inbox' | 'send_connection' | 'send_message';
   profileUrl?: string;
+  profileUrls?: string[];
+  companyName?: string;
+  postCount?: number;
   threadUrl?: string;
   message?: string;
   requestedAt: string;

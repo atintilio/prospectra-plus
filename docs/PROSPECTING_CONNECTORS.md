@@ -12,21 +12,21 @@
 
 ## Capacidade criada no Prospectra
 
-A versão atual inclui uma integração **provider-first**:
+A versão atual inclui dois caminhos **provider-first**:
 
 1. `POST /api/integrations/prospecting/hosted-auth` cria um link temporário de Hosted Auth quando `UNIPILE_DSN`, `UNIPILE_API_KEY` e `UNIPILE_WEBHOOK_SECRET` estão configurados exclusivamente no Vercel.
 2. O titular é redirecionado ao assistente do provedor; o Prospectra não pede senha, cookies nem um perfil de navegador.
 3. `POST /api/integrations/prospecting/unipile-webhook` recebe o callback protegido por token e persiste apenas o estado e o identificador da conexão no Blob privado.
 4. `GET /api/integrations/prospecting/accounts` exibe somente as conexões do usuário autenticado.
-5. A tela **Configurações** oferece “Conectar LinkedIn” e “Conectar WhatsApp”, apresenta a situação de conexão e deixa explícito que a conexão não habilita envio automático por si só.
+5. A tela **Configurações** oferece Hosted Auth opcional, pareamento do Abridge e configuração da Evolution API. A conexão não habilita envio automático por si só: o Prospectra exige tarefa aprovada, evidência, limite e reconciliação.
 
-O conector ainda **não envia** convites ou mensagens. Esse bloqueio é deliberado: antes de qualquer envio é preciso concluir autorização, quotas, webhooks, reconciliação de status, cooldown, orçamento, prova de aprovação por destinatário/canal/evidência e uma avaliação jurídica/contratual dos termos do provedor.
+O caminho sem assinatura para LinkedIn é o **Abridge**: um único aplicativo desktop abre Chrome visível, usa uma sessão que o operador autenticou manualmente e chama o `linkout-scraper` para ler perfis/posts públicos ou executar uma tarefa de escrita somente após confirmação local. O Prospectra não recebe senha ou cookie. A Evolution API é o caminho de WhatsApp quando o servidor persistente, QR Code e webhook estão configurados.
 
 ## Decisão recomendada
 
 ### Fase 1 — piloto de baixo custo
 
-Use o Prospectra com enriquecimento, CRM, copy aprovada, fila de tarefa assistida, link para o perfil e registro de execução. O custo de transporte é **zero**; o operador realiza a ação manualmente na plataforma. É a forma mais segura de validar ICP, copy, evidência, cadência e reuniões antes de contratar infraestrutura de conexão.
+Use o Prospectra com enriquecimento, CRM, copy aprovada, fila de tarefa assistida e Abridge. O custo de transporte do LinkedIn é **zero**; o operador instala o Abridge, abre o Chrome, faz login e confirma as ações. É a forma mais econômica de validar ICP, copy, evidência, cadência e reuniões.
 
 ### Fase 2 — Hosted Auth por provedor
 
@@ -34,7 +34,7 @@ Para conectar contas e sincronizar inbox/calendário sem construir um desktop ag
 
 ### Fase 3 — Abridge próprio
 
-O Prospectra agora possui a base do **Abridge**, um único aplicativo desktop empacotado para Windows, macOS e Linux. O aplicativo abre um Chrome visível com perfil dedicado, mantém a sessão local, consulta uma fila HTTPS autenticada, executa tarefas aprovadas com `linkout-scraper` e devolve apenas resultado/status. O Vercel não acessa `localhost`, cookies ou senha do operador.
+O Prospectra agora possui a base do **Abridge**, um único aplicativo desktop empacotado para Windows, macOS e Linux. O aplicativo abre um Chrome visível com perfil dedicado, mantém a sessão local, consulta uma fila HTTPS autenticada, executa tarefas aprovadas com `linkout-scraper`, lê perfis/posts públicos e constrói organogramas a partir de URLs informadas pelo operador. O Vercel não acessa `localhost`, cookies ou senha do operador.
 
 O produto fica dividido em dois aplicativos para o usuário: **Prospectra+ Web** e **Prospectra Abridge Desktop**. Não há dois bridges diferentes: o mesmo código é empacotado como `.exe` para Windows e `.dmg` para macOS. A primeira fila exige confirmação visível no Abridge para convites e mensagens; leituras podem ser sincronizadas automaticamente.
 
@@ -47,6 +47,14 @@ Endpoints do contrato:
 - `POST /api/integrations/prospecting/bridge/heartbeat` — status de presença.
 
 O token de pareamento é exibido uma única vez e armazenado no servidor somente como hash. O Abridge guarda o token localmente e usa `Bearer` sobre HTTPS.
+
+### Evolution API para WhatsApp
+
+A Evolution API não roda no Vercel: a instalação fica em Docker/VM persistente com PostgreSQL, Redis e volume de sessões. O Prospectra chama `POST /message/sendText/{instance}` server-side com `apikey`; o navegador nunca recebe a chave.
+
+No painel **Configurações → WhatsApp · Evolution API**, o Owner cria/atualiza a instância, gera o QR Code e lê o QR no WhatsApp Business. O health check só marca o canal como conectado quando a instância retorna estado `open`/`connected`.
+
+Eventos de conexão, QR, entrada e envio chegam em `/api/integrations/whatsapp/webhook` com o segredo `x-prospectra-webhook-secret`. Uma mensagem só é elegível quando a copy está aprovada, o contato tem número internacional, a conta não está pausada/suprimida e há evidência associada.
 
 ### Alternativa de referência
 

@@ -20,6 +20,7 @@ export interface Contact {
   name: string;
   role: string;
   email: string;
+  phone?: string;
   linkedin: string;
   reviewedAt: string;
   status: 'Revisado' | 'A revisar';
