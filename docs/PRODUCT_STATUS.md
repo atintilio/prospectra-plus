@@ -16,7 +16,7 @@
 - Gateway Baileys separado com API autenticada, QR Code, sessão persistente, reconexão, envio aprovado, recibos e webhook; o Prospectra tem adaptador server-side e health check sem expor token.
 - Equipes com diagnóstico consolidado para líderes/liderados e diagnóstico executivo completo para Owner.
 - Menu de três pontos no Owner para editar nome/e-mail/papel/equipe/estado, reenviar convite e desativar acesso reversivelmente, com proteção server-side do master.
-- Abridge Desktop disponível para qualquer usuário cadastrado e ativo em **Configurações → Desktop Bridge**, com empacotamento para Windows, macOS e Linux, Chrome visível em perfil dedicado, polling HTTPS, fila de tarefas, confirmação local para mensagens/convites, leitura de perfis e organograma a partir de URLs informadas, sem exportar cookies. Cada usuário cria e revoga somente o próprio dispositivo. Download Windows: https://files.manuscdn.com/user_upload_by_module/session_file/310419663029693892/msyBOtxEqaDZfSiL.zip
+- Abridge Desktop disponível para qualquer usuário cadastrado e ativo em **Configurações → Desktop Bridge**, com empacotamento para Windows, macOS e Linux, Chrome visível em perfil dedicado, polling HTTPS, fila de tarefas, confirmação local para mensagens/convites, leitura de perfis e organograma a partir de URLs informadas, sem exportar cookies. Cada usuário cria e revoga somente o próprio dispositivo. Download Windows: https://files.manuscdn.com/user_upload_by_module/session_file/310419663029693892/msyBOtxEqaDZfSiL.zip · Download macOS Apple Silicon nativo (M1/M2/M3/M4, ARM64): https://files.manuscdn.com/user_upload_by_module/session_file/310419663029693892/nNEUkFKReysCTznz.zip · Download macOS Intel x64: https://files.manuscdn.com/user_upload_by_module/session_file/310419663029693892/aVqmYcllxhRrhNnP.zip
 
 ## Não é apresentado como conectado
 
@@ -31,4 +31,4 @@
 3. Migrar o snapshot de workspace para PostgreSQL com RLS forçada, versionamento otimista e outbox durável.
 4. Implementar worker durável para esperas, reconciliação `unknown`, budgets e webhooks assinados.
 5. Executar importação real, restauração de backup e revisão de finalidade/base legal LGPD antes de mensagens reais.
-6. Publicar o contrato de fila Abridge no deployment e homologar o instalador `.exe` em Windows e `.dmg` em macOS; a sandbox Linux valida o código, mas não substitui o teste em cada sistema.
+6. Publicar o contrato de fila Abridge no deployment e homologar o artefato `.exe` em Windows, o ZIP ARM64 nativo em Apple Silicon e o ZIP x64 em Mac Intel. A sandbox Linux valida o código, mas não substitui o teste em cada sistema.
