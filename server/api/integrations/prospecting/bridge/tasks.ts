@@ -5,7 +5,7 @@ import type { ApiRequest, ApiResponse } from '../../../_lib/types.js';
 import { loadWorkspaceState, visibleWorkspaceState } from '../../../_lib/workspace.js';
 
 function approvedWriteTask(workspace: Awaited<ReturnType<typeof loadWorkspaceState>>, user: Parameters<typeof visibleWorkspaceState>[1], bridgeTask: ReturnType<typeof safeTask>) {
-  if (!bridgeTask || (bridgeTask.action !== 'send_message' && bridgeTask.action !== 'send_connection') || !bridgeTask.campaignTaskId) return bridgeTask?.action === 'sync_profile' || bridgeTask?.action === 'sync_org_chart' || bridgeTask?.action === 'sync_inbox';
+  if (!bridgeTask || !['send_message', 'send_connection', 'send_whatsapp'].includes(bridgeTask.action) || !bridgeTask.campaignTaskId) return bridgeTask?.action === 'sync_profile' || bridgeTask?.action === 'sync_org_chart' || bridgeTask?.action === 'sync_inbox';
   const scoped = visibleWorkspaceState(workspace.state, user);
   const campaign = scoped.campaigns.find((item) => item.tasks.some((task) => task.id === bridgeTask.campaignTaskId));
   const task = campaign?.tasks.find((item) => item.id === bridgeTask.campaignTaskId);
@@ -13,7 +13,8 @@ function approvedWriteTask(workspace: Awaited<ReturnType<typeof loadWorkspaceSta
   const contact = account?.contacts.find((item) => item.id === bridgeTask.contactId);
   const approval = task?.approval;
   const evidenceIsValid = Boolean(approval?.evidenceIds.length && approval.evidenceIds.every((id) => account?.evidence.some((evidence) => evidence.id === id && evidence.verified)));
-  return Boolean(campaign && task && account && contact && task.channel === 'LinkedIn' && task.accountId === account.id && task.contactId === contact.id && !account.paused && !account.suppressed && task.state !== 'Concluído' && campaign.copy.state === 'Aprovado' && approval && approval.copyRevision === campaign.copy.revision && approval.contactId === contact.id && approval.channel === 'LinkedIn' && evidenceIsValid && bridgeTask.message?.trim() === campaign.copy.text.trim());
+  const expectedChannel = bridgeTask.action === 'send_whatsapp' ? 'WhatsApp' : 'LinkedIn';
+  return Boolean(campaign && task && account && contact && task.channel === expectedChannel && task.accountId === account.id && task.contactId === contact.id && !account.paused && !account.suppressed && task.state !== 'Concluído' && campaign.copy.state === 'Aprovado' && approval && approval.copyRevision === campaign.copy.revision && approval.contactId === contact.id && approval.channel === expectedChannel && evidenceIsValid && bridgeTask.message?.trim() === campaign.copy.text.trim() && (expectedChannel !== 'WhatsApp' || (contact.optIn === true && bridgeTask.optIn === true)));
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
@@ -25,7 +26,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!requireSameOrigin(req, res)) return;
       const task = safeTask(requestBody(req), context.user.id);
       if (!task) return json(res, 400, { error: 'invalid_bridge_task' });
-      if (task.action === 'send_message' || task.action === 'send_connection') {
+      if (task.action === 'send_message' || task.action === 'send_connection' || task.action === 'send_whatsapp') {
         if (!approvedWriteTask(await loadWorkspaceState(), context.user, task)) return json(res, 409, { error: 'bridge_task_not_approved' });
       }
       const store = await loadBridgeStore();

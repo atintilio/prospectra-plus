@@ -61,7 +61,7 @@ function normalizeLinkedInUrl(value: string, prefix: string): string | null {
 
 export function safeTask(body: Record<string, unknown>, userId: string): BridgeTaskRecord | null {
   const action = body.action;
-  if (!['sync_profile', 'sync_org_chart', 'sync_inbox', 'send_connection', 'send_message'].includes(String(action))) return null;
+  if (!['sync_profile', 'sync_org_chart', 'sync_inbox', 'send_connection', 'send_message', 'send_whatsapp'].includes(String(action))) return null;
   const rawProfileUrl = typeof body.profileUrl === 'string' ? body.profileUrl.trim() : undefined;
   const rawProfileUrls = Array.isArray(body.profileUrls) ? body.profileUrls.filter((value): value is string => typeof value === 'string').map((value) => value.trim()).filter(Boolean).slice(0, 50) : undefined;
   const profileUrl = rawProfileUrl ? normalizeLinkedInProfileUrl(rawProfileUrl) ?? undefined : undefined;
@@ -70,14 +70,17 @@ export function safeTask(body: Record<string, unknown>, userId: string): BridgeT
   const postCount = typeof body.postCount === 'number' ? Math.max(0, Math.min(5, Math.floor(body.postCount))) : undefined;
   const rawThreadUrl = typeof body.threadUrl === 'string' ? body.threadUrl.trim() : undefined;
   const threadUrl = rawThreadUrl ? normalizeLinkedInThreadUrl(rawThreadUrl) ?? undefined : undefined;
+  const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '').slice(0, 15) : undefined;
+  const optIn = body.optIn === true;
   const message = typeof body.message === 'string' ? body.message.trim().slice(0, 5000) : undefined;
   const campaignTaskId = typeof body.campaignTaskId === 'string' ? body.campaignTaskId : undefined;
   if (action === 'sync_org_chart' && (!companyName || !profileUrls?.length || profileUrls.length !== rawProfileUrls?.length)) return null;
   if (action !== 'sync_org_chart' && action !== 'sync_inbox' && !profileUrl) return null;
   if (action === 'sync_inbox' && !threadUrl) return null;
   if ((action === 'send_connection' || action === 'send_message') && (!message || !campaignTaskId)) return null;
+  if (action === 'send_whatsapp' && (!phone || phone.length < 10 || !message || !campaignTaskId || !optIn)) return null;
   if (rawProfileUrls && (!profileUrls || profileUrls.length !== rawProfileUrls.length)) return null;
-  return { id: randomUUID(), userId, action: action as BridgeTaskRecord['action'], profileUrl, profileUrls, companyName, postCount, threadUrl, message, requestedAt: new Date().toISOString(), state: 'queued', requiresConfirmation: action === 'send_connection' || action === 'send_message', ...(typeof body.deviceId === 'string' ? { deviceId: body.deviceId } : {}), ...(campaignTaskId ? { campaignTaskId } : {}), ...(typeof body.accountId === 'string' ? { accountId: body.accountId } : {}), ...(typeof body.contactId === 'string' ? { contactId: body.contactId } : {}) };
+  return { id: randomUUID(), userId, action: action as BridgeTaskRecord['action'], profileUrl, profileUrls, companyName, postCount, threadUrl, phone, optIn, message, requestedAt: new Date().toISOString(), state: 'queued', requiresConfirmation: action === 'send_connection' || action === 'send_message' || action === 'send_whatsapp', ...(typeof body.deviceId === 'string' ? { deviceId: body.deviceId } : {}), ...(campaignTaskId ? { campaignTaskId } : {}), ...(typeof body.accountId === 'string' ? { accountId: body.accountId } : {}), ...(typeof body.contactId === 'string' ? { contactId: body.contactId } : {}) };
 }
 
 export function requestBody(req: ApiRequest) { return parseBody(req); }

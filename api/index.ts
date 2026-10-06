@@ -17,6 +17,7 @@ import bridgeTasks from '../server/api/integrations/prospecting/bridge/tasks.js'
 import bridgeJobs from '../server/api/integrations/prospecting/bridge/jobs.js';
 import bridgeResults from '../server/api/integrations/prospecting/bridge/results.js';
 import bridgeHeartbeat from '../server/api/integrations/prospecting/bridge/heartbeat.js';
+import bridgeEvents from '../server/api/integrations/prospecting/bridge/events.js';
 import whatsappInstances from '../server/api/integrations/whatsapp/instances.js';
 import whatsappConnect from '../server/api/integrations/whatsapp/connect.js';
 import whatsappSend from '../server/api/integrations/whatsapp/send.js';
@@ -45,6 +46,7 @@ const routes: Record<string, Handler> = {
   'integrations/prospecting/bridge/jobs': bridgeJobs,
   'integrations/prospecting/bridge/results': bridgeResults,
   'integrations/prospecting/bridge/heartbeat': bridgeHeartbeat,
+  'integrations/prospecting/bridge/events': bridgeEvents,
   'integrations/whatsapp/instances': whatsappInstances,
   'integrations/whatsapp/connect': whatsappConnect,
   'integrations/whatsapp/send': whatsappSend,

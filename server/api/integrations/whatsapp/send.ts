@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { requireActiveSession, requireSameOrigin } from '../../_lib/access.js';
 import { json, methodNotAllowed, parseBody } from '../../_lib/http.js';
 import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
+import { loadBridgeStore, saveBridgeStore } from '../../_lib/bridge.js';
 import { loadWorkspaceState, saveWorkspaceState, visibleWorkspaceState } from '../../_lib/workspace.js';
-import { sendBaileysText, normalizeBaileysNumber } from '../../../integrations/baileys.js';
+import { normalizeBaileysNumber } from '../../../integrations/baileys.js';
 import { activeWhatsAppProvider } from '../../../integrations/whatsapp-provider.js';
 import { normalizeWhatsappNumber, sendEvolutionText } from '../../../integrations/evolution.js';
 import type { CampaignTask } from '../../../../src/types.js';
@@ -40,21 +42,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const suppliedNumber = provider === 'baileys' ? normalizeBaileysNumber(number) : normalizeWhatsappNumber(number);
     if (expectedNumber !== suppliedNumber) return json(res, 409, { error: 'whatsapp_number_mismatch' });
     if (text.trim() !== campaign.copy.text.trim()) return json(res, 409, { error: 'whatsapp_copy_mismatch' });
-    const receipt = provider === 'baileys' ? await sendBaileysText({ number: expectedNumber, text: campaign.copy.text }) : await sendEvolutionText({ number: expectedNumber, text: campaign.copy.text });
+    if (provider === 'baileys') {
+      const bridgeStore = await loadBridgeStore();
+      const device = bridgeStore.devices.find((item) => item.userId === context.user.id && item.active);
+      if (!device) return json(res, 409, { error: 'whatsapp_bridge_not_paired' });
+      const queuedAt = new Date().toISOString();
+      bridgeStore.tasks.push({ id: randomUUID(), userId: context.user.id, deviceId: device.id, action: 'send_whatsapp', phone: expectedNumber, optIn: true, message: campaign.copy.text, requestedAt: queuedAt, state: 'queued', requiresConfirmation: true, campaignTaskId: task.id, accountId: account.id, contactId: contact.id });
+      await saveBridgeStore(bridgeStore);
+      return json(res, 202, { ok: true, queued: true, taskId, provider, deviceId: device.id, message: 'A tarefa foi enviada ao Abridge e aguarda confirmação local.' });
+    }
+    const receipt = await sendEvolutionText({ number: expectedNumber, text: campaign.copy.text });
     if (receipt.status !== 'sent' || !receipt.providerMessageId) return json(res, 502, { error: 'whatsapp_delivery_unknown' });
     const rawCampaign = workspace.state.campaigns.find((item) => item.id === campaign.id);
     const rawTask = rawCampaign?.tasks.find((item) => item.id === task.id);
     const rawAccount = workspace.state.accounts.find((item) => item.id === account.id);
     if (!rawTask || !rawAccount) return json(res, 500, { error: 'whatsapp_receipt_target_missing' });
     rawTask.state = 'Concluído'; rawTask.providerMessageId = receipt.providerMessageId; rawTask.providerStatus = receipt.status; rawTask.completedAt = new Date().toISOString();
-    rawAccount.activities = [{ id: crypto.randomUUID(), kind: 'Tarefa', actor: context.user.email, createdAt: new Date().toISOString(), text: `Mensagem WhatsApp enviada pelo ${provider === 'baileys' ? 'Baileys Gateway' : 'Evolution API'} para ${contact.name}. Provider ID: ${receipt.providerMessageId}.` }, ...rawAccount.activities];
+    rawAccount.activities = [{ id: crypto.randomUUID(), kind: 'Tarefa', actor: context.user.email, createdAt: new Date().toISOString(), text: `Mensagem WhatsApp enviada pela Evolution API para ${contact.name}. Provider ID: ${receipt.providerMessageId}.` }, ...rawAccount.activities];
     try { await saveWorkspaceState(workspace.state); } catch { return json(res, 502, { error: 'whatsapp_receipt_persistence_failed' }); }
     return json(res, 200, { ok: true, taskId, provider, receipt: { providerMessageId: receipt.providerMessageId, status: receipt.status } });
   } catch (error) {
     const code = error instanceof Error ? error.message : 'WHATSAPP_SEND_FAILED';
     if (code.includes('INVALID_NUMBER') || code.includes('INVALID_TEXT')) return json(res, 400, { error: code.toLowerCase() });
     if (code.includes('NOT_CONFIGURED')) return json(res, 503, { error: `${provider}_not_configured` });
-    if (code === 'BAILEYS_NOT_CONNECTED') return json(res, 409, { error: 'baileys_not_connected' });
+    if (code === 'BAILEYS_NOT_CONNECTED' || code === 'WHATSAPP_NOT_CONNECTED') return json(res, 409, { error: 'baileys_not_connected' });
     const status = Number((error as { status?: number }).status);
     return json(res, status >= 400 && status < 600 ? status : 502, { error: 'whatsapp_send_failed' });
   }
