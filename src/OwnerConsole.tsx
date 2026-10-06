@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { BadgeCheck, Building2, LoaderCircle, MailCheck, ShieldCheck, UserCog, UserPlus, UsersRound } from 'lucide-react';
+import { BadgeCheck, Building2, LoaderCircle, MailCheck, MoreHorizontal, Pencil, ShieldCheck, Trash2, UserCog, UserPlus, UsersRound } from 'lucide-react';
 import type { SessionRole, SessionUser } from './AuthGate';
 import type { Team, TeamMember } from './types';
 
@@ -57,6 +57,8 @@ function errorText(code?: string) {
     leader_already_assigned: 'Este líder já pertence a outra equipe. Reatribua-o antes.',
     team_leader_must_be_reassigned: 'Escolha outro líder da equipe antes de mudar este acesso.',
     master_user_protected: 'O usuário Owner não pode ser desativado nem perder o papel de administrador.',
+    invalid_team_member: 'O usuário precisa estar ativo e não pode ser administrador para entrar em uma equipe.',
+    team_not_found: 'A equipe escolhida não existe mais. Atualize o painel e tente novamente.',
     invite_delivery_failed: 'O convite não foi entregue pelo Office 365. Confira o serviço e tente novamente.',
     inactive_user: 'Ative o usuário antes de enviar um convite.',
     owner_access_required: 'Somente o Owner pode administrar usuários e equipes.',
@@ -128,12 +130,13 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
     finally { setBusy(''); }
   };
 
-  const updateUser = async (user: ManagedUser, patch: Partial<Pick<ManagedUser, 'name' | 'role' | 'active'>>) => {
+  const updateUser = async (user: ManagedUser, patch: Partial<Pick<ManagedUser, 'name' | 'email' | 'role' | 'active' | 'teamId'>>) => {
     setBusy(`user-${user.id}`); setError(''); setNotice('');
     try {
       const next = await organizationRequest('PATCH', { action: 'update-user', userId: user.id, ...patch });
       apply(next); setNotice(`Acesso de ${user.name} atualizado.`);
-    } catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); }
+      return true;
+    } catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); return false; }
     finally { setBusy(''); }
   };
 
@@ -184,14 +187,39 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
   </>;
 }
 
-function UserRow({ user, teams, ownerId, busy, onSave, onInvite }: { user: ManagedUser; teams: ManagedTeam[]; ownerId: string; busy: string; onSave: (user: ManagedUser, patch: Partial<Pick<ManagedUser, 'name' | 'role' | 'active'>>) => void; onInvite: (user: ManagedUser) => void }) {
+function UserRow({ user, teams, ownerId, busy, onSave, onInvite }: { user: ManagedUser; teams: ManagedTeam[]; ownerId: string; busy: string; onSave: (user: ManagedUser, patch: Partial<Pick<ManagedUser, 'name' | 'email' | 'role' | 'active' | 'teamId'>>) => boolean | Promise<boolean> | void; onInvite: (user: ManagedUser) => void | Promise<void> }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState<ManagedRole>(user.role);
+  const [teamId, setTeamId] = useState(user.teamId ?? '');
   const [active, setActive] = useState(user.active);
-  useEffect(() => { setRole(user.role); setActive(user.active); }, [user.role, user.active]);
   const isOwner = user.id === ownerId;
   const saving = busy === `user-${user.id}`;
   const inviting = busy === `invite-${user.id}`;
-  return <div className="owner-user-row"><div className="owner-person"><div className="owner-avatar">{user.name.slice(0, 1)}</div><div><strong>{user.name}{isOwner && <small>Owner</small>}</strong><span>{user.email}</span></div></div><span className="owner-team-name">{teamName(user, teams)}</span><select aria-label={`Papel de ${user.name}`} disabled={isOwner} value={role} onChange={(event) => setRole(event.target.value as ManagedRole)}><option value="admin">Administrador</option><option value="leader">Líder</option><option value="member">Liderado</option></select><label className="owner-active"><input type="checkbox" disabled={isOwner} checked={active} onChange={(event) => setActive(event.target.checked)} /><span>{active ? 'Ativo' : 'Inativo'}</span></label><div className="owner-user-actions"><button className="outline-button" disabled={saving || isOwner} onClick={() => onSave(user, { role, active })}>{saving ? <LoaderCircle className="spin" size={14}/> : 'Salvar'}</button><button className="text-button" disabled={inviting || !user.active} onClick={() => onInvite(user)}>{inviting ? <LoaderCircle className="spin" size={14}/> : <MailCheck size={14}/>} {user.passwordSet ? 'Novo link' : 'Enviar convite'}</button></div><span className={`owner-invite-state ${user.invitationState}`}>{user.invitationState === 'active' ? 'Acesso ativo' : user.invitationState === 'pending' ? 'Convite pendente' : 'Inativo'}</span></div>;
+  useEffect(() => { setName(user.name); setEmail(user.email); setRole(user.role); setTeamId(user.teamId ?? ''); setActive(user.active); }, [user.name, user.email, user.role, user.teamId, user.active]);
+  const openEditor = () => { setMenuOpen(false); setEditing(true); };
+  const save = () => { Promise.resolve(onSave(user, { name, email, role, active, teamId: role === 'member' && teamId ? teamId : null })).then((success) => { if (success !== false) setEditing(false); }); };
+  const deactivate = () => {
+    setMenuOpen(false);
+    if (isOwner) return;
+    if (window.confirm(`Desativar o acesso de ${user.name}? O histórico será preservado e o acesso poderá ser reativado depois.`)) void onSave(user, { active: false });
+  };
+  return <>
+    <div className="owner-user-row">
+      <div className="owner-person"><div className="owner-avatar">{user.name.slice(0, 1)}</div><div><strong>{user.name}{isOwner && <small>Owner</small>}</strong><span>{user.email}</span></div></div>
+      <span className="owner-team-name">{teamName(user, teams)}</span>
+      <span className="owner-role-badge">{roleLabel(user.role)}</span>
+      <span className={`owner-active-label ${user.active ? 'active' : 'inactive'}`}>{user.active ? 'Ativo' : 'Inativo'}</span>
+      <div className="owner-user-actions">
+        <button className="icon-button compact owner-more-button" aria-label={`Ações de ${user.name}`} aria-expanded={menuOpen} disabled={isOwner} onClick={() => setMenuOpen((open) => !open)}><MoreHorizontal size={17}/></button>
+        {menuOpen && <div className="owner-action-menu"><button onClick={openEditor}><Pencil size={14}/> Editar usuário</button><button disabled={inviting || !user.active} onClick={() => { setMenuOpen(false); void onInvite(user); }}><MailCheck size={14}/> {user.passwordSet ? 'Enviar novo link' : 'Enviar convite'}</button><button className="danger-menu-item" onClick={deactivate}><Trash2 size={14}/> {user.active ? 'Desativar acesso' : 'Acesso já desativado'}</button></div>}
+      </div>
+      <span className={`owner-invite-state ${user.invitationState}`}>{user.invitationState === 'active' ? 'Acesso ativo' : user.invitationState === 'pending' ? 'Convite pendente' : 'Inativo'}</span>
+    </div>
+    {editing && <div className="owner-inline-editor"><label>Nome<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>E-mail<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} disabled={isOwner} /></label><label>Papel<select value={role} onChange={(event) => { const next = event.target.value as ManagedRole; setRole(next); if (next !== 'member') setTeamId(''); }} disabled={isOwner}><option value="admin">Administrador</option><option value="leader">Líder</option><option value="member">Liderado</option></select></label><label>Equipe<select value={teamId} onChange={(event) => setTeamId(event.target.value)} disabled={isOwner || role !== 'member'}><option value="">Sem equipe</option>{teams.map((team) => <option value={team.id} key={team.id}>{team.name}</option>)}</select></label><div className="owner-inline-actions"><label className="owner-check"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} disabled={isOwner} /><span>Acesso ativo</span></label><button className="outline-button" onClick={() => setEditing(false)}>Cancelar</button><button className="new-button" disabled={saving || isOwner || !name.trim() || !email.trim()} onClick={save}>{saving ? <LoaderCircle className="spin" size={15}/> : <BadgeCheck size={15}/>} Salvar alterações</button></div><small>Alterar o papel ou a equipe pode mudar imediatamente a visão de negócios. O Owner não pode ser rebaixado, removido ou alterado.</small></div>}
+  </>;
 }
 
 function TeamEditor({ team, users, busy, onSave }: { team: ManagedTeam; users: ManagedUser[]; busy: string; onSave: (team: ManagedTeam, patch: Pick<ManagedTeam, 'name' | 'leaderId' | 'memberIds' | 'color'>) => void }) {

@@ -7,6 +7,7 @@
 - Workspace autenticado com leitura/persistência no Blob privado; fallback local é identificado na interface.
 - CRM nativo com contas, contatos, evidências, linha do tempo, pausa e oposição persistente.
 - Criação manual de conta, busca/filtro e exportação da auditoria em CSV.
+- Importação econômica de CSV/XLSX/XLS: a base já enriquecida entra no CRM sem chamada ao ScrapeGraphAI; enriquecimento externo é opt-in por lote.
 - Central de notificações com itens não lidos, leitura individual/total e navegação para a origem.
 - ScrapeGraphAI v2 em enriquecimento individual e lote CSV/XLSX, quando a chave server-side e os créditos estiverem disponíveis.
 - Campanhas com revisão de copy, invalidação após edição, aprovação condicionada a contato/evidência e tarefas assistidas.
@@ -14,6 +15,7 @@
 - Conexão de conta opcional em Hosted Auth Unipile: link temporário, callback com token, status privado por usuário e reconexão indicada; o provedor precisa ser configurado no Vercel antes de uso.
 - Health check server-side para Evolution API/WhatsApp e fornecedor autorizado de LinkedIn.
 - Equipes com diagnóstico consolidado para líderes/liderados e diagnóstico executivo completo para Owner.
+- Menu de três pontos no Owner para editar nome/e-mail/papel/equipe/estado, reenviar convite e desativar acesso reversivelmente, com proteção server-side do master.
 
 ## Não é apresentado como conectado
 

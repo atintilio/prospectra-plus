@@ -6,7 +6,7 @@ O **Painel Owner** é a camada de administração do workspace Prospectra+. Ele 
 
 | Área | Ação disponível | Persistência |
 |---|---|---|
-| Usuários | Criar, ativar/inativar e alterar o papel | Blob privado do projeto Vercel |
+| Usuários | Criar, editar nome/e-mail, ativar/inativar, alterar papel e atribuir liderado a equipe | Blob privado do projeto Vercel |
 | Convites | Enviar ou reenviar link de criação de senha | Microsoft Graph / Office 365 |
 | Equipes | Criar equipe, nomear líder, escolher cor e incluir liderados | Blob privado do projeto Vercel |
 | Segurança | Preservar o usuário master e impedir a remoção de um líder sem reatribuição | Validação server-side |
@@ -32,3 +32,9 @@ O painel Owner é escondido da navegação de líderes e liderados e a API `/api
 5. Envie o convite por Office 365 quando a pessoa estiver pronta para ativar seu acesso.
 
 Um líder só pode estar à frente de uma equipe por vez. Para desativar ou rebaixar um líder, primeiro escolha outro líder para a equipe. O usuário master não pode ser desativado nem perder o papel de administrador pelo próprio painel.
+
+## Menu de ações do usuário
+
+No diretório **Acessos e convites**, o botão de três pontos de cada usuário abre as ações administrativas. **Editar usuário** permite alterar nome, e-mail, papel, equipe de liderados e estado ativo. Alterar o e-mail remove a senha anterior e deixa o usuário pronto para receber um novo convite, evitando que a credencial antiga continue vinculada ao endereço anterior.
+
+**Enviar convite** ou **Enviar novo link** gera um token de uso único, expira em 15 minutos e usa o remetente Office 365 configurado. **Desativar acesso** é a exclusão operacional reversível: preserva histórico, retira o usuário da equipe e impede login; o Owner pode reativá-lo depois pelo editor. A exclusão física não é usada porque destruiria a trilha de auditoria e poderia quebrar negócios atribuídos.

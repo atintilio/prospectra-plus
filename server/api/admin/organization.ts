@@ -95,7 +95,7 @@ async function issueInvite(req: ApiRequest, store: AuthStore, user: StoredUser) 
 
 function responseForError(res: ApiResponse, error: unknown) {
   const code = error instanceof Error ? error.message : 'organization_update_failed';
-  const safe = ['team_leader_must_be_reassigned', 'invalid_team_member', 'leader_must_have_leader_role', 'master_user_protected', 'user_already_exists', 'leader_already_assigned', 'team_not_found', 'user_not_found'].includes(code) ? code : 'organization_update_failed';
+  const safe = ['team_leader_must_be_reassigned', 'invalid_team_member', 'leader_must_have_leader_role', 'master_user_protected', 'user_already_exists', 'leader_already_assigned', 'team_not_found', 'user_not_found', 'invalid_user_input', 'invalid_team_input', 'admin_cannot_join_team', 'create_team_leader_through_team_editor'].includes(code) ? code : 'organization_update_failed';
   return json(res, safe === 'organization_update_failed' ? 500 : 409, { error: safe });
 }
 
@@ -152,16 +152,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const nextRole = isRole(body.role) ? body.role : user.role;
       const nextActive = typeof body.active === 'boolean' ? body.active : user.active;
       const nextName = cleanText(body.name) || user.name || user.email;
+      const nextEmail = body.email === undefined ? user.email : cleanEmail(body.email);
+      const hasTeamUpdate = Object.prototype.hasOwnProperty.call(body, 'teamId');
+      const requestedTeamId = body.teamId === null || body.teamId === '' ? undefined : typeof body.teamId === 'string' ? body.teamId : user.teamId;
       const isMaster = user.email === MASTER_EMAIL;
-      if (isMaster && (nextRole !== user.role || !nextActive)) return json(res, 409, { error: 'master_user_protected' });
+      if (!emailIsValid(nextEmail) || !nextName) return json(res, 400, { error: 'invalid_user_input' });
+      if (context.store.users.some((entry) => entry.id !== user.id && entry.email === nextEmail)) return json(res, 409, { error: 'user_already_exists' });
+      if (isMaster && (nextEmail !== user.email || nextRole !== user.role || !nextActive)) return json(res, 409, { error: 'master_user_protected' });
+      if (nextRole === 'admin' && requestedTeamId) return json(res, 400, { error: 'admin_cannot_join_team' });
+      const requestedTeam = requestedTeamId ? teamById(context.store, requestedTeamId) : undefined;
+      if (requestedTeamId && !requestedTeam) return json(res, 404, { error: 'team_not_found' });
       const leaderTeam = context.store.teams.find((team) => team.leaderId === user.id);
-      if (leaderTeam && (nextRole !== 'leader' || !nextActive)) return json(res, 409, { error: 'team_leader_must_be_reassigned' });
-      if (nextRole === 'admin' && user.teamId) removeFromTeams(context.store, user.id);
-      if (!nextActive && user.teamId) removeFromTeams(context.store, user.id);
+      if (leaderTeam && (nextRole !== 'leader' || !nextActive || (hasTeamUpdate && requestedTeamId !== leaderTeam.id))) return json(res, 409, { error: 'team_leader_must_be_reassigned' });
+      if (nextRole === 'leader' && hasTeamUpdate && requestedTeamId && requestedTeamId !== user.teamId) return json(res, 409, { error: 'create_team_leader_through_team_editor' });
+      if (nextRole === 'admin' || !nextActive || (hasTeamUpdate && nextRole === 'member')) removeFromTeams(context.store, user.id);
+      if (nextRole === 'member' && nextActive && hasTeamUpdate && requestedTeam) setTeamMembership(context.store, requestedTeam, [...requestedTeam.memberIds, user.id]);
       user.name = nextName;
+      if (nextEmail !== user.email) {
+        user.email = nextEmail;
+        user.passwordHash = null;
+        context.store.resets = context.store.resets.filter((reset) => reset.userId !== user.id);
+      }
       user.role = nextRole;
       user.active = nextActive;
-      if (nextRole === 'admin' || !nextActive) user.teamId = undefined;
+      if (nextRole === 'admin' || !nextActive || (hasTeamUpdate && nextRole === 'member' && !requestedTeam)) user.teamId = undefined;
       user.updatedAt = timestamp();
       await saveAuthStore(context.store);
       return json(res, 200, { ok: true, organization: organization(context.store) });

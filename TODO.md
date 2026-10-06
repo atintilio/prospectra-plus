@@ -26,3 +26,8 @@
 - [ ] Configurar e testar Evolution API em serviço persistente separado do Vercel, com webhooks e reconciliação.
 - [ ] Obter e validar provider/API de LinkedIn conforme escopos, quotas, custo, termos aplicáveis e aprovação jurídica; não ativar envio automático antes disso.
 - [ ] Migrar snapshot de workspace para PostgreSQL com RLS forçada, versionamento otimista e outbox durável.
+
+## Entregas solicitadas — 06/10/2026
+
+- [x] **Menu de ações no Owner:** o diretório de usuários mostra três pontos por usuário não master; o menu permite editar nome/e-mail/papel/equipe/estado, enviar ou renovar convite Office 365 e desativar acesso de forma reversível. O master permanece protegido server-side.
+- [x] **Importação econômica:** CSV/XLSX/XLS pode ser incorporado ao CRM no modo padrão sem chamar o ScrapeGraphAI; a pesquisa externa é opt-in por lote e exibe origem e request ID para diferenciar consumo de créditos.
