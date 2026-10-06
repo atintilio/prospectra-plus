@@ -21,6 +21,7 @@ import whatsappInstances from '../server/api/integrations/whatsapp/instances.js'
 import whatsappConnect from '../server/api/integrations/whatsapp/connect.js';
 import whatsappSend from '../server/api/integrations/whatsapp/send.js';
 import whatsappWebhook from '../server/api/integrations/whatsapp/webhook.js';
+import baileysWebhook from '../server/api/integrations/whatsapp/baileys-webhook.js';
 import type { ApiRequest, ApiResponse } from '../server/api/_lib/types.js';
 
 type Handler = (req: ApiRequest, res: ApiResponse) => unknown | Promise<unknown>;
@@ -48,6 +49,7 @@ const routes: Record<string, Handler> = {
   'integrations/whatsapp/connect': whatsappConnect,
   'integrations/whatsapp/send': whatsappSend,
   'integrations/whatsapp/webhook': whatsappWebhook,
+  'integrations/whatsapp/baileys-webhook': baileysWebhook,
 };
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {

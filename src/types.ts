@@ -21,6 +21,7 @@ export interface Contact {
   role: string;
   email: string;
   phone?: string;
+  optIn?: boolean;
   linkedin: string;
   reviewedAt: string;
   status: 'Revisado' | 'A revisar';

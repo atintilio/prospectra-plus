@@ -18,11 +18,15 @@ O modo **Pesquisar com ScrapeGraphAI** é opt-in. Ao iniciar, apenas linhas com 
 
 A biblioteca open source `Scrapegraph-ai` também é uma alternativa MIT, mas exige uma execução Python, modelo LLM próprio e, em cenários de páginas JavaScript, Playwright e infraestrutura operacional. O produto não deve habilitar proxies ou mecanismos anti-bot por padrão.
 
-## WhatsApp — decisão do MVP
+## WhatsApp — Baileys Gateway
 
-Entre Evolution API, WPPConnect Server e whatsapp-web.js, o MVP prioriza **Evolution API**. Ela é uma camada REST pronta para produção, suporta múltiplas instâncias, QR Code, webhooks, eventos, Docker, persistência e integração com Baileys e Cloud API. A execução ficará em um serviço persistente separado do Vercel, com Redis/banco e volumes para sessões; o Prospectra consumirá somente seu adaptador server-side.
+O provedor padrão não oficial do Prospectra é o **Baileys**, encapsulado no projeto separado `prospectra-baileys-gateway`. Baileys é uma biblioteca MIT, não uma API REST pronta; o gateway fornece o contrato operacional que a aplicação precisa: `GET /health`, `GET /v1/status`, `POST /v1/session/start`, `GET /v1/qr`, `POST /v1/session/logout` e `POST /v1/messages/text`.
 
-WPPConnect Server permanece como fallback para fluxos de customização profunda e whatsapp-web.js não entra como núcleo porque é uma biblioteca Puppeteer, não um servidor multi-instância pronto. Os três são não oficiais quando usados via WhatsApp Web e podem sofrer desconexão, mudança de protocolo ou bloqueio; a operação precisa aceitar esse risco e manter plano de troca para Cloud API.
+O gateway usa Node 20+, sessão persistente em `BAILEYS_AUTH_DIR` (por padrão `data/auth`), token `GATEWAY_API_TOKEN`, reconexão e webhook assinado para `/api/integrations/whatsapp/baileys-webhook`. O Prospectra chama o gateway apenas server-side. O painel só exibe **Conectado** depois de o health check retornar a sessão pareada; não há QR simulado.
+
+O envio exige `approved=true` e `optIn=true` no gateway, além das validações de copy, evidência, contato, pausa e oposição no Prospectra. Mensagens recebidas pelo webhook pausam a conta correspondente quando o remetente é identificado no CRM.
+
+O `WHATSAPP_PROVIDER` padrão é `baileys`. Evolution API continua disponível como fallback explícito (`WHATSAPP_PROVIDER=evolution`) para um serviço persistente separado. WPPConnect Server permanece alternativa de customização e `whatsapp-web.js` não entra como núcleo por depender de Chromium. Todas as opções via WhatsApp Web são não oficiais e podem sofrer desconexão, mudança de protocolo ou bloqueio.
 
 ## LinkedIn
 

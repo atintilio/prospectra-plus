@@ -50,11 +50,13 @@ O token de pareamento é exibido uma única vez e armazenado no servidor somente
 
 ### Evolution API para WhatsApp
 
-A Evolution API não roda no Vercel: a instalação fica em Docker/VM persistente com PostgreSQL, Redis e volume de sessões. O Prospectra chama `POST /message/sendText/{instance}` server-side com `apikey`; o navegador nunca recebe a chave.
+O **Baileys Gateway** não roda no Vercel: a instalação fica em Node/Docker persistente com volume `data/auth`. O Prospectra chama `POST /v1/messages/text` server-side com `x-prospectra-gateway-token`; o navegador nunca recebe o token.
 
-No painel **Configurações → WhatsApp · Evolution API**, o Owner cria/atualiza a instância, gera o QR Code e lê o QR no WhatsApp Business. O health check só marca o canal como conectado quando a instância retorna estado `open`/`connected`.
+No painel **Configurações → WhatsApp · Baileys Gateway**, o Owner inicia a sessão, gera o QR Code e lê o QR no WhatsApp. O health check só marca o canal como conectado quando o gateway retorna `status=connected`; estado `idle`, `qr` ou `disconnected` permanece não conectado.
 
-Eventos de conexão, QR, entrada e envio chegam em `/api/integrations/whatsapp/webhook` com o segredo `x-prospectra-webhook-secret`. Uma mensagem só é elegível quando a copy está aprovada, o contato tem número internacional, a conta não está pausada/suprimida e há evidência associada.
+Eventos de conexão, entrada e envio chegam em `/api/integrations/whatsapp/baileys-webhook` com `x-prospectra-webhook-secret`. Uma mensagem só é elegível quando a copy está aprovada, o contato tem número internacional e `optIn=true`, a conta não está pausada/suprimida e há evidência associada. Mensagem recebida identificada pelo CRM pausa a cadência.
+
+A Evolution API permanece como fallback explícito quando `WHATSAPP_PROVIDER=evolution`. Ela continua sendo uma opção REST pronta, mas não é o caminho padrão escolhido para esta etapa.
 
 ### Alternativa de referência
 

@@ -13,20 +13,20 @@
 - Campanhas com revisão de copy, invalidação após edição, aprovação condicionada a contato/evidência e tarefas assistidas.
 - LinkedIn assistido: abrir perfil, copiar copy aprovada e registrar a ação humana sem afirmar entrega externa.
 - Conexão de conta opcional em Hosted Auth Unipile: link temporário, callback com token, status privado por usuário e reconexão indicada; o provedor precisa ser configurado no Vercel antes de uso.
-- Health check server-side para Evolution API/WhatsApp e fornecedor autorizado de LinkedIn.
+- Gateway Baileys separado com API autenticada, QR Code, sessão persistente, reconexão, envio aprovado, recibos e webhook; o Prospectra tem adaptador server-side e health check sem expor token.
 - Equipes com diagnóstico consolidado para líderes/liderados e diagnóstico executivo completo para Owner.
 - Menu de três pontos no Owner para editar nome/e-mail/papel/equipe/estado, reenviar convite e desativar acesso reversivelmente, com proteção server-side do master.
 - Abridge Desktop em construção com empacotamento para Windows, macOS e Linux, Chrome visível em perfil dedicado, polling HTTPS, fila de tarefas, confirmação local para mensagens/convites, leitura de perfis e organograma a partir de URLs informadas, sem exportar cookies.
 
 ## Não é apresentado como conectado
 
-- WhatsApp só muda para API autorizada depois de base URL, segredo, health check e webhook comprovados.
+- WhatsApp só muda para conectado depois de `BAILEYS_GATEWAY_URL`, token, processo persistente, health check, QR Code, volume `data/auth` e webhook comprovados; Baileys é uma integração não oficial e Evolution continua fallback explícito.
 - LinkedIn não é um conector cloud oficial: a alternativa sem assinatura usa Abridge + linkout-scraper em Chrome local visível. O operador faz login manualmente no Abridge; leituras públicas podem ser processadas, mas convites/mensagens exigem confirmação local. A conexão Hosted Auth Unipile continua opcional e separada.
 - A base demonstrativa continua marcada como massa de homologação até a importação de dados reais e validação de isolamento da organização.
 
 ## Próximos bloqueadores de piloto real
 
-1. Configurar e testar Evolution API em serviço persistente separado do Vercel, com DNS/HTTPS, QR Code, webhook e número real.
+1. Configurar e testar o Baileys Gateway em serviço persistente separado do Vercel, com DNS/HTTPS, QR Code, volume `data/auth`, webhook e número real.
 2. Homologar o Abridge em uma máquina Windows/macOS com a conta LinkedIn do operador, incluindo leitura de perfil, organograma e confirmação de uma tarefa de escrita.
 3. Migrar o snapshot de workspace para PostgreSQL com RLS forçada, versionamento otimista e outbox durável.
 4. Implementar worker durável para esperas, reconciliação `unknown`, budgets e webhooks assinados.

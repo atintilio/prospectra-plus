@@ -4,7 +4,7 @@ A referência pública do Contatio organiza o produto em **Context Engine, Agent
 
 ## WhatsApp
 
-O conector prioritário é a Evolution API em serviço persistente separado do Vercel, compatível com envio, estado da instância e webhook. O endereço da API e as credenciais ficam no servidor. Antes do envio, o Prospectra verifica: conta não suprimida, contato elegível, copy aprovada, evidências associadas, janela/capacidade do provedor e limite diário. Mensagens recebidas pausam a cadência e geram sinal de handoff.
+O conector prioritário é o **Baileys Gateway** em serviço Node persistente separado do Vercel, compatível com QR Code, sessão `data/auth`, estado, reconexão, envio e webhook. O endereço do gateway e o token ficam somente no servidor. Antes do envio, o Prospectra verifica: conta não suprimida, contato elegível, opt-in explícito, copy aprovada, evidências associadas, capacidade do provedor e limite diário. Mensagens recebidas pausam a cadência e geram sinal de handoff. A Evolution API permanece como fallback quando `WHATSAPP_PROVIDER=evolution`.
 
 ## LinkedIn
 
@@ -20,7 +20,7 @@ Cada envio grava `channel`, `externalContactId`, `campaignId`, `approvedCopyRevi
 
 ## Configuração necessária
 
-- `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `EVOLUTION_WEBHOOK_SECRET` e `EVOLUTION_WEBHOOK_URL`;
+- `WHATSAPP_PROVIDER=baileys`, `BAILEYS_GATEWAY_URL`, `BAILEYS_GATEWAY_TOKEN` e `BAILEYS_WEBHOOK_SECRET` para o caminho padrão; `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `EVOLUTION_WEBHOOK_SECRET` e `EVOLUTION_WEBHOOK_URL` somente para fallback;
 - `LINKEDIN_PROVIDER_BASE_URL`, `LINKEDIN_PROVIDER_API_KEY`, `LINKEDIN_WEBHOOK_SECRET`;
 - `SGAI_API_KEY` para pesquisa/enriquecimento.
 

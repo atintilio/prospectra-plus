@@ -4,7 +4,7 @@
 - [x] **Enriquecimento rastreável:** URL gera uma solicitação com evidência, origem, data e estado explícito; sem `SGAI_API_KEY`, nenhum enriquecimento real é apresentado como conectado.
 - [x] **Enriquecimento em lote:** a área de Enriquecimento aceita arquivos CSV, XLSX e XLS, permite escolher a coluna de URL/domínio, identifica linhas elegíveis, executa uma requisição real por linha com progresso e até três requisições concorrentes, mostra sucesso/erro/request ID por registro e exporta os resultados em CSV.
 - [x] **Cadência assistida e aprovação:** copy revisada possui versão e aprovação; edição invalida a aprovação; LinkedIn cria somente tarefa assistida com capacidade exibida.
-- [x] **Automação multicanal:** Agent Studio, playbooks, limites diários, sinais, handoff humano e fila única para WhatsApp e LinkedIn; Evolution API é o adaptador prioritário de WhatsApp e depende de base URL, credencial, health check e webhook válidos.
+- [x] **Automação multicanal:** Agent Studio, playbooks, limites diários, sinais, handoff humano e fila única para WhatsApp e LinkedIn; Baileys Gateway é o adaptador prioritário não oficial de WhatsApp e Evolution permanece como fallback explícito.
 - [x] **Guardas comerciais:** registrar resposta pausa a conta; oposição não expira automaticamente; auditoria registra as mudanças.
 - [x] **Marca e distribuição:** aplicar o logo escolhido pelo usuário, testar interface, criar repositório privado e publicar o Prospectra+ separadamente do Reversa Tax.
 - [x] **Painel Owner/Master funcional:** o usuário administrador cadastra usuários, define os papéis Administrador/Líder/Liderado, cria equipes, escolhe o líder e atribui liderados; alterações ficam no armazenamento privado, o usuário master não pode ser rebaixado/desativado e nenhum líder pode ser removido sem reatribuição da equipe.
@@ -12,7 +12,7 @@
 - [x] **Operação sem botões inertes:** o sino abre uma central de notificações com itens não lidos, marcação individual/total e navegação para a origem; dashboard, CRM, auditoria, filtros, contratos e configurações executam ações observáveis ou informam claramente a dependência externa.
 - [x] **Workspace autenticado persistente:** o estado comercial do workspace é carregado e salvo server-side no Blob privado após autenticação; usuários não administradores recebem somente o escopo permitido por papel e o cliente não escolhe `organizationId`.
 - [x] **LinkedIn assistido e auditável:** uma tarefa aprovada oferece abrir o perfil, copiar a mensagem contextualizada e registrar a ação humana concluída; o registro não afirma entrega do LinkedIn e mantém a capacidade como `Assistido` enquanto não houver API autorizada.
-- [x] **Integrações com health check real:** WhatsApp/Evolution e LinkedIn exibem `Conectado`, `Não configurado`, `Pausado` ou `Falhou` apenas após consultar o endpoint server-side e comprovar base URL, segredo e resposta; ScrapeGraphAI continua sendo verificado pelo endpoint real.
+- [x] **Integrações com health check real:** WhatsApp/Baileys e LinkedIn exibem `Conectado`, `Não configurado`, `Pausado` ou `Falhou` apenas após consultar o endpoint server-side e comprovar URL, token e resposta; Evolution permanece fallback e ScrapeGraphAI continua sendo verificado pelo endpoint real.
 
 ## Correção de produto e operação real — 06/10/2026
 
@@ -23,7 +23,7 @@
 - [x] WhatsApp/Evolution API e fornecedor LinkedIn exibem health check server-side; status “conectado” não é mais hard-coded na tela de Configurações.
 - [x] O conector Hosted Auth Unipile foi criado sem armazenar senha/cookie: geração de link temporário, callback protegido, Blob privado por usuário e UI para conectar LinkedIn/WhatsApp.
 - [x] A arquitetura de prospecção documenta o caminho assistido de custo zero, o provider Hosted Auth e o Desktop Bridge separado, com fontes e custos explícitos.
-- [ ] Configurar e testar Evolution API em serviço persistente separado do Vercel, com webhooks e reconciliação.
+- [ ] Configurar e testar Baileys Gateway em serviço persistente separado do Vercel, com QR Code, volume `data/auth`, webhook e reconciliação; manter Evolution apenas como fallback.
 - [ ] Obter e validar provider/API de LinkedIn conforme escopos, quotas, custo, termos aplicáveis e aprovação jurídica; não ativar envio automático antes disso.
 - [ ] Migrar snapshot de workspace para PostgreSQL com RLS forçada, versionamento otimista e outbox durável.
 
@@ -34,9 +34,15 @@
 
 ## Entregas de operação multicanal — 06/10/2026
 
-- [x] **Evolution API configurável:** o Owner cria/atualiza a instância, gera QR Code e acompanha o estado retornado pelo serviço persistente; a chave permanece no backend.
-- [x] **WhatsApp com aprovação:** campanhas podem criar tarefa WhatsApp, validar contato revisado com telefone, copy aprovada e evidência, enviar pela rota Evolution e registrar o recibo do provider na auditoria.
+- [x] **Baileys Gateway configurável:** o Owner inicia o gateway, gera QR Code e acompanha o estado retornado pelo serviço persistente; o token permanece no backend e a conta só aparece conectada após pareamento real.
+- [x] **WhatsApp com aprovação:** campanhas podem criar tarefa WhatsApp, validar contato revisado com telefone, opt-in, copy aprovada e evidência, enviar pela rota Baileys e registrar o recibo do provider na auditoria.
 - [x] **Importação de telefone:** CSV/XLSX reconhece telefone, celular, WhatsApp, número e mobile; o modo econômico não chama ScrapeGraphAI.
 - [x] **Abridge organograma:** o aplicativo desktop lê perfis LinkedIn públicos informados pelo operador e opcionalmente até cinco posts recentes por perfil; não solicita senha, não envia cookies e não descobre pessoas por bypass.
-- [ ] **Homologação externa:** configurar URL/chave/instância/segredo/webhook Evolution e testar em um WhatsApp real; homologar Abridge em Windows/macOS.
+- [ ] **Homologação externa:** configurar URL/token/volume/segredo/webhook do Baileys Gateway e testar em um WhatsApp real; homologar Abridge em Windows/macOS.
 - [x] **Alternativa sem cartão:** pacote Docker Desktop para Windows/macOS com PostgreSQL, Redis, volumes persistentes e scripts de Cloudflare Tunnel temporário; depende do computador permanecer ligado.
+
+
+## Entrega solicitada — Baileys como motor WhatsApp (06/10/2026)
+
+- [x] **Gateway Baileys não oficial:** criar serviço Node separado do Vercel, com API autenticada, QR Code, sessão persistente, reconexão, status seguro, envio de texto somente com `approved=true` e `optIn=true`, recibos e webhook assinado para o Prospectra. O produto não marca a conta como conectada antes do pareamento real.
+- [x] **Operação do gateway:** documentar execução local/Docker, volume `data/auth`, segredo de API, segredo de webhook, HTTPS e a dependência de um processo persistente. O serviço continua sendo uma alternativa não oficial, sujeita a desconexão ou bloqueio pelo WhatsApp.
