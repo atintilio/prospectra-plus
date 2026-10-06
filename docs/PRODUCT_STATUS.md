@@ -7,9 +7,9 @@
 - Workspace autenticado com leitura/persistência no Blob privado; fallback local é identificado na interface.
 - CRM nativo com contas, contatos, evidências, linha do tempo, pausa e oposição persistente.
 - Criação manual de conta, busca/filtro e exportação da auditoria em CSV.
-- Importação econômica de CSV/XLSX/XLS: a base já enriquecida entra no CRM sem chamada ao ScrapeGraphAI; enriquecimento externo é opt-in por lote.
+- Importação econômica de CSV/XLSX/XLS: a base já enriquecida, inclusive contatos, telefone e LinkedIn quando informados, entra no CRM sem chamada ao ScrapeGraphAI. A importação não concede verificação nem opt-in; pesquisa externa é seletiva e opt-in.
 - Central de notificações com itens não lidos, leitura individual/total e navegação para a origem.
-- ScrapeGraphAI v2 em enriquecimento individual e lote CSV/XLSX, quando a chave server-side e os créditos estiverem disponíveis.
+- ScrapeGraphAI v2: análise de página da empresa, pesquisa pública opcional de pessoas com fontes e lote seletivo de até 20 URLs. O Owner escolhe contatos antes de incluir no CRM; os resultados do lote deixam de ser apenas exportação e podem ser gravados. Health consulta créditos do fornecedor sem consumir saldo. Telefones e perfis LinkedIn só aparecem se encontrados nas fontes; não são garantidos.
 - Campanhas com revisão de copy, invalidação após edição, aprovação condicionada a contato/evidência e tarefas assistidas.
 - LinkedIn assistido: abrir perfil, copiar copy aprovada e registrar a ação humana sem afirmar entrega externa.
 - Conexão de conta opcional em Hosted Auth Unipile: link temporário, callback com token, status privado por usuário e reconexão indicada; o provedor precisa ser configurado no Vercel antes de uso.
@@ -23,6 +23,7 @@
 - WhatsApp só muda para conectado depois de `BAILEYS_GATEWAY_URL`, token, processo persistente, health check, QR Code, volume `data/auth` e webhook comprovados; Baileys é uma integração não oficial e Evolution continua fallback explícito.
 - LinkedIn não é um conector cloud oficial: a alternativa sem assinatura usa Abridge + linkout-scraper em Chrome local visível. O operador faz login manualmente no Abridge; leituras públicas podem ser processadas, mas convites/mensagens exigem confirmação local. A conexão Hosted Auth Unipile continua opcional e separada.
 - A base demonstrativa continua marcada como massa de homologação até a importação de dados reais e validação de isolamento da organização.
+- A pesquisa paga ScrapeGraphAI e a gravação de contas pelo frontend estão disponíveis somente ao Owner enquanto o workspace usa um snapshot Blob único. Líderes/liderados têm leitura filtrada, mas não recebem falso sucesso de gravação. A ampliação segura de escrita multiusuário requer operações granulares com controle de concorrência.
 
 ## Próximos bloqueadores de piloto real
 
@@ -32,3 +33,4 @@
 4. Implementar worker durável para esperas, reconciliação `unknown`, budgets e webhooks assinados.
 5. Executar importação real, restauração de backup e revisão de finalidade/base legal LGPD antes de mensagens reais.
 6. Publicar o contrato de fila Abridge no deployment e homologar o artefato `.exe` em Windows, o ZIP ARM64 nativo em Apple Silicon e o ZIP x64 em Mac Intel. A sandbox Linux valida o código, mas não substitui o teste em cada sistema.
+7. Homologar resultados de telefone e perfil LinkedIn em empresas reais autorizadas; dados não públicos não podem ser prometidos pelo extrator de páginas e a disponibilidade depende da fonte.

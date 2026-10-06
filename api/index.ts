@@ -10,6 +10,7 @@ import prospectingAccounts from '../server/api/integrations/prospecting/accounts
 import hostedAuth from '../server/api/integrations/prospecting/hosted-auth.js';
 import unipileWebhook from '../server/api/integrations/prospecting/unipile-webhook.js';
 import scrapegraphEnrich from '../server/api/integrations/scrapegraph/enrich.js';
+import scrapegraphDiscover from '../server/api/integrations/scrapegraph/discover.js';
 import scrapegraphHealth from '../server/api/integrations/scrapegraph/health.js';
 import workspaceState from '../server/api/workspace/state.js';
 import bridgeDevices from '../server/api/integrations/prospecting/bridge/devices.js';
@@ -39,6 +40,7 @@ const routes: Record<string, Handler> = {
   'integrations/prospecting/hosted-auth': hostedAuth,
   'integrations/prospecting/unipile-webhook': unipileWebhook,
   'integrations/scrapegraph/enrich': scrapegraphEnrich,
+  'integrations/scrapegraph/discover': scrapegraphDiscover,
   'integrations/scrapegraph/health': scrapegraphHealth,
   'workspace/state': workspaceState,
   'integrations/prospecting/bridge/devices': bridgeDevices,

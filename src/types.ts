@@ -11,8 +11,12 @@ export interface Evidence {
   url: string;
   excerpt: string;
   source: 'Web pública' | 'Importação' | 'Operador';
+  provider?: string;
+  requestId?: string;
   collectedAt: string;
   verified: boolean;
+  verifiedBy?: string;
+  verifiedAt?: string;
 }
 
 export interface Contact {
@@ -23,6 +27,9 @@ export interface Contact {
   phone?: string;
   optIn?: boolean;
   linkedin: string;
+  sourceUrl?: string;
+  sourceProvider?: string;
+  discoveredAt?: string;
   reviewedAt: string;
   status: 'Revisado' | 'A revisar';
 }

@@ -1,0 +1,9 @@
+# Fontes para o enriquecimento do Prospectra+
+
+- [Contatio — produto](https://contatio.ai/#produto), consultado em 06/10/2026: proposta pública de Context Engine, Agent Studio, Playbooks, Signals, Pipeline e Human Handoff; promessa de pesquisa contextual antes de abordagens e priorização de conversas. Referência de comportamento, não código ou interface a copiar.
+- [ScrapeGraphAI v2 — introdução](https://docs.scrapegraphai.com/api-reference/introduction): host `https://v2-api.scrapegraphai.com`, autenticação server-side `SGAI-APIKEY`, endpoints `/api/extract`, `/api/search`, `/api/credits`.
+- [ScrapeGraphAI v2 — Extract](https://docs.scrapegraphai.com/api-reference/endpoint/extract): entrada `url` + `prompt` + `schema`; resultado `id`, `json`, `raw`, `usage`, `metadata`. Extração custa créditos; campos ausentes devem permanecer vazios.
+- [ScrapeGraphAI v2 — Search](https://docs.scrapegraphai.com/api-reference/endpoint/search): `query`, `numResults` 1–20, `prompt` e `schema` opcionais; devolve `results[]` com URL, título e conteúdo e JSON estruturado quando há prompt. Pesquisa até cinco resultados com prompt exige até 25 créditos, conforme tabela de créditos.
+- [ScrapeGraphAI v2 — Credits](https://docs.scrapegraphai.com/api-reference/endpoint/credits): `GET /api/credits` verifica credenciais e saldo sem gastar créditos. `extract` custa 5 créditos por chamada; `search` com prompt custa 5 créditos por resultado solicitado, sem stealth. Esses números são do provedor e podem mudar.
+
+Limites: ScrapeGraphAI não é uma base privada de celulares ou perfis. Só incluir telefone profissional e URL LinkedIn quando aparecerem nas fontes públicas devolvidas; sem dado, mostrar “não encontrado”. Não inferir opt-in ou considerar o resultado verificado automaticamente. Este fluxo não integra Explorium nem promete cobertura de dados não públicos.

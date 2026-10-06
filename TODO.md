@@ -2,7 +2,7 @@
 
 - [x] **CRM demonstrável por organização:** contas, contatos, oportunidades, atividades, evidências e tarefas aparecem em um CRM nativo; dados de demonstração são identificados e o workspace autenticado persiste no Blob privado; a troca por dados reais depende de importação e homologação.
 - [x] **Enriquecimento rastreável:** URL gera uma solicitação com evidência, origem, data e estado explícito; sem `SGAI_API_KEY`, nenhum enriquecimento real é apresentado como conectado.
-- [x] **Enriquecimento em lote:** a área de Enriquecimento aceita arquivos CSV, XLSX e XLS, permite escolher a coluna de URL/domínio, identifica linhas elegíveis, executa uma requisição real por linha com progresso e até três requisições concorrentes, mostra sucesso/erro/request ID por registro e exporta os resultados em CSV.
+- [x] **Enriquecimento em lote:** a área de Enriquecimento aceita arquivos CSV, XLSX e XLS, permite escolher colunas de empresa/URL, selecionar até 20 URLs por execução e usa até duas requisições concorrentes; mostra sucesso/erro/request ID por registro, exporta os resultados em CSV e só incorpora os resultados pesquisados ao CRM após clique de revisão do Owner.
 - [x] **Cadência assistida e aprovação:** copy revisada possui versão e aprovação; edição invalida a aprovação; LinkedIn cria somente tarefa assistida com capacidade exibida.
 - [x] **Automação multicanal:** Agent Studio, playbooks, limites diários, sinais, handoff humano e fila única para WhatsApp e LinkedIn; Baileys Gateway é o adaptador prioritário não oficial de WhatsApp e Evolution permanece como fallback explícito.
 - [x] **Guardas comerciais:** registrar resposta pausa a conta; oposição não expira automaticamente; auditoria registra as mudanças.
@@ -47,3 +47,12 @@
 - [x] **Gateway Baileys não oficial:** criar serviço Node separado do Vercel, com API autenticada, QR Code, sessão persistente, reconexão, status seguro, envio de texto somente com `approved=true` e `optIn=true`, recibos e webhook assinado para o Prospectra. O produto não marca a conta como conectada antes do pareamento real.
 - [x] **Operação do gateway:** documentar execução local/Docker, volume `data/auth`, segredo de API, segredo de webhook, HTTPS e a dependência de um processo persistente. O serviço continua sendo uma alternativa não oficial, sujeita a desconexão ou bloqueio pelo WhatsApp.
 - [x] **Abridge multiusuário:** qualquer usuário cadastrado e ativo pode criar, parear e revogar o próprio dispositivo em Configurações → Desktop Bridge; a API filtra dispositivos por `userId` e não exige papel Owner.
+
+## Enriquecimento orientado a contatos — 06/10/2026
+
+- [x] **Contatos públicos com origem:** analisar uma página da empresa ou pesquisar fontes públicas para sugerir pessoas com nome, cargo, telefone profissional, e-mail e URL LinkedIn quando encontrados; mostrar fontes e permitir selecionar antes de gravar. Sem dados, mostrar “não encontrado”; não inferir celulares, perfis ou consentimento.
+- [x] **CRM e revisão humana:** incorporar contatos e evidências com URL, provedor, request ID e data; deduplicar; novos contatos entram “A revisar”, evidências entram “Não verificadas”, e o Owner dispõe de ações explícitas de revisão registradas na trilha.
+- [x] **Importação econômica segura:** respeitar colunas escolhidas, preservar score anterior quando não houver valor, não aceitar “verified” ou “contactreviewed” do CSV como revisão local, e bloquear gravação enganosa para líderes/liderados enquanto a escrita é exclusiva do Owner.
+- [x] **Saúde e custo:** consultar créditos sem consumo, separar chave presente de conexão real, exigir Owner para chamadas pagas e mostrar limite de créditos por ação/lote antes de iniciar.
+- [ ] **Homologação com dados reais:** executar pesquisa assistida em empresas autorizadas, verificar cobertura efetiva de telefone/LinkedIn e corrigir problemas de fontes que surgirem. A presença da integração não garante dados não públicos.
+- [ ] **Escrita multiusuário granular:** substituir snapshot completo Blob por comandos por conta/contato com escopo derivado da sessão, revisão autorizada por papel e controle de concorrência.
