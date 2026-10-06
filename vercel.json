@@ -3,6 +3,8 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/api", "destination": "/api/index" },
+    { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/login", "destination": "/index.html" },
     { "source": "/recuperar-senha", "destination": "/index.html" },
     { "source": "/definir-senha", "destination": "/index.html" },

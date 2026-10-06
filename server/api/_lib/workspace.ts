@@ -1,6 +1,6 @@
 import { get, put } from '@vercel/blob';
-import { seedState } from '../../src/data.js';
-import type { Opportunity, ProspectraState } from '../../src/types.js';
+import { seedState } from '../../../src/data.js';
+import type { Opportunity, ProspectraState } from '../../../src/types.js';
 import type { AuthStore, AuthUser } from './types.js';
 
 const WORKSPACE_PATH = 'prospectra/workspace-state.json';

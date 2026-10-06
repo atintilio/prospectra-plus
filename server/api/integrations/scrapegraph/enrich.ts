@@ -1,5 +1,5 @@
 import { requireActiveSession, requireSameOrigin } from '../../_lib/access.js';
-import { enrichCompany } from '../../../server/integrations/scrapegraph.js';
+import { enrichCompany } from '../../../integrations/scrapegraph.js';
 import { json, methodNotAllowed, parseBody } from '../../_lib/http.js';
 import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
 

@@ -1,6 +1,6 @@
 import { requireActiveSession } from '../../_lib/access.js';
 import { json, methodNotAllowed } from '../../_lib/http.js';
-import { scrapeGraphBaseUrl, scrapeGraphConfigured } from '../../../server/integrations/scrapegraph.js';
+import { scrapeGraphBaseUrl, scrapeGraphConfigured } from '../../../integrations/scrapegraph.js';
 import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {

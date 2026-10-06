@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { seedState } from '../src/data';
-import { mergeSafeWorkspaceState, visibleWorkspaceState } from '../api/_lib/workspace';
+import { mergeSafeWorkspaceState, visibleWorkspaceState } from '../server/api/_lib/workspace';
 
 describe('workspace autenticado', () => {
   it('restringe a visão de líder à própria equipe', () => {
