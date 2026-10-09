@@ -1,0 +1,7 @@
+.crm-extension { padding: var(--crm-space, 1.5rem); margin-block: var(--crm-space, 1.5rem); }
+.crm-extension form { display: grid; gap: var(--crm-gap, 1rem); grid-template-columns: repeat(auto-fit,minmax(min(100%,16rem),1fr)); margin-block: var(--crm-space,1.5rem); }
+.crm-extension label { display: grid; gap: var(--crm-gap-small,.5rem); }
+.crm-extension input,.crm-extension select,.crm-extension textarea { width: 100%; min-width: 0; font: inherit; padding: var(--crm-gap-small,.5rem); }
+.crm-extension input[type=checkbox] { width: auto; justify-self: start; }
+.crm-extension article { padding-block: var(--crm-gap,1rem); overflow-wrap: anywhere; }
+.crm-extension button:focus-visible,.crm-extension input:focus-visible,.crm-extension select:focus-visible,.crm-extension textarea:focus-visible { outline: auto; }

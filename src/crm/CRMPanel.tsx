@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import './crm-panel.css';
+import { useEffect, useState } from 'react';
 import type { Account, ProspectraState } from '../types';
-import { openCRM, saveCRM, addCustomField, setCustomValue, reviewProposal, type UnifiedCRM } from './merge';
+import { openCRM, saveCRM, addCustomField, setCustomValue, reviewProposal, validateExtension, type UnifiedCRM } from './merge';
 
 export default function CRMPanel({ state, account, writable, onChange }: { state: ProspectraState; account: Account; writable: boolean; onChange: (state: ProspectraState) => void }) {
   const crm = openCRM(state);
@@ -8,12 +9,15 @@ export default function CRMPanel({ state, account, writable, onChange }: { state
   const [type, setType] = useState<'text' | 'number' | 'boolean'>('text');
   const [error, setError] = useState('');
   const [draft, setDraft] = useState({ contactId: '', field: 'role' as 'role' | 'email' | 'phone' | 'linkedin', value: '', sourceUrl: '', evidence: '' });
+  useEffect(() => { setDraft({ contactId: '', field: 'role', value: '', sourceUrl: '', evidence: '' }); setError(''); }, [account.id]);
+  const fieldLabels = { role: 'Cargo', email: 'Email', phone: 'Telefone profissional', linkedin: 'LinkedIn' };
+  const statusLabels = { proposed: 'Aguardando revisão', applied: 'Aplicada', dismissed: 'Descartada' };
   function apply(change: (value: UnifiedCRM) => UnifiedCRM) {
     if (!writable) return;
-    try { onChange(saveCRM(change(openCRM(state)))); setError(''); } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível salvar'); }
+    try { const next = saveCRM(change(openCRM(state))); validateExtension(next); onChange(next); setError(''); } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível salvar'); }
   }
   const proposals = crm.proposals.filter(p => account.contacts.some(c => c.id === p.contactId));
-  return <section className="panel" aria-label="Personalização e qualidade dos dados">
+  return <section className="panel crm-extension" aria-label="Personalização e qualidade dos dados">
     <div className="panel-head"><h2>Personalização e qualidade dos dados</h2></div>
     {!writable && <p>Consulta disponível. A edição exige acesso de administrador e workspace sincronizado.</p>}
     {error && <p role="alert">{error}</p>}
@@ -41,7 +45,7 @@ export default function CRMPanel({ state, account, writable, onChange }: { state
       <button className="outline-button" disabled={!writable}>Salvar proposta</button>
     </form>}
     {proposals.length === 0 && <p>Nenhuma proposta para os contatos desta conta.</p>}
-    {proposals.map(p => <article key={p.id}><strong>{p.field}: {p.value}</strong><p>{p.evidence}</p><small>{p.observedAt} · {p.status}</small>{/^https?:\/\//i.test(p.sourceUrl) && <p><a href={p.sourceUrl} target="_blank" rel="noreferrer">Consultar fonte</a></p>}{p.status === 'proposed' && <div><button disabled={!writable} onClick={() => apply(c => reviewProposal(c, p.id, 'applied'))}>Aplicar após revisão</button><button disabled={!writable} onClick={() => apply(c => reviewProposal(c, p.id, 'dismissed'))}>Descartar</button></div>}</article>)}
+    {proposals.map(p => <article key={p.id}><strong>{fieldLabels[p.field]}: {p.value}</strong><p>{p.evidence}</p><small>{new Date(p.observedAt).toLocaleString('pt-BR')} · {statusLabels[p.status]}</small>{/^https?:\/\//i.test(p.sourceUrl) && <p><a href={p.sourceUrl} target="_blank" rel="noreferrer">Consultar fonte</a></p>}{p.status === 'proposed' && <div><button disabled={!writable} onClick={() => apply(c => reviewProposal(c, p.id, 'applied'))}>Aplicar após revisão</button><button disabled={!writable} onClick={() => apply(c => reviewProposal(c, p.id, 'dismissed'))}>Descartar</button></div>}</article>)}
     <h3>Histórico dos canais</h3>
     {crm.events.filter(e => e.accountId === account.id).map(e => <p key={`${e.provider}:${e.providerEventId}`}>{e.channel} · {e.kind} · {e.occurredAt}</p>)}
     {!crm.events.some(e => e.accountId === account.id) && <p>Nenhum evento registrado para esta conta.</p>}

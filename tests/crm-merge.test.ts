@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { seedState } from '../src/data';
-import { migrateWorkspace, setCustomValue, reviewProposal, recordChannelEvent } from '../src/crm/merge';
+import { migrateWorkspace, setCustomValue, reviewProposal, recordChannelEvent, validateExtension, saveCRM } from '../src/crm/merge';
 it('preserva o estado completo e produz uma cópia independente', () => {
  const crm = migrateWorkspace(seedState); expect(crm.legacy).toEqual(seedState);
  crm.legacy.accounts[0].name = 'Alterado'; expect(seedState.accounts[0].name).not.toBe('Alterado');
@@ -34,4 +34,12 @@ it('exige nova aprovação depois de alterar um contato', () => {
  crm.proposals.push({id:'p',contactId:task.contactId,field:'role',value:'Cargo atualizado',sourceUrl:'https://example.org/equipe',observedAt:'2026-10-09T12:00:00Z',evidence:'Cargo publicado',status:'proposed'});
  const updated=reviewProposal(crm,'p','applied');
  expect(updated.legacy.campaigns[0].tasks[0].state).toBe('Aguardando revisão'); expect(updated.legacy.campaigns[0].tasks[0].approval).toBeUndefined();
+});
+
+it('rejeita fonte inválida no servidor e campos com valor incompatível', () => {
+ const crm=migrateWorkspace(seedState); const contact=crm.legacy.accounts[0].contacts[0];
+ crm.proposals.push({id:'p',contactId:contact.id,field:'role',value:'Cargo',sourceUrl:'javascript:alert(1)',observedAt:'2026-10-09T12:00:00Z',evidence:'Fonte',status:'proposed'});
+ expect(()=>validateExtension(saveCRM(crm))).toThrow('WORKSPACE_STATE_INVALID');
+ crm.proposals=[]; crm.fields=[{id:'n',entity:'account',type:'number',label:'Número'}]; crm.values[crm.legacy.accounts[0].id]={n:'inválido'};
+ expect(()=>validateExtension(saveCRM(crm))).toThrow('WORKSPACE_STATE_INVALID');
 });

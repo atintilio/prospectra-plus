@@ -45,3 +45,8 @@ it('filtra propostas, valores e eventos das contas fora da equipe', () => {
  const visible=visibleWorkspaceState(state,{id:'m1',email:'lider@example.org',role:'leader',teamId:'team-receita'});
  expect(visible.crmExtension?.values.a2).toBeUndefined(); expect(visible.crmExtension?.events).toHaveLength(0); expect(visible.crmExtension?.values.a1.x).toBe('visivel');
 });
+
+it('preserva a extensão quando um cliente anterior salva o workspace',()=>{
+ const state=structuredClone(seedState); state.crmExtension={version:1,fields:[],values:{},proposals:[],events:[]};
+ const candidate=structuredClone(seedState); expect(mergeSafeWorkspaceState(state,candidate).crmExtension).toEqual(state.crmExtension);
+});

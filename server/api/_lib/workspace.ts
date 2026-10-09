@@ -1,4 +1,5 @@
 import { get, put } from '@vercel/blob';
+import { validateExtension } from '../../../src/crm/merge.js';
 import { seedState } from '../../../src/data.js';
 import type { Opportunity, ProspectraState } from '../../../src/types.js';
 import type { AuthStore, AuthUser } from './types.js';
@@ -85,12 +86,13 @@ export function visibleWorkspaceState(state: ProspectraState, user: AuthUser): P
 export function mergeSafeWorkspaceState(current: ProspectraState, candidate: unknown): ProspectraState {
   if (!isState(candidate)) throw new Error('WORKSPACE_STATE_INVALID');
   const safe = candidate as ProspectraState;
+  validateExtension(safe);
   return {
     ...current,
     selectedAccountId: safe.selectedAccountId,
     selectedCampaignId: safe.selectedCampaignId,
     accounts: safe.accounts,
-    crmExtension: safe.crmExtension,
+    crmExtension: safe.crmExtension ?? current.crmExtension,
     campaigns: safe.campaigns,
     channels: current.channels,
     agent: safe.agent,
