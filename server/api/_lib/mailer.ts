@@ -53,3 +53,15 @@ export async function sendDemoAccessEmail(to: string[], login: string, password:
   });
   if (!response.ok) throw new Error(`OFFICE365_SEND_FAILED_${response.status}`);
 }
+
+/** Sends a harmless owner-requested delivery probe; it never contains credentials. */
+export async function sendTestEmail(to: string[]): Promise<void> {
+  const sender = requiredAny('SENDER_EMAIL', 'OFFICE365_SENDER_EMAIL', 'MS_GRAPH_USER_ID', 'MAIL_FROM');
+  const token = await accessToken();
+  const html = '<p>Este é um teste de entrega do Prospectra+.</p><p>O fluxo de campanhas, rastreamento e jobs está sendo validado. Nenhuma ação comercial foi disparada.</p><p>Horário do teste: ' + escapeHtml(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })) + '</p>';
+  const response = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: { subject: 'Prospectra+ · teste de entrega', body: { contentType: 'HTML', content: html }, toRecipients: to.map(address => ({ emailAddress: { address } })) }, saveToSentItems: true }),
+  });
+  if (!response.ok) throw new Error(`OFFICE365_SEND_FAILED_${response.status}`);
+}

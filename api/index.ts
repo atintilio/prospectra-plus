@@ -1,5 +1,6 @@
 import health from '../server/api/health.js';
 import organization from '../server/api/admin/organization.js';
+import testEmail from '../server/api/admin/test-email.js';
 import login from '../server/api/auth/login.js';
 import logout from '../server/api/auth/logout.js';
 import me from '../server/api/auth/me.js';
@@ -29,6 +30,7 @@ type Handler = (req: ApiRequest, res: ApiResponse) => unknown | Promise<unknown>
 const routes: Record<string, Handler> = {
   'health': health,
   'admin/organization': organization,
+  'admin/test-email': testEmail,
   'auth/login': login,
   'auth/logout': logout,
   'auth/me': me,
