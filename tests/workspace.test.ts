@@ -38,3 +38,10 @@ describe('workspace autenticado', () => {
     expect(merged.opportunities).toEqual(current.opportunities);
   });
 });
+
+it('filtra propostas, valores e eventos das contas fora da equipe', () => {
+ const state=structuredClone(seedState);
+ state.crmExtension={version:1,fields:[],values:{a1:{x:'visivel'},a2:{x:'privado'}},proposals:[],events:[{id:'e',provider:'graph',providerEventId:'evt',accountId:'a2',channel:'Email',kind:'reply',occurredAt:'2026-10-09T12:00:00Z'}]};
+ const visible=visibleWorkspaceState(state,{id:'m1',email:'lider@example.org',role:'leader',teamId:'team-receita'});
+ expect(visible.crmExtension?.values.a2).toBeUndefined(); expect(visible.crmExtension?.events).toHaveLength(0); expect(visible.crmExtension?.values.a1.x).toBe('visivel');
+});
