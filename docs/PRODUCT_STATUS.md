@@ -7,9 +7,9 @@
 - Workspace autenticado com leitura/persistência no Blob privado; fallback local é identificado na interface.
 - CRM nativo com contas, contatos, evidências, linha do tempo, pausa e oposição persistente.
 - Criação manual de conta, busca/filtro e exportação da auditoria em CSV.
-- Importação econômica de CSV/XLSX/XLS: a base já enriquecida entra no CRM sem chamada ao ScrapeGraphAI; enriquecimento externo é opt-in por lote.
+- Importação econômica de CSV/XLSX/XLS: a base já enriquecida entra no CRM sem chamada ao Prospectra Web Scraper; enriquecimento externo é opt-in por lote.
 - Central de notificações com itens não lidos, leitura individual/total e navegação para a origem.
-- ScrapeGraphAI v2 em enriquecimento individual e lote CSV/XLSX, quando a chave server-side e os créditos estiverem disponíveis.
+- Prospectra Web Scraper v2 em enriquecimento individual e lote CSV/XLSX, quando a chave server-side e os a chave server-side estiver sincronizada.
 - Campanhas com revisão de copy, invalidação após edição, aprovação condicionada a contato/evidência e tarefas assistidas.
 - LinkedIn assistido: abrir perfil, copiar copy aprovada e registrar a ação humana sem afirmar entrega externa.
 - Conexão de conta opcional em Hosted Auth Unipile: link temporário, callback com token, status privado por usuário e reconexão indicada; o provedor precisa ser configurado no Vercel antes de uso.

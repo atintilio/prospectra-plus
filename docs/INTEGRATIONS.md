@@ -1,22 +1,18 @@
 # Integrações do Prospectra+
 
-## ScrapeGraphAI
+## Prospectra Web Scraper
 
-O provedor padrão da aplicação é o **ScrapeGraphAI v2**, com base URL `https://v2-api.scrapegraphai.com` e endpoint `POST /api/extract`. A API gerenciada usa o cabeçalho `SGAI-APIKEY` e é chamada exclusivamente pelos handlers server-side `/api/integrations/scrapegraph/*`; a chave nunca é enviada ao bundle do navegador.
+O provider de produção é o `omkarcloud/website-email-contact-scraper`, hospedado na VM e publicado em `https://scraper.prospectra.argusprime.com.br`. O Prospectra chama `POST /api/extract` exclusivamente no backend, usando o cabeçalho `SGAI-APIKEY`; a chave nunca vai para o bundle do navegador e não há créditos de terceiro nem proxy anti-bot.
 
-O prompt e o JSON Schema do Prospectra extraem nome, descrição, setor, porte aproximado, sinais públicos recentes e canais públicos. O retorno preserva `requestId`, URL de origem e data de coleta. Se `SGAI_API_KEY` não estiver configurada, a UI exibe **Aguardando chave** e não simula um resultado. Quando configurada, o formulário de enriquecimento executa a chamada real e apresenta a resposta como sugestão revisável.
+O contrato retorna `id`, `json` e `raw`; o adapter preserva request ID, URL de origem e data de coleta e grava o resultado apenas como sugestão revisável. `SCRAPER_BASE_URL` e `SCRAPER_API_KEY` são os nomes oficiais. `SGAI_BASE_URL` e `SGAI_API_KEY` permanecem somente como aliases de migração para deployments antigos.
 
-O endpoint v2 é utilizado porque os hosts e nomes v1 (`api.scrapegraphai.com/v1`, `smartscraper`, `markdownify`) estão depreciados na documentação atual do provedor. A aplicação aceita `SGAI_BASE_URL` para ambientes controlados, mas o valor padrão não deve ser trocado sem validar o contrato v2.
+O health check server-side consulta `/health` da VM e diferencia **Pronto**, **Aguardando chave**, **Indisponível** e **Falhou**. A execução aceita apenas URLs públicas HTTP/HTTPS, bloqueia destinos locais/privados e informa falhas do provider sem simulá-las. O engine opera com anti-bot desligado: páginas protegidas por desafio retornam erro em vez de contornar a proteção.
 
 ### Enriquecimento em lote por CSV/XLSX
 
 A área **Enriquecimento** também aceita `.csv`, `.xlsx` e `.xls`. O navegador lê a primeira aba do arquivo, sugere a coluna de URL/domínio por nomes como `url`, `site`, `website`, `dominio` ou `link` e permite escolher outra coluna. Uma coluna opcional de empresa pode ser usada para exibição quando a API não encontrar o nome.
 
-O modo padrão é **Importar dados prontos**: ele incorpora a base ao CRM sem fazer chamada externa e sem consumir créditos. O importador reconhece, quando presentes, empresa, domínio, setor, porte, score, responsável, contato, cargo, e-mail, LinkedIn, URL da evidência, trecho e indicador de verificação. Duplicidades por domínio ou nome são atualizadas em vez de gerar uma segunda conta. O operador deve revisar evidências e contatos antes de aprovar uma ação.
-
-O modo **Pesquisar com ScrapeGraphAI** é opt-in. Ao iniciar, apenas linhas com URL pública válida entram na fila; cada linha chama o endpoint autenticado `/api/integrations/scrapegraph/enrich`, três workers executam em paralelo e o progresso, request ID, status, origem e erro ficam visíveis por linha. O botão **Exportar CSV** gera uma saída local. Somente esse segundo modo consome créditos do ScrapeGraphAI; a aplicação não finge sucesso quando a chave está ausente ou o provedor falha.
-
-A biblioteca open source `Scrapegraph-ai` também é uma alternativa MIT, mas exige uma execução Python, modelo LLM próprio e, em cenários de páginas JavaScript, Playwright e infraestrutura operacional. O produto não deve habilitar proxies ou mecanismos anti-bot por padrão.
+O modo padrão é **Importar dados prontos**: ele incorpora a base ao CRM sem fazer chamada externa. O modo **Pesquisar com scraper web** é opt-in; somente linhas com URL pública válida entram na fila, com até três workers em paralelo, request ID, status, origem e erro por linha. O botão **Exportar CSV** gera uma saída local.
 
 ## WhatsApp — Baileys Gateway
 

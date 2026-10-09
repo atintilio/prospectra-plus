@@ -16,10 +16,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return json(res, 200, { ok: true, extraction: result });
   } catch (error) {
     const code = error instanceof Error ? error.message : 'SCRAPEGRAPH_FAILED';
-    if (code === 'SCRAPEGRAPH_NOT_CONFIGURED') return json(res, 503, { error: 'scrapegraph_not_configured' });
+    if (code === 'SCRAPEGRAPH_NOT_CONFIGURED') return json(res, 503, { error: 'scraper_not_configured' });
     if (code === 'SCRAPEGRAPH_INVALID_URL') return json(res, 400, { error: 'invalid_public_url' });
     const match = code.match(/^SCRAPEGRAPH_FAILED_(\d+)$/);
-    if (match) return json(res, Number(match[1]) === 402 ? 402 : 502, { error: 'scrapegraph_provider_failed', providerStatus: Number(match[1]) });
-    return json(res, 500, { error: 'scrapegraph_request_failed' });
+    if (match) {
+      const providerStatus = Number(match[1]);
+      return json(res, providerStatus === 401 ? 503 : providerStatus === 402 ? 402 : 502, {
+        error: providerStatus === 401 ? 'scraper_auth_failed' : 'scraper_provider_failed',
+        providerStatus,
+      });
+    }
+    if (code === 'AbortError' || code.includes('timed out')) return json(res, 504, { error: 'scraper_timeout' });
+    return json(res, 502, { error: 'scraper_request_failed' });
   }
 }

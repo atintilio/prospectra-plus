@@ -177,7 +177,7 @@ cat > $BASE/scraper/app.py <<'PYEOF'
 """Prospectra+ Contact Scraper.
 
 Servico HTTP que expoe o motor open source omkarcloud/website-email-contact-scraper
-(MIT) no mesmo contrato que o Prospectra ja usa para o ScrapeGraphAI:
+(MIT) no contrato HTTP do Prospectra; não é o ScrapeGraphAI gerenciado:
 
     POST /api/extract   (cabecalho SGAI-APIKEY)
     -> { "id": ..., "json": { companyName, description, sector, employees,
@@ -445,6 +445,9 @@ cat > $BASE/VERCEL_ENV.txt <<EOF
 BAILEYS_GATEWAY_URL=https://${DOMAIN_WA}
 BAILEYS_GATEWAY_TOKEN=${GATEWAY_API_TOKEN}
 BAILEYS_WEBHOOK_SECRET=${WEBHOOK_SECRET}
+SCRAPER_BASE_URL=https://${DOMAIN_SCRAPER}
+SCRAPER_API_KEY=${SCRAPER_API_KEY}
+# aliases legados durante a migração
 SGAI_BASE_URL=https://${DOMAIN_SCRAPER}
 SGAI_API_KEY=${SCRAPER_API_KEY}
 EOF

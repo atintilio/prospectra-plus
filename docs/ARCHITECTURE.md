@@ -6,9 +6,9 @@ O modelo de domínio segue os princípios do pacote Prospectra: conta, contato, 
 
 O desenho do CRM é inspirado no `trycompai/crm`: registros mantêm tarefas de pesquisa, atividades, contatos, negócios e evidências separados; pesquisa e enriquecimento devem operar por fila e registrar observações em vez de fatos inferidos. O repositório de referência é MIT, mas a sua arquitetura atual é single-tenant e não pode ser copiada como solução de isolamento do Prospectra.
 
-## ScrapeGraphAI
+## Prospectra Web Scraper
 
-O adaptador de produção deve ser chamado apenas no servidor. `SGAI_API_KEY` nunca pode ir ao navegador. A operação recebe URL, prompt e schema de extração e grava: URL canônica, trecho, data de coleta, status do job, resultado bruto controlado e sugestões revisáveis. Uma falha de fonte deve ser visível; ela não equivale a ausência de sinais.
+O adaptador de produção deve ser chamado apenas no servidor. `SCRAPER_API_KEY` (com `SGAI_API_KEY` apenas como alias legado) nunca pode ir ao navegador. A operação recebe uma URL pública e devolve o contrato de extração do scraper e grava: URL canônica, trecho, data de coleta, status do job, resultado bruto controlado e sugestões revisáveis. Uma falha de fonte deve ser visível; ela não equivale a ausência de sinais.
 
 ## LinkedIn
 

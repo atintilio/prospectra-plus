@@ -1,10 +1,12 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
-const DEFAULT_BASE_URL = 'https://v2-api.scrapegraphai.com';
+const DEFAULT_BASE_URL = 'https://scraper.prospectra.argusprime.com.br';
+const REQUEST_TIMEOUT_MS = 50_000;
+const HEALTH_TIMEOUT_MS = 5_000;
 
 export interface ScrapeGraphExtraction {
-  provider: 'ScrapeGraphAI';
+  provider: 'Prospectra Web Scraper';
   requestId?: string;
   sourceUrl: string;
   extractedAt: string;
@@ -12,12 +14,57 @@ export interface ScrapeGraphExtraction {
   raw?: string;
 }
 
+/**
+ * O nome público das rotas permanece `scrapegraph` para não quebrar links salvos,
+ * mas o provider de produção é o website-email-contact-scraper hospedado na VM.
+ * `SGAI_*` fica apenas como fallback de migração para deployments antigos.
+ */
 export function scrapeGraphBaseUrl() {
-  return (process.env.SGAI_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/$/, '');
+  return (process.env.SCRAPER_BASE_URL?.trim() || process.env.SGAI_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/$/, '');
+}
+
+export function scrapeGraphApiKey() {
+  return process.env.SCRAPER_API_KEY?.trim() || process.env.SGAI_API_KEY?.trim() || '';
 }
 
 export function scrapeGraphConfigured() {
-  return Boolean(process.env.SGAI_API_KEY?.trim());
+  return Boolean(scrapeGraphApiKey());
+}
+
+export interface ScrapeGraphHealth {
+  provider: 'Prospectra Web Scraper';
+  baseUrl: string;
+  configured: boolean;
+  reachable: boolean;
+  status: 'ready' | 'awaiting_api_key' | 'unreachable' | 'provider_failed';
+  engine?: string;
+  commit?: string;
+}
+
+export async function scrapeGraphHealth(): Promise<ScrapeGraphHealth> {
+  const baseUrl = scrapeGraphBaseUrl();
+  const configured = scrapeGraphConfigured();
+  if (!configured) {
+    return { provider: 'Prospectra Web Scraper', baseUrl, configured: false, reachable: false, status: 'awaiting_api_key' };
+  }
+  try {
+    const response = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) });
+    const body = await response.json().catch(() => ({})) as { engine?: unknown; commit?: unknown };
+    if (!response.ok) {
+      return { provider: 'Prospectra Web Scraper', baseUrl, configured, reachable: true, status: 'provider_failed' };
+    }
+    return {
+      provider: 'Prospectra Web Scraper',
+      baseUrl,
+      configured,
+      reachable: true,
+      status: 'ready',
+      engine: typeof body.engine === 'string' ? body.engine : undefined,
+      commit: typeof body.commit === 'string' ? body.commit : undefined,
+    };
+  } catch {
+    return { provider: 'Prospectra Web Scraper', baseUrl, configured, reachable: false, status: 'unreachable' };
+  }
 }
 
 function privateIpv4(address: string): boolean {
@@ -58,36 +105,23 @@ export async function validatePublicUrl(value: string): Promise<URL> {
   return parsed;
 }
 
-const extractionSchema = {
-  type: 'object',
-  properties: {
-    companyName: { type: 'string' },
-    description: { type: 'string' },
-    sector: { type: 'string' },
-    employees: { type: 'string' },
-    signals: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, detail: { type: 'string' }, date: { type: 'string' }, sourceUrl: { type: 'string' } } } },
-    publicChannels: { type: 'array', items: { type: 'string' } },
-  },
-};
-
 export async function enrichCompany(url: string): Promise<ScrapeGraphExtraction> {
-  if (!scrapeGraphConfigured()) throw new Error('SCRAPEGRAPH_NOT_CONFIGURED');
+  const apiKey = scrapeGraphApiKey();
+  if (!apiKey) throw new Error('SCRAPEGRAPH_NOT_CONFIGURED');
   const source = await validatePublicUrl(url);
   const response = await fetch(`${scrapeGraphBaseUrl()}/api/extract`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'SGAI-APIKEY': process.env.SGAI_API_KEY!.trim() },
-    body: JSON.stringify({
-      url: source.toString(),
-      prompt: 'Extraia contexto comercial verificável desta página pública para o CRM Prospectra+. Identifique nome da empresa, descrição, setor, porte aproximado, sinais públicos recentes e canais públicos. Não invente fatos: quando um campo não estiver disponível, deixe-o vazio. Preserve URLs de origem nos sinais quando existirem.',
-      schema: extractionSchema,
-      fetchConfig: { mode: 'auto', timeout: 30000 },
-    }),
+    headers: { 'Content-Type': 'application/json', 'SGAI-APIKEY': apiKey },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    // O novo scraper recebe somente a URL e devolve o contrato Prospectra.
+    // Campos adicionais do contrato antigo não são mais enviados.
+    body: JSON.stringify({ url: source.toString() }),
   });
   const body = await response.json().catch(() => ({})) as { id?: string; json?: unknown; raw?: string };
   if (!response.ok) {
-    console.error('prospectra_scrapegraph_error', `HTTP_${response.status}`);
+    console.error('prospectra_scraper_error', `HTTP_${response.status}`);
     throw new Error(`SCRAPEGRAPH_FAILED_${response.status}`);
   }
   const data = body.json && typeof body.json === 'object' && !Array.isArray(body.json) ? body.json as Record<string, unknown> : {};
-  return { provider: 'ScrapeGraphAI', requestId: body.id, sourceUrl: source.toString(), extractedAt: new Date().toISOString(), data, raw: typeof body.raw === 'string' ? body.raw : undefined };
+  return { provider: 'Prospectra Web Scraper', requestId: body.id, sourceUrl: source.toString(), extractedAt: new Date().toISOString(), data, raw: typeof body.raw === 'string' ? body.raw : undefined };
 }

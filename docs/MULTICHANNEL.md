@@ -22,6 +22,6 @@ Cada envio grava `channel`, `externalContactId`, `campaignId`, `approvedCopyRevi
 
 - `WHATSAPP_PROVIDER=baileys`, `BAILEYS_GATEWAY_URL`, `BAILEYS_GATEWAY_TOKEN` e `BAILEYS_WEBHOOK_SECRET` para o caminho padrão; `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `EVOLUTION_WEBHOOK_SECRET` e `EVOLUTION_WEBHOOK_URL` somente para fallback;
 - `LINKEDIN_PROVIDER_BASE_URL`, `LINKEDIN_PROVIDER_API_KEY`, `LINKEDIN_WEBHOOK_SECRET`;
-- `SGAI_API_KEY` para pesquisa/enriquecimento.
+- `SCRAPER_API_KEY` (ou o alias legado `SGAI_API_KEY`) para pesquisa/enriquecimento.
 
 Essas variáveis não entram no bundle web. Os provedores e seus termos, estabilidade, segurança, limites e autorização são responsabilidade da operação que os contratar.
