@@ -31,3 +31,4 @@
 4. Implementar worker durável para esperas, reconciliação `unknown`, budgets e webhooks assinados.
 5. Executar importação real, restauração de backup e revisão de finalidade/base legal LGPD antes de mensagens reais.
 6. Publicar o contrato de fila Abridge no deployment e homologar o instalador `.exe` em Windows e `.dmg` em macOS; a sandbox Linux valida o código, mas não substitui o teste em cada sistema.
+- **Decisão arquitetural V0:** comprovar o conceito usando exclusivamente software open source, gratuito e self-hosted. APIs oficiais, SaaS pagos e provedores com cobrança por conta ficam fora desta fase, mesmo quando tecnicamente mais simples.
