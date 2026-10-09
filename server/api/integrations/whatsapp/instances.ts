@@ -30,6 +30,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'GET') {
     const context = await requireActiveSession(req, res);
     if (!context) return;
+    if (context.user.workspaceMode) return json(res, 403, { error: 'shared_gateway_access_disabled' });
     if (provider === 'baileys') {
       if (!baileysConfigured()) return json(res, 200, { ok: true, provider, configured: false, instances: [] });
       try { return json(res, 200, { ok: true, provider, configured: true, instances: await baileysInstances() }); }
@@ -44,6 +45,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['GET', 'POST']);
   const context = await requireOwner(req, res);
   if (!context) return;
+    if (context.user.workspaceMode) return json(res, 403, { error: 'shared_gateway_access_disabled' });
   if (!requireSameOrigin(req, res)) return;
   const body = parseBody(req);
   if (body.confirm !== true) return json(res, 400, { error: 'confirmation_required' });

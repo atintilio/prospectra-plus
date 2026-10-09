@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { requireOwner, requireSameOrigin } from '../_lib/access.js';
 import { saveAuthStore } from '../_lib/db.js';
-import { digestToken, randomToken } from '../_lib/crypto.js';
+import { digestToken, randomToken, hashPassword } from '../_lib/crypto.js';
 import { json, methodNotAllowed, parseBody, publicOrigin } from '../_lib/http.js';
 import { sendPasswordSetupEmail } from '../_lib/mailer.js';
 import type { ApiRequest, ApiResponse, AuthStore, StoredTeam, StoredUser, TeamColor, UserRole } from '../_lib/types.js';
@@ -23,6 +23,7 @@ function publicUser(user: StoredUser) {
     name: user.name ?? user.email,
     email: user.email,
     role: user.role,
+    workspaceMode: user.workspaceMode ?? 'legacy',
     teamId: user.teamId ?? null,
     active: user.active,
     passwordSet: Boolean(user.passwordHash),
@@ -118,8 +119,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (teamId && role === 'admin') return json(res, 400, { error: 'admin_cannot_join_team' });
       const team = teamId ? teamById(context.store, teamId) : undefined;
       if (teamId && !team) return json(res, 404, { error: 'team_not_found' });
+      const workspaceMode = body.workspaceMode === 'demo' ? 'demo' as const : 'production' as const;
+      const demoPassword = typeof body.demoPassword === 'string' ? body.demoPassword : '';
+      if (workspaceMode === 'demo' && (demoPassword.length < 8 || demoPassword.length > 200 || teamId || body.sendInvite === true)) return json(res, 400, { error: 'invalid_demo_input' });
       const now = timestamp();
-      const user: StoredUser = { id: randomUUID(), name, email, role, teamId, passwordHash: null, active: true, createdAt: now, updatedAt: now };
+      const user: StoredUser = { id: randomUUID(), name, email, role, teamId, workspaceMode, passwordHash: workspaceMode === 'demo' ? hashPassword(demoPassword) : null, active: true, createdAt: now, updatedAt: now };
       context.store.users.push(user);
       if (team) {
         if (role !== 'member') return json(res, 400, { error: 'create_team_leader_through_team_editor' });

@@ -22,6 +22,7 @@ export interface AuthUser {
   name?: string;
   role: UserRole;
   teamId?: string;
+  workspaceMode?: 'production' | 'demo';
 }
 
 export interface StoredUser extends AuthUser {

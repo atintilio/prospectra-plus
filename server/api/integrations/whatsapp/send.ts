@@ -13,6 +13,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const context = await requireActiveSession(req, res);
   if (!context) return;
+    if (context.user.workspaceMode) return json(res, 403, { error: 'shared_gateway_access_disabled' });
   if (!requireSameOrigin(req, res)) return;
   const body = parseBody(req);
   const taskId = typeof body.campaignTaskId === 'string' ? body.campaignTaskId : '';
@@ -23,7 +24,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (!taskId || !accountId || !contactId || !number || !text) return json(res, 400, { error: 'campaign_task_account_contact_number_text_required' });
   const provider = activeWhatsAppProvider();
   try {
-    const workspace = await loadWorkspaceState();
+    const workspace = await loadWorkspaceState(context.user);
     const scoped = visibleWorkspaceState(workspace.state, context.user);
     if (!scoped.accounts.some((account) => account.id === accountId)) return json(res, 403, { error: 'whatsapp_task_out_of_scope' });
     const campaign = scoped.campaigns.find((item) => item.tasks.some((task) => task.id === taskId));
@@ -59,7 +60,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!rawTask || !rawAccount) return json(res, 500, { error: 'whatsapp_receipt_target_missing' });
     rawTask.state = 'Concluído'; rawTask.providerMessageId = receipt.providerMessageId; rawTask.providerStatus = receipt.status; rawTask.completedAt = new Date().toISOString();
     rawAccount.activities = [{ id: crypto.randomUUID(), kind: 'Tarefa', actor: context.user.email, createdAt: new Date().toISOString(), text: `Mensagem WhatsApp enviada pela Evolution API para ${contact.name}. Provider ID: ${receipt.providerMessageId}.` }, ...rawAccount.activities];
-    try { await saveWorkspaceState(workspace.state); } catch { return json(res, 502, { error: 'whatsapp_receipt_persistence_failed' }); }
+    try { await saveWorkspaceState(workspace.state, context.user); } catch { return json(res, 502, { error: 'whatsapp_receipt_persistence_failed' }); }
     return json(res, 200, { ok: true, taskId, provider, receipt: { providerMessageId: receipt.providerMessageId, status: receipt.status } });
   } catch (error) {
     const code = error instanceof Error ? error.message : 'WHATSAPP_SEND_FAILED';

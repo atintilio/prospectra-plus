@@ -20,6 +20,7 @@ function approvedWriteTask(workspace: Awaited<ReturnType<typeof loadWorkspaceSta
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const context = await requireActiveSession(req, res);
   if (!context) return;
+  if (context.user.workspaceMode === 'demo' && req.method !== 'GET') return json(res, 403, { error: 'demo_external_actions_disabled' });
   try {
     if (req.method === 'GET') return json(res, 200, { ok: true, tasks: (await loadBridgeStore()).tasks.filter((task) => task.userId === context.user.id).slice(-100).reverse().map(({ userId: _userId, ...task }) => task) });
     if (req.method === 'POST') {
@@ -27,7 +28,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const task = safeTask(requestBody(req), context.user.id);
       if (!task) return json(res, 400, { error: 'invalid_bridge_task' });
       if (task.action === 'send_message' || task.action === 'send_connection' || task.action === 'send_whatsapp') {
-        if (!approvedWriteTask(await loadWorkspaceState(), context.user, task)) return json(res, 409, { error: 'bridge_task_not_approved' });
+        if (!approvedWriteTask(await loadWorkspaceState(context.user), context.user, task)) return json(res, 409, { error: 'bridge_task_not_approved' });
       }
       const store = await loadBridgeStore();
       if (task.deviceId && !store.devices.some((device) => device.id === task.deviceId && device.userId === context.user.id && device.active)) return json(res, 400, { error: 'bridge_device_not_found' });

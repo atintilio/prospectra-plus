@@ -18,7 +18,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const body = parseBody(req);
     if (body.type !== 'message.received' || typeof body.from !== 'string' || !body.from.trim()) return json(res, 400, { error: 'invalid_bridge_event' });
     const text = typeof body.text === 'string' ? body.text.trim().slice(0, 2000) : '';
-    const workspace = await loadWorkspaceState();
+    const workspace = await loadWorkspaceState(context.user);
     const matches = workspace.state.accounts.filter((account) => account.contacts.some((contact) => contact.phone && samePhone(contact.phone, body.from as string)));
     if (!matches.length) return json(res, 200, { ok: true, matched: false });
     const now = new Date().toISOString();
@@ -32,7 +32,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         if (matchedIds.has(task.accountId) && task.state !== 'Concluído') task.state = 'Pausado';
       }
     }
-    await saveWorkspaceState(workspace.state);
+    await saveWorkspaceState(workspace.state, context.user);
     return json(res, 200, { ok: true, matched: true, accountIds: [...matchedIds] });
   } catch (error) {
     const code = error instanceof Error ? error.message : '';

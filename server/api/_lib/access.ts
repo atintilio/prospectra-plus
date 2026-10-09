@@ -28,7 +28,7 @@ export async function requireActiveSession(req: ApiRequest, res: ApiResponse): P
 export async function requireOwner(req: ApiRequest, res: ApiResponse): Promise<OwnerContext | null> {
   const context = await requireActiveSession(req, res);
   if (!context) return null;
-  if (context.user.role !== 'admin') {
+  if (context.user.role !== 'admin' || Boolean(context.user.workspaceMode)) {
     json(res, 403, { error: 'owner_access_required' });
     return null;
   }

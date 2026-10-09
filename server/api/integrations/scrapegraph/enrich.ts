@@ -7,6 +7,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const context = await requireActiveSession(req, res);
   if (!context) return;
+  if (context.user.workspaceMode === 'demo') return json(res, 403, { error: 'demo_external_actions_disabled' });
   if (!requireSameOrigin(req, res)) return;
   try {
     const body = parseBody(req);

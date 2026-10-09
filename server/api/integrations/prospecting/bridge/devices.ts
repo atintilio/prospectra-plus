@@ -6,6 +6,7 @@ import type { ApiRequest, ApiResponse } from '../../../_lib/types.js';
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const context = await requireActiveSession(req, res);
   if (!context) return;
+  if (context.user.workspaceMode === 'demo' && req.method !== 'GET') return json(res, 403, { error: 'demo_external_actions_disabled' });
   try {
     if (req.method === 'GET') {
       const store = await loadBridgeStore();

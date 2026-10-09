@@ -18,7 +18,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     task.state = state as typeof task.state; task.completedAt = new Date().toISOString();
     task.result = { providerStatus: typeof body.providerStatus === 'string' ? body.providerStatus : undefined, profile: body.profile, messages: body.messages, errorCode: typeof body.errorCode === 'string' ? body.errorCode : undefined, errorMessage: typeof body.errorMessage === 'string' ? body.errorMessage : undefined };
     if (state === 'success' && task.action === 'send_whatsapp' && task.campaignTaskId && task.accountId && task.contactId) {
-      const workspace = await loadWorkspaceState();
+      const workspace = await loadWorkspaceState(context.user);
       const campaign = workspace.state.campaigns.find((item) => item.tasks.some((candidate) => candidate.id === task.campaignTaskId));
       const campaignTask = campaign?.tasks.find((candidate) => candidate.id === task.campaignTaskId);
       const account = workspace.state.accounts.find((candidate) => candidate.id === task.accountId);
@@ -29,7 +29,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       campaignTask.providerStatus = typeof body.providerStatus === 'string' ? body.providerStatus : 'sent';
       campaignTask.completedAt = task.completedAt;
       account.activities = [{ id: crypto.randomUUID(), kind: 'Tarefa', actor: `Abridge · ${context.device.name}`, createdAt: task.completedAt, text: `Mensagem WhatsApp enviada localmente para o contato ${task.contactId}. Provider ID: ${providerMessageId ?? 'não informado'}.` }, ...account.activities];
-      await saveWorkspaceState(workspace.state);
+      await saveWorkspaceState(workspace.state, context.user);
     }
     await saveBridgeStore(context.store);
     return json(res, 200, { ok: true });
