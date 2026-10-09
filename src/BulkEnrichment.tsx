@@ -16,6 +16,7 @@ interface BatchResult {
   description?: string;
   requestId?: string;
   source?: string;
+  contacts?: Array<{ name: string; role: string; email?: string; phone?: string; linkedin?: string }>;
   error?: string;
 }
 
@@ -112,7 +113,8 @@ export default function BulkEnrichment({ providerConfigured, onImportRows }: Bul
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(payload.error ?? 'Falha no provedor');
           const data = payload.extraction?.data ?? {};
-          output.push({ row, url, status: 'success', company: typeof data.companyName === 'string' ? data.companyName : row.values[nameColumn] || 'Não identificado', sector: typeof data.sector === 'string' ? data.sector : '', description: typeof data.description === 'string' ? data.description : '', requestId: payload.extraction?.requestId, source: 'Scraper web · chamada real' });
+          const contacts = Array.isArray(data.contacts) ? data.contacts.filter((item: unknown): item is { name: string; role: string; email?: string; phone?: string; linkedin?: string } => Boolean(item && typeof item === 'object' && typeof (item as Record<string, unknown>).name === 'string' && typeof (item as Record<string, unknown>).role === 'string')) : [];
+          output.push({ row, url, status: 'success', company: typeof data.companyName === 'string' ? data.companyName : row.values[nameColumn] || 'Não identificado', sector: typeof data.sector === 'string' ? data.sector : '', description: typeof data.description === 'string' ? data.description : '', contacts, requestId: payload.extraction?.requestId, source: 'Scraper web · chamada real' });
         } catch (issue) {
           const code = issue instanceof Error ? issue.message : '';
           const error = code === 'scraper_not_configured' || code === 'scraper_auth_failed' ? 'Configuração do scraper não sincronizada' : code === 'scraper_timeout' ? 'Tempo limite excedido' : code || 'Falha no enriquecimento';
@@ -130,8 +132,8 @@ export default function BulkEnrichment({ providerConfigured, onImportRows }: Bul
   const exportResults = () => {
     if (!results.length) return;
     const lines = [
-      ['linha', 'url', 'status', 'empresa', 'setor', 'descricao', 'request_id', 'origem', 'erro'].map(csvCell).join(','),
-      ...results.map((result) => [result.row.index, result.url, result.status, result.company, result.sector, result.description, result.requestId, result.source, result.error].map(csvCell).join(',')),
+      ['linha', 'url', 'status', 'empresa', 'setor', 'descricao', 'pessoas', 'request_id', 'origem', 'erro'].map(csvCell).join(','),
+      ...results.map((result) => [result.row.index, result.url, result.status, result.company, result.sector, result.description, (result.contacts ?? []).map((contact) => `${contact.name} · ${contact.role} · ${contact.email ?? contact.phone ?? contact.linkedin ?? ''}`).join(' | '), result.requestId, result.source, result.error].map(csvCell).join(',')),
     ];
     const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' });
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `prospectra-enriquecimento-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(link.href);

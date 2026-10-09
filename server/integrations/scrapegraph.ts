@@ -14,6 +14,44 @@ export interface ScrapeGraphExtraction {
   raw?: string;
 }
 
+export interface PublicProfessionalContact {
+  name: string;
+  role: string;
+  email?: string;
+  phone?: string;
+  linkedin?: string;
+  sourceUrl: string;
+  confidence: number;
+  observedAt: string;
+}
+
+const genericMailbox = /^(info|contato|contact|comercial|sales|vendas|suporte|support|hello|oi|admin|financeiro|rh|marketing|atendimento|sac)@/i;
+const contactKeys = ['contacts', 'people', 'persons', 'team', 'leadership', 'executives', 'decisors', 'profiles'];
+function cleanString(value: unknown, max = 300) { return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, max) : ''; }
+function publicEmail(value: unknown) { const email = cleanString(value, 254).toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !genericMailbox.test(email) ? email : undefined; }
+function publicPhone(value: unknown) { const phone = cleanString(value, 40); const digits = phone.replace(/\D/g, ''); return digits.length >= 10 && digits.length <= 15 ? phone : undefined; }
+function publicLinkedIn(value: unknown) { const url = cleanString(value, 500); try { const parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`); return parsed.hostname.toLowerCase().endsWith('linkedin.com') && parsed.pathname.startsWith('/in/') ? parsed.toString() : undefined; } catch { return undefined; } }
+function contactCandidate(value: unknown, sourceUrl: string, observedAt: string): PublicProfessionalContact | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const item = value as Record<string, unknown>;
+  const name = cleanString(item.name ?? item.fullName ?? item.personName ?? item.contactName, 120);
+  const role = cleanString(item.role ?? item.title ?? item.position ?? item.jobTitle ?? item.cargo, 160);
+  const email = publicEmail(item.email ?? item.workEmail ?? item.emailAddress);
+  const phone = publicPhone(item.phone ?? item.mobile ?? item.cellphone ?? item.telefone);
+  const linkedin = publicLinkedIn(item.linkedin ?? item.linkedIn ?? item.linkedinUrl ?? item.profileUrl);
+  if (!name || !role || (!email && !phone && !linkedin)) return null;
+  return { name, role, ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...(linkedin ? { linkedin } : {}), sourceUrl, confidence: Math.min(100, 45 + (email ? 20 : 0) + (phone ? 15 : 0) + (linkedin ? 20 : 0)), observedAt };
+}
+export function normalizeProfessionalContacts(data: Record<string, unknown>, sourceUrl: string, observedAt = new Date().toISOString()): PublicProfessionalContact[] {
+  const candidates: unknown[] = [];
+  for (const key of contactKeys) if (Array.isArray(data[key])) candidates.push(...data[key] as unknown[]);
+  if (data.contact && typeof data.contact === 'object') candidates.push(data.contact);
+  if (data.person && typeof data.person === 'object') candidates.push(data.person);
+  const unique = new Map<string, PublicProfessionalContact>();
+  for (const candidate of candidates) { const contact = contactCandidate(candidate, sourceUrl, observedAt); if (!contact) continue; const key = contact.linkedin ?? contact.email ?? `${contact.name.toLowerCase()}|${contact.role.toLowerCase()}`; if (!unique.has(key)) unique.set(key, contact); }
+  return [...unique.values()].slice(0, 100);
+}
+
 /**
  * O nome público das rotas permanece `scrapegraph` para não quebrar links salvos,
  * mas o provider de produção é o website-email-contact-scraper hospedado na VM.
@@ -115,7 +153,7 @@ export async function enrichCompany(url: string): Promise<ScrapeGraphExtraction>
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     // O novo scraper recebe somente a URL e devolve o contrato Prospectra.
     // Campos adicionais do contrato antigo não são mais enviados.
-    body: JSON.stringify({ url: source.toString() }),
+    body: JSON.stringify({ url: source.toString(), crawl: { maxDepth: 3, maxPages: 30, followPaths: ['/equipe', '/time', '/lideranca', '/people', '/about', '/sobre', '/autores', '/noticias'] }, extraction: { focus: 'public_professional_contacts', requireNameAndRole: true, excludeGenericMailboxes: true, fields: ['name', 'role', 'workEmail', 'phone', 'linkedinUrl', 'sourceUrl', 'confidence'] } }),
   });
   const body = await response.json().catch(() => ({})) as { id?: string; json?: unknown; raw?: string };
   if (!response.ok) {
@@ -123,5 +161,6 @@ export async function enrichCompany(url: string): Promise<ScrapeGraphExtraction>
     throw new Error(`SCRAPEGRAPH_FAILED_${response.status}`);
   }
   const data = body.json && typeof body.json === 'object' && !Array.isArray(body.json) ? body.json as Record<string, unknown> : {};
-  return { provider: 'Prospectra Web Scraper', requestId: body.id, sourceUrl: source.toString(), extractedAt: new Date().toISOString(), data, raw: typeof body.raw === 'string' ? body.raw : undefined };
+  const extractedAt = new Date().toISOString();
+  return { provider: 'Prospectra Web Scraper', requestId: body.id, sourceUrl: source.toString(), extractedAt, data: { ...data, contacts: normalizeProfessionalContacts(data, source.toString(), extractedAt) }, raw: typeof body.raw === 'string' ? body.raw : undefined };
 }
