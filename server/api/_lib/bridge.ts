@@ -44,6 +44,7 @@ export async function requireBridgeDevice(req: ApiRequest, res: ApiResponse) {
   if (!device) { json(res, 401, { error: 'bridge_not_authenticated' }); return null; }
   const user = auth.users.find((entry) => entry.id === device.userId && entry.active);
   if (!user) { json(res, 401, { error: 'bridge_owner_inactive' }); return null; }
+  if (user.workspaceMode === 'demo') { json(res, 403, { error: 'demo_external_actions_disabled' }); return null; }
   return { store, device, user };
 }
 

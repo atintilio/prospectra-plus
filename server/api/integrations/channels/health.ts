@@ -56,6 +56,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const context = await requireActiveSession(req, res);
   if (!context) return;
+  if (context.user.workspaceMode) return json(res, 200, { ok: true, channels: {
+    whatsapp: { id: 'whatsapp', status: 'not_configured', capability: 'Não configurado', detail: 'Esta base não utiliza a sessão compartilhada do Owner. É necessário um gateway com sessão exclusiva por usuário.', checkedAt: new Date().toISOString() },
+    linkedin: { id: 'linkedin', status: 'not_configured', capability: 'Assistido', detail: context.user.workspaceMode === 'demo' ? 'Demonstração: conexões e ações externas desativadas.' : 'Conecte sua própria conta no Chrome local pelo Abridge.', checkedAt: new Date().toISOString() },
+  }, checkedAt: new Date().toISOString() });
   const whatsapp = activeWhatsAppProvider() === 'baileys' ? await checkBaileys() : await checkEvolution();
   const linkedin = await checkLinkedIn();
   return json(res, 200, { ok: true, channels: { whatsapp, linkedin }, checkedAt: new Date().toISOString() });

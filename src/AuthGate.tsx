@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 
 export type SessionRole = 'admin' | 'leader' | 'member';
-export interface SessionUser { id: string; email: string; name?: string; role: SessionRole; teamId?: string; }
+export interface SessionUser { id: string; email: string; name?: string; role: SessionRole; teamId?: string; workspaceMode?: 'production' | 'demo'; }
 const AuthContext = createContext<SessionUser | null>(null);
 export function useAuthUser() { return useContext(AuthContext); }
 

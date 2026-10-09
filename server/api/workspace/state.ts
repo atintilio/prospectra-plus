@@ -8,13 +8,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
     const context = await requireActiveSession(req, res);
     if (!context) return;
-    const loaded = await loadWorkspaceState();
-    const currentState = synchronizeOrganization(loaded.state, context.store);
+    const loaded = await loadWorkspaceState(context.user);
+    const currentState = synchronizeOrganization(loaded.state, context.store, context.user);
     if (req.method === 'GET') return json(res, 200, { ok: true, source: 'private_blob', updatedAt: loaded.updatedAt, state: visibleWorkspaceState(currentState, context.user) });
     if (!requireSameOrigin(req, res)) return;
-    if (context.user.role !== 'admin') return json(res, 403, { error: 'owner_write_required' });
+    if (context.user.role !== 'admin' && !context.user.workspaceMode) return json(res, 403, { error: 'owner_write_required' });
     const body = parseBody(req);
-    const saved = await saveWorkspaceState(mergeSafeWorkspaceState(currentState, body.state));
+    const saved = await saveWorkspaceState(mergeSafeWorkspaceState(currentState, body.state), context.user);
     return json(res, 200, { ok: true, source: 'private_blob', updatedAt: saved.updatedAt, state: saved.state });
   } catch (error) {
     const code = error instanceof Error ? error.message : 'workspace_failed';
