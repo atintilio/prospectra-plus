@@ -1,6 +1,6 @@
 import { loadAuthStore } from './db.js';
 import { header, json, publicOrigin } from './http.js';
-import { readSession } from './session.js';
+import { readSession, isDemoRequest } from './session.js';
 import type { ApiRequest, ApiResponse, AuthStore, StoredUser } from './types.js';
 
 export interface ActiveSessionContext {
@@ -17,7 +17,7 @@ export async function requireActiveSession(req: ApiRequest, res: ApiResponse): P
     return null;
   }
   const store = await loadAuthStore();
-  const user = store.users.find((entry) => entry.id === session.id && entry.active);
+  const user = store.users.find((entry) => entry.id === session.id && entry.active && (entry.workspaceMode === 'demo') === isDemoRequest(req));
   if (!user) {
     json(res, 401, { error: 'not_authenticated' });
     return null;

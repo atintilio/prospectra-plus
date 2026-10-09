@@ -41,3 +41,15 @@ export async function sendPasswordSetupEmail(
   });
   if (!response.ok) throw new Error(`OFFICE365_SEND_FAILED_${response.status}`);
 }
+
+/** Sends only explicitly selected demo access; the password is never persisted or logged. */
+export async function sendDemoAccessEmail(to: string[], login: string, password: string, appUrl: string): Promise<void> {
+  const sender = requiredAny('SENDER_EMAIL', 'OFFICE365_SENDER_EMAIL', 'MS_GRAPH_USER_ID', 'MAIL_FROM');
+  const token = await accessToken();
+  const html = `<p>Olá,</p><p>Suas credenciais pessoais para a demonstração do Prospectra+ estão disponíveis.</p><p><a href="${escapeHtml(appUrl)}">Abrir Prospectra+</a></p><p>Login: <strong>${escapeHtml(login)}</strong><br>Senha: <strong>${escapeHtml(password)}</strong></p><p>Esta conta contém exemplos fictícios e não envia mensagens nem conecta canais externos. Todos os participantes da demonstração compartilham a mesma base de exemplos. Contas reais de produção têm bases separadas e começam vazias.</p>`;
+  const response = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: { subject: 'Prospectra+ · login da demonstração compartilhada', body: { contentType: 'HTML', content: html }, toRecipients: to.map(address => ({ emailAddress: { address } })) }, saveToSentItems: true }),
+  });
+  if (!response.ok) throw new Error(`OFFICE365_SEND_FAILED_${response.status}`);
+}

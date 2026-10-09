@@ -8,11 +8,12 @@ import { seedState } from '../src/data';
 import { emptyWorkspace } from '../src/emptyWorkspace';
 import { initialWorkspace, loadWorkspaceState, saveWorkspaceState, workspacePath } from '../server/api/_lib/workspace';
 import workspaceHandler from '../server/api/workspace/state';
+import loginHandler from '../server/api/auth/login';
 import organizationHandler from '../server/api/admin/organization';
 import bridgeHandler from '../server/api/integrations/prospecting/bridge/tasks';
 import whatsappHandler from '../server/api/integrations/whatsapp/send';
 import { issueSession } from '../server/api/_lib/session';
-import { verifyPassword } from '../server/api/_lib/crypto';
+import { verifyPassword, hashPassword } from '../server/api/_lib/crypto';
 import type { ApiRequest, ApiResponse, AuthStore, StoredUser } from '../server/api/_lib/types';
 const users: StoredUser[] = [
   { id: 'owner', email: 'owner@example.org', role: 'admin', passwordHash: null, active: true, createdAt: '', updatedAt: '' },
@@ -28,10 +29,10 @@ function response() {
 function request(user: StoredUser, method = 'GET', body?: unknown): ApiRequest {
   const { result, res } = response();
   issueSession(res, { headers: { host: 'localhost' } }, user);
-  return { method, headers: { host: 'localhost', cookie: String(result.headers['Set-Cookie']).split(';')[0] }, body };
+  return { method, headers: { host: 'localhost', 'x-prospectra-session': user.workspaceMode === 'demo' ? 'demo' : 'production', cookie: String(result.headers['Set-Cookie']).split(';')[0] }, body };
 }
 beforeEach(() => {
-  blobs.clear(); process.env.BLOB_READ_WRITE_TOKEN = 'test'; process.env.AUTH_SECRET = 'test-only-session-key';
+  vi.unstubAllGlobals(); blobs.clear(); process.env.BLOB_READ_WRITE_TOKEN = 'test'; process.env.AUTH_SECRET = 'test-only-session-key';
   const store: AuthStore = { version: 1, users: structuredClone(users), teams: [], resets: [] };
   blobs.set('prospectra/auth.json', JSON.stringify(store));
   blobs.set(workspacePath(), JSON.stringify({ version: 1, updatedAt: 'legacy', state: seedState }));
@@ -101,4 +102,63 @@ describe('isolamento real e demonstração', () => {
       expect(wa.result.code).toBe(403);
     }
   });
+});
+
+it('participantes diferentes compartilham somente a base demo, com sessões individuais', async () => {
+  const second = { ...users[3], id: 'demo-2', email: 'owner@example.org' };
+  const store = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore; store.users.push(second);
+  blobs.set('prospectra/auth.json', JSON.stringify(store));
+  expect(workspacePath(users[3])).toBe(workspacePath(second));
+  const state = initialWorkspace(users[3]); state.accounts[0].name = 'Demo compartilhada';
+  await saveWorkspaceState(state, users[3]);
+  const demo = response(); await workspaceHandler(request(second), demo.res);
+  expect(demo.result.code).toBe(200); expect(demo.result.body.state.accounts[0].name).toBe('Demo compartilhada');
+  expect((await loadWorkspaceState(users[1])).state.accounts).toEqual([]);
+  const req = request(second); delete req.headers['x-prospectra-session'];
+  const prod = response(); await workspaceHandler(req, prod.res); expect(prod.result.code).toBe(401);
+});
+
+it('um email do Owner pode ter credenciais demo sem modificar a conta de produção', async () => {
+  const ownerBefore = JSON.parse(blobs.get('prospectra/auth.json')!).users[0];
+  const created = response();
+  await organizationHandler(request(users[0], 'POST', {action:'create-user',name:'Owner demo',email:users[0].email,role:'member',workspaceMode:'demo',demoPassword:'test-pass***'}),created.res);
+  expect(created.result.code).toBe(201);
+  const store = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore;
+  expect(store.users.find(user => user.id === 'owner')).toEqual(ownerBefore);
+  expect(store.users.filter(user => user.email === users[0].email)).toHaveLength(2);
+});
+
+it('login demo usa a senha pessoal e não aceita a senha do Owner de mesmo e-mail', async () => {
+  const store = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore;
+  store.users[0].passwordHash = hashPassword('Production-password-1');
+  const demo = {...users[3], id:'owner-demo',email:users[0].email,passwordHash:hashPassword('Demo-password-1')}; store.users.push(demo);
+  blobs.set('prospectra/auth.json', JSON.stringify(store));
+  const good = response(); await loginHandler({method:'POST',headers:{host:'localhost','x-prospectra-session':'demo'},body:{email:demo.email,password:'Demo-password-1'}},good.res);
+  expect(good.result.code).toBe(200); expect(good.result.body.user.id).toBe('owner-demo');
+  expect(good.result.headers['Set-Cookie']).toContain('prospectra_demo_session=');
+  const wrong = response(); await loginHandler({method:'POST',headers:{host:'localhost','x-prospectra-session':'demo'},body:{email:demo.email,password:'Production-password-1'}},wrong.res);
+  expect(wrong.result.code).toBe(401);
+  const prod = response(); await loginHandler({method:'POST',headers:{host:'localhost'},body:{email:demo.email,password:'Demo-password-1'}},prod.res);
+  expect(prod.result.code).toBe(401);
+});
+
+function officeMock(accept: boolean) {
+  process.env.OFFICE365_TENANT_ID='test-tenant'; process.env.OFFICE365_CLIENT_ID='test-client'; process.env.OFFICE365_CLIENT_SECRET='test-secret'; process.env.OFFICE365_SENDER_EMAIL='sender@example.org';
+  const fetchMock = vi.fn(async (url: string) => url.includes('/oauth2/') ? new Response(JSON.stringify({access_token:'test-token'}),{status:200}) : new Response(null,{status:accept?202:503}));
+  vi.stubGlobal('fetch',fetchMock); return fetchMock;
+}
+it('envia o acesso demo apenas aos destinatários selecionados após criar a conta', async () => {
+  const fetchMock=officeMock(true); const created=response(); const password='test-demo***';
+  await organizationHandler(request(users[0],'POST',{action:'create-user',name:'Demo mail',email:'mail-demo@example.org',role:'member',workspaceMode:'demo',demoPassword:password,demoRecipients:['mail-demo@example.org','recipient@example.org']}),created.res);
+  expect(created.result.code).toBe(201); expect(created.result.body.demoAccessDelivery).toBe('accepted');
+  const sent=JSON.parse((fetchMock.mock.calls[1] as unknown as [string,RequestInit])[1].body as string);
+  expect(sent.message.toRecipients.map((r:any)=>r.emailAddress.address)).toEqual(['mail-demo@example.org','recipient@example.org']);
+  expect(sent.message.body.content).toContain(password); expect(sent.message.body.content).toContain('/demo');
+  expect(blobs.get('prospectra/auth.json')).not.toContain(password); expect(JSON.stringify(created.result.body)).not.toContain(password);
+});
+it('rejeição de e-mail não apaga a conta criada nem simula envio bem sucedido', async () => {
+  officeMock(false); const created=response();
+  await organizationHandler(request(users[0],'POST',{action:'create-user',name:'Demo mail',email:'mail-demo@example.org',role:'member',workspaceMode:'demo',demoPassword:'test-demo***',demoRecipients:['recipient@example.org']}),created.res);
+  expect(created.result.code).toBe(201); expect(created.result.body.demoAccessDelivery).toBe('failed');
+  expect(JSON.parse(blobs.get('prospectra/auth.json')!).users.some((u:any)=>u.email==='mail-demo@example.org')).toBe(true);
 });

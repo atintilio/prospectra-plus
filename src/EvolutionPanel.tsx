@@ -1,3 +1,4 @@
+import { apiFetch } from './apiFetch';
 import { useEffect, useState } from 'react';
 import { CheckCircle2, LoaderCircle, MessageSquareText, QrCode, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react';
 
@@ -28,7 +29,7 @@ export default function EvolutionPanel({ onToast }: EvolutionPanelProps) {
   const refresh = async () => {
     setBusy(true); setMessage('');
     try {
-      const response = await fetch('/api/integrations/whatsapp/instances', { credentials: 'include' });
+      const response = await apiFetch('/api/integrations/whatsapp/instances', { credentials: 'include' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(payload.error ?? 'evolution_unavailable'));
       setProvider(payload.provider === 'evolution' ? 'evolution' : 'baileys');
@@ -44,7 +45,7 @@ export default function EvolutionPanel({ onToast }: EvolutionPanelProps) {
   const createInstance = async () => {
     setBusy(true); setMessage('');
     try {
-      const response = await fetch('/api/integrations/whatsapp/instances', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
+      const response = await apiFetch('/api/integrations/whatsapp/instances', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(payload.error ?? 'evolution_instance_failed'));
       setMessage('Gateway iniciado. Agora gere o QR Code.'); onToast?.('Baileys Gateway iniciado no Prospectra.'); await refresh();
@@ -54,7 +55,7 @@ export default function EvolutionPanel({ onToast }: EvolutionPanelProps) {
   const connect = async () => {
     setBusy(true); setMessage('');
     try {
-      const response = await fetch('/api/integrations/whatsapp/connect', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
+      const response = await apiFetch('/api/integrations/whatsapp/connect', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(payload.error ?? 'evolution_connect_failed'));
       const image = extractQr(payload);

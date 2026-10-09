@@ -1,3 +1,4 @@
+import { isDemoRequest } from '../_lib/session.js';
 import { randomUUID } from 'node:crypto';
 import { loadAuthStore, saveAuthStore } from '../_lib/db.js';
 import { digestToken, randomToken } from '../_lib/crypto.js';
@@ -16,8 +17,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const store = await loadAuthStore();
     const now = new Date().toISOString();
-    let user = store.users.find((item) => item.email === email && item.active);
-    if (!user && email === MASTER_EMAIL) {
+    let user = store.users.find((item) => item.email === email && item.active && (item.workspaceMode === 'demo') === isDemoRequest(req));
+    if (!user && !isDemoRequest(req) && email === MASTER_EMAIL) {
       user = { id: randomUUID(), email, name: 'André Tintilio', role: 'admin', passwordHash: null, active: true, createdAt: now, updatedAt: now } satisfies StoredUser;
       store.users.push(user);
     }
@@ -28,7 +29,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     store.resets.push({ id: randomUUID(), userId: user.id, tokenHash: digestToken(rawToken), expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(), createdAt: now });
     await saveAuthStore(store);
 
-    const setupUrl = `${publicOrigin(req)}/definir-senha?token=${encodeURIComponent(rawToken)}`;
+    const setupUrl = `${publicOrigin(req)}${user.workspaceMode === 'demo' ? '/demo' : ''}/definir-senha?token=${encodeURIComponent(rawToken)}`;
     try {
       await sendPasswordSetupEmail(user.email, setupUrl, { recipientName: user.name, invitation: !user.passwordHash });
     } catch (error) {
