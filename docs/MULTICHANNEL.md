@@ -8,7 +8,7 @@ O conector prioritário é o **Baileys Gateway** em serviço Node persistente se
 
 ## LinkedIn
 
-O caminho sem assinatura é o Abridge: o operador faz login manual no Chrome local visível, e o `linkout-scraper` lê perfil/posts públicos ou executa uma tarefa aprovada na sessão local. O Abridge não envia senha/cookie ao Prospectra. Convites e mensagens exigem confirmação na tela do desktop; a interface não confunde resultado local com `delivered` do LinkedIn.
+O caminho gratuito da V0 é o `linkedin-mcp-server` self-hosted na VM Oracle. O operador autentica a conta no serviço MCP; o Prospectra não recebe senha ou cookie. A fila continua exigindo aprovação, evidência e confirmação do provedor antes de registrar entrega.
 
 ## Agente e playbooks
 

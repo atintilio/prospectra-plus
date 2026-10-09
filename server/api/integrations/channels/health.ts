@@ -4,6 +4,7 @@ import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
 import { activeWhatsAppProvider } from '../../../integrations/whatsapp-provider.js';
 import { baileysConfigured, baileysStatus } from '../../../integrations/baileys.js';
 import { connectionState, evolutionConfig, evolutionConfigured } from '../../../integrations/evolution.js';
+import { linkedinMcpConfig, linkedinMcpHealth } from '../../../integrations/linkedin-mcp.js';
 
 type ChannelHealth = { id: 'whatsapp' | 'linkedin'; status: 'connected' | 'not_configured' | 'failed'; capability: 'API autorizada' | 'API não oficial configurável' | 'Assistido' | 'Não configurado'; detail: string; checkedAt: string; provider?: string; latencyMs?: number; instance?: string };
 
@@ -40,9 +41,14 @@ async function checkEvolution(): Promise<ChannelHealth> {
 
 async function checkLinkedIn(): Promise<ChannelHealth> {
   const checkedAt = new Date().toISOString();
+  const mcp = linkedinMcpConfig();
+  if (mcp) {
+    const health = await linkedinMcpHealth();
+    return { id: 'linkedin', status: health.status === 'connected' ? 'connected' : health.status === 'failed' ? 'failed' : 'not_configured', capability: 'API autorizada', detail: health.detail, checkedAt, provider: 'LinkedIn MCP open source', latencyMs: health.latencyMs };
+  }
   const baseUrl = process.env.LINKEDIN_PROVIDER_BASE_URL?.trim();
   const apiKey = process.env.LINKEDIN_PROVIDER_API_KEY?.trim();
-  if (!baseUrl || !apiKey) return { id: 'linkedin', status: 'not_configured', capability: 'Assistido', detail: 'O LinkedIn usa Abridge + linkout-scraper em Chrome local visível. A conta é conectada pelo operador no desktop; não há API cloud configurada.', checkedAt, provider: 'Abridge / linkout-scraper' };
+  if (!baseUrl || !apiKey) return { id: 'linkedin', status: 'not_configured', capability: 'API autorizada', detail: 'Configure o LinkedIn MCP open source na VM e LINKEDIN_MCP_BASE_URL no Vercel. A autenticação da conta é feita no servidor MCP.', checkedAt, provider: 'LinkedIn MCP open source' };
   const started = Date.now();
   try {
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}${process.env.LINKEDIN_PROVIDER_HEALTH_PATH ?? '/health'}`, { headers: { Authorization: `Bearer ${apiKey}`, apikey: apiKey }, signal: AbortSignal.timeout(8000) });

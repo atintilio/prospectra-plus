@@ -26,7 +26,7 @@ O `WHATSAPP_PROVIDER` padrão é `baileys`. Evolution API continua disponível c
 
 ## LinkedIn
 
-O Prospectra mantém o LinkedIn assistido por padrão: abrir perfil, copiar copy aprovada e registrar a ação humana. A conexão opcional de conta foi estruturada com Hosted Auth do Unipile em `/api/integrations/prospecting/*`, usando link temporário, callback protegido e armazenamento privado somente do estado/identificador. Ela exige `UNIPILE_DSN`, `UNIPILE_API_KEY` e `UNIPILE_WEBHOOK_SECRET` no Vercel; sem esses valores a UI informa que o provedor não está configurado.
+O Prospectra V0 usa o LinkedIn MCP open source self-hosted na VM Oracle. A conta é autenticada no próprio serviço; o Vercel guarda apenas o estado da conexão e nunca recebe cookies ou senhas.
 
 Conectar uma conta **não autoriza automaticamente convites ou mensagens**. O adapter não armazena cookies, não simula cliques e não envia nada no estado atual; qualquer provider futuro precisa comprovar escopos, quota, custo, webhook assinado, reconciliação e compatibilidade contratual antes de habilitar transporte.
 

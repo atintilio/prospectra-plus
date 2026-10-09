@@ -1,0 +1,25 @@
+services:
+  linkedin-mcp:
+    image: stickerdaniel/linkedin-mcp-server:4.26.2
+    restart: unless-stopped
+    command: ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8080", "--path", "/mcp"]
+    volumes:
+      - linkedin_mcp_profile:/home/pwuser/.linkedin-mcp
+    expose:
+      - "8080"
+
+  linkedin-mcp-proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - linkedin-mcp
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      LINKEDIN_MCP_USER: ${LINKEDIN_MCP_USER:?set LINKEDIN_MCP_USER}
+      LINKEDIN_MCP_PASSWORD_HASH: ${LINKEDIN_MCP_PASSWORD_HASH:?set LINKEDIN_MCP_PASSWORD_HASH}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+volumes:
+  linkedin_mcp_profile:
