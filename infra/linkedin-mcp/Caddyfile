@@ -1,0 +1,6 @@
+:8787 {
+  basic_auth {
+    {$LINKEDIN_MCP_USER} {$LINKEDIN_MCP_PASSWORD_HASH}
+  }
+  reverse_proxy linkedin-mcp:8080
+}

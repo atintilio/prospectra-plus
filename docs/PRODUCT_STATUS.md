@@ -12,16 +12,15 @@
 - Prospectra Web Scraper v2 em enriquecimento individual e lote CSV/XLSX, quando a chave server-side e os a chave server-side estiver sincronizada.
 - Campanhas com revisão de copy, invalidação após edição, aprovação condicionada a contato/evidência e tarefas assistidas.
 - LinkedIn assistido: abrir perfil, copiar copy aprovada e registrar a ação humana sem afirmar entrega externa.
-- Conexão de conta opcional em Hosted Auth Unipile: link temporário, callback com token, status privado por usuário e reconexão indicada; o provedor precisa ser configurado no Vercel antes de uso.
+- LinkedIn V0: servidor LinkedIn MCP open source self-hosted na VM Oracle; a conta é autenticada no próprio serviço e o Prospectra consulta somente o estado protegido.
 - Gateway Baileys separado com API autenticada, QR Code, sessão persistente, reconexão, envio aprovado, recibos e webhook; o Prospectra tem adaptador server-side e health check sem expor token.
 - Equipes com diagnóstico consolidado para líderes/liderados e diagnóstico executivo completo para Owner.
 - Menu de três pontos no Owner para editar nome/e-mail/papel/equipe/estado, reenviar convite e desativar acesso reversivelmente, com proteção server-side do master.
-- Abridge Desktop em construção com empacotamento para Windows, macOS e Linux, Chrome visível em perfil dedicado, polling HTTPS, fila de tarefas, confirmação local para mensagens/convites, leitura de perfis e organograma a partir de URLs informadas, sem exportar cookies.
 
 ## Não é apresentado como conectado
 
 - WhatsApp só muda para conectado depois de `BAILEYS_GATEWAY_URL`, token, processo persistente, health check, QR Code, volume `data/auth` e webhook comprovados; Baileys é uma integração não oficial e Evolution continua fallback explícito.
-- LinkedIn não é um conector cloud oficial: a alternativa sem assinatura usa Abridge + linkout-scraper em Chrome local visível. O operador faz login manualmente no Abridge; leituras públicas podem ser processadas, mas convites/mensagens exigem confirmação local. A conexão Hosted Auth Unipile continua opcional e separada.
+- LinkedIn não é um conector cloud oficial: a V0 usa o LinkedIn MCP open source self-hosted. O operador faz login manualmente no serviço MCP; a VM precisa permanecer disponível e o endpoint deve ser protegido por HTTPS e token.
 - A base demonstrativa continua marcada como massa de homologação até a importação de dados reais e validação de isolamento da organização.
 
 ## Próximos bloqueadores de piloto real
