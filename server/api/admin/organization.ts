@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { requireOwner, requireSameOrigin } from '../_lib/access.js';
 import { saveAuthStore } from '../_lib/db.js';
-import { digestToken, randomToken, hashPassword } from '../_lib/crypto.js';
+import { digestToken, randomToken, hashPassword, verifyPassword } from '../_lib/crypto.js';
 import { json, methodNotAllowed, parseBody, publicOrigin } from '../_lib/http.js';
-import { sendPasswordSetupEmail } from '../_lib/mailer.js';
+import { sendPasswordSetupEmail, sendDemoAccessEmail } from '../_lib/mailer.js';
 import type { ApiRequest, ApiResponse, AuthStore, StoredTeam, StoredUser, TeamColor, UserRole } from '../_lib/types.js';
 
 const MASTER_EMAIL = (process.env.MASTER_USER_EMAIL ?? 'atintilio@argusprime.com.br').trim().toLowerCase();
@@ -15,6 +15,7 @@ function isRole(value: unknown): value is UserRole { return typeof value === 'st
 function isColor(value: unknown): value is TeamColor { return typeof value === 'string' && colors.includes(value as TeamColor); }
 function cleanText(value: unknown, max = 96) { return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, max) : ''; }
 function cleanEmail(value: unknown) { return typeof value === 'string' ? value.trim().toLowerCase().slice(0, 254) : ''; }
+function sameRealm(user: StoredUser, demo: boolean) { return (user.workspaceMode === 'demo') === demo; }
 function emailIsValid(email: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
 function publicUser(user: StoredUser) {
@@ -45,7 +46,7 @@ function teamById(store: AuthStore, teamId: unknown): StoredTeam | undefined {
 }
 
 function activeUser(store: AuthStore, userId: unknown): StoredUser | undefined {
-  return typeof userId === 'string' ? store.users.find((user) => user.id === userId && user.active) : undefined;
+  return typeof userId === 'string' ? store.users.find((user) => user.id === userId && user.active && user.workspaceMode !== 'demo') : undefined;
 }
 
 function removeFromTeams(store: AuthStore, userId: string, exceptTeamId?: string) {
@@ -86,7 +87,7 @@ async function issueInvite(req: ApiRequest, store: AuthStore, user: StoredUser) 
   store.resets.push({ id: randomUUID(), userId: user.id, tokenHash: digestToken(rawToken), expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(), createdAt: now });
   await saveAuthStore(store);
   try {
-    await sendPasswordSetupEmail(user.email, `${publicOrigin(req)}/definir-senha?token=${encodeURIComponent(rawToken)}`, { recipientName: user.name, invitation: !user.passwordHash });
+    await sendPasswordSetupEmail(user.email, `${publicOrigin(req)}${user.workspaceMode === 'demo' ? '/demo' : ''}/definir-senha?token=${encodeURIComponent(rawToken)}`, { recipientName: user.name, invitation: !user.passwordHash });
   } catch (error) {
     store.resets = store.resets.filter((reset) => reset.tokenHash !== digestToken(rawToken));
     await saveAuthStore(store);
@@ -115,15 +116,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const role = isRole(body.role) ? body.role : null;
       const teamId = typeof body.teamId === 'string' && body.teamId ? body.teamId : undefined;
       if (!name || !emailIsValid(email) || !role) return json(res, 400, { error: 'invalid_user_input' });
-      if (context.store.users.some((user) => user.email === email)) return json(res, 409, { error: 'user_already_exists' });
+      if (context.store.users.some((user) => user.email === email && sameRealm(user, body.workspaceMode === 'demo'))) return json(res, 409, { error: 'user_already_exists' });
       if (teamId && role === 'admin') return json(res, 400, { error: 'admin_cannot_join_team' });
       const team = teamId ? teamById(context.store, teamId) : undefined;
       if (teamId && !team) return json(res, 404, { error: 'team_not_found' });
       const workspaceMode = body.workspaceMode === 'demo' ? 'demo' as const : 'production' as const;
       const demoPassword = typeof body.demoPassword === 'string' ? body.demoPassword : '';
       if (workspaceMode === 'demo' && (demoPassword.length < 8 || demoPassword.length > 200 || teamId || body.sendInvite === true)) return json(res, 400, { error: 'invalid_demo_input' });
+      const demoRecipients = Array.isArray(body.demoRecipients) ? [...new Set(body.demoRecipients.map(cleanEmail))] : [];
+      if (demoRecipients.length && (workspaceMode !== 'demo' || demoRecipients.length > 10 || demoRecipients.some(address => !emailIsValid(address)))) return json(res, 400, { error: 'invalid_demo_recipients' });
       const now = timestamp();
-      const user: StoredUser = { id: randomUUID(), name, email, role, teamId, workspaceMode, passwordHash: workspaceMode === 'demo' ? hashPassword(demoPassword) : null, active: true, createdAt: now, updatedAt: now };
+      const user: StoredUser = { id: randomUUID(), name, email, role: workspaceMode === 'demo' ? 'member' : role, teamId, workspaceMode, passwordHash: workspaceMode === 'demo' ? hashPassword(demoPassword) : null, active: true, createdAt: now, updatedAt: now };
       context.store.users.push(user);
       if (team) {
         if (role !== 'member') return json(res, 400, { error: 'create_team_leader_through_team_editor' });
@@ -131,7 +134,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
       await saveAuthStore(context.store);
       if (body.sendInvite === true) await issueInvite(req, context.store, user);
-      return json(res, 201, { ok: true, organization: organization(context.store) });
+      if (demoRecipients.length) {
+        try { await sendDemoAccessEmail(demoRecipients, user.email, demoPassword, `${publicOrigin(req)}/demo`); }
+        catch { return json(res, 201, { ok: true, demoAccessDelivery: 'failed', organization: organization(context.store) }); }
+      }
+      return json(res, 201, { ok: true, demoAccessDelivery: demoRecipients.length ? 'accepted' : 'not_requested', organization: organization(context.store) });
     }
 
     if (req.method === 'POST' && body.action === 'create-team') {
@@ -153,17 +160,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (req.method === 'PATCH' && body.action === 'update-user') {
       const user = context.store.users.find((entry) => entry.id === body.userId);
       if (!user) return json(res, 404, { error: 'user_not_found' });
-      const nextRole = isRole(body.role) ? body.role : user.role;
+      const nextRole = user.workspaceMode === 'demo' ? 'member' : isRole(body.role) ? body.role : user.role;
       const nextActive = typeof body.active === 'boolean' ? body.active : user.active;
       const nextName = cleanText(body.name) || user.name || user.email;
       const nextEmail = body.email === undefined ? user.email : cleanEmail(body.email);
       const hasTeamUpdate = Object.prototype.hasOwnProperty.call(body, 'teamId');
       const requestedTeamId = body.teamId === null || body.teamId === '' ? undefined : typeof body.teamId === 'string' ? body.teamId : user.teamId;
-      const isMaster = user.email === MASTER_EMAIL;
+      const isMaster = user.email === MASTER_EMAIL && user.workspaceMode !== 'demo';
       if (!emailIsValid(nextEmail) || !nextName) return json(res, 400, { error: 'invalid_user_input' });
-      if (context.store.users.some((entry) => entry.id !== user.id && entry.email === nextEmail)) return json(res, 409, { error: 'user_already_exists' });
+      if (context.store.users.some((entry) => entry.id !== user.id && entry.email === nextEmail && sameRealm(entry, user.workspaceMode === 'demo'))) return json(res, 409, { error: 'user_already_exists' });
       if (isMaster && (nextEmail !== user.email || nextRole !== user.role || !nextActive)) return json(res, 409, { error: 'master_user_protected' });
-      if (nextRole === 'admin' && requestedTeamId) return json(res, 400, { error: 'admin_cannot_join_team' });
+      if ((nextRole === 'admin' || user.workspaceMode === 'demo') && requestedTeamId) return json(res, 400, { error: 'admin_cannot_join_team' });
       const requestedTeam = requestedTeamId ? teamById(context.store, requestedTeamId) : undefined;
       if (requestedTeamId && !requestedTeam) return json(res, 404, { error: 'team_not_found' });
       const leaderTeam = context.store.teams.find((team) => team.leaderId === user.id);
@@ -182,6 +189,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (nextRole === 'admin' || !nextActive || (hasTeamUpdate && nextRole === 'member' && !requestedTeam)) user.teamId = undefined;
       user.updatedAt = timestamp();
       await saveAuthStore(context.store);
+      return json(res, 200, { ok: true, organization: organization(context.store) });
+    }
+
+    if (req.method === 'PATCH' && body.action === 'send-demo-access') {
+      const user = context.store.users.find(entry => entry.id === body.userId && entry.active && entry.workspaceMode === 'demo');
+      const password = typeof body.demoPassword === 'string' ? body.demoPassword : '';
+      const recipients = Array.isArray(body.demoRecipients) ? [...new Set(body.demoRecipients.map(cleanEmail))] : [];
+      if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) return json(res, 400, { error: 'invalid_demo_access' });
+      if (!recipients.length || recipients.length > 10 || recipients.some(address => !emailIsValid(address))) return json(res, 400, { error: 'invalid_demo_recipients' });
+      await sendDemoAccessEmail(recipients, user.email, password, `${publicOrigin(req)}/demo`);
       return json(res, 200, { ok: true, organization: organization(context.store) });
     }
 

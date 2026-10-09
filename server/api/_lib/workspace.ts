@@ -16,6 +16,7 @@ function requireStorage() {
 
 export function workspacePath(user?: AuthUser): string {
   if (!user?.workspaceMode) return WORKSPACE_PATH; // Existing users keep their original data.
+  if (user.workspaceMode === 'demo') return 'prospectra/workspaces/demo.json';
   if (!user.id || !['production', 'demo'].includes(user.workspaceMode)) throw new Error('WORKSPACE_SCOPE_INVALID');
   return `prospectra/workspaces/${user.workspaceMode}-${createHash('sha256').update(user.id).digest('hex')}.json`;
 }

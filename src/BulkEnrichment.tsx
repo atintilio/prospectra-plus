@@ -1,3 +1,4 @@
+import { apiFetch } from './apiFetch';
 import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, LoaderCircle, Play, Rows3, UploadCloud } from 'lucide-react';
 
@@ -107,7 +108,7 @@ export default function BulkEnrichment({ providerConfigured, onImportRows }: Bul
         const row = pending[cursor++];
         const url = normalizeUrl(row.values[urlColumn] ?? '');
         try {
-          const response = await fetch('/api/integrations/scrapegraph/enrich', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+          const response = await apiFetch('/api/integrations/scrapegraph/enrich', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(payload.error ?? 'Falha no provedor');
           const data = payload.extraction?.data ?? {};
