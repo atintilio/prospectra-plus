@@ -2,8 +2,8 @@ export default function ChannelGuide() {
  return <section className="panel crm-extension" aria-label="Guia de conexão dos canais">
   <h2>Como preparar seus canais</h2>
   <details><summary>LinkedIn — cada usuário</summary>
-   <ol><li>Abra o LinkedIn no seu navegador e entre na sua própria conta.</li><li>No Prospectra, acesse Campanhas e escolha uma tarefa de LinkedIn.</li><li>Confira o contato e a mensagem aprovada; abra o perfil indicado pela tarefa.</li><li>Realize a ação no LinkedIn e registre a conclusão no Prospectra.</li></ol>
-   <p>Este é o modo assistido. Entrar no LinkedIn não ativa envio automático nem transfere sua sessão para o Prospectra. Não compartilhe senha ou cookies.</p>
+   <ol><li>Em Configurações → Integrações, encontre o painel Conectar LinkedIn.</li><li>Clique em Conectar LinkedIn e aguarde a tela de autenticação.</li><li>Entre na sua conta nessa tela e conclua a verificação solicitada pelo LinkedIn.</li><li>Aguarde o estado Login concluído no Prospectra. Use Ampliar tela de login se precisar de mais espaço.</li></ol>
+   <p>Cada usuário possui sua própria sessão. Uma tentativa pode ser cancelada pelo painel. O login não habilita automaticamente o envio de campanhas.</p>
   </details>
   <details><summary>WhatsApp — pareamento pelo administrador</summary>
    <p>A conexão atual é compartilhada pelo workspace. Os membros utilizam o número conectado pelo administrador; ainda não há um número independente por usuário.</p>

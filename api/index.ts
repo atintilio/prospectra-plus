@@ -1,3 +1,4 @@
+import linkedinConnect from '../server/api/integrations/linkedin/connect.js';
 import health from '../server/api/health.js';
 import organization from '../server/api/admin/organization.js';
 import testEmail from '../server/api/admin/test-email.js';
@@ -29,6 +30,7 @@ import type { ApiRequest, ApiResponse } from '../server/api/_lib/types.js';
 type Handler = (req: ApiRequest, res: ApiResponse) => unknown | Promise<unknown>;
 const routes: Record<string, Handler> = {
   'health': health,
+  'integrations/linkedin/connect': linkedinConnect,
   'admin/organization': organization,
   'admin/test-email': testEmail,
   'auth/login': login,

@@ -4,7 +4,7 @@ import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
 import { activeWhatsAppProvider } from '../../../integrations/whatsapp-provider.js';
 import { baileysConfigured, baileysStatus } from '../../../integrations/baileys.js';
 import { connectionState, evolutionConfig, evolutionConfigured } from '../../../integrations/evolution.js';
-import { linkedinMcpConfig, linkedinMcpHealth } from '../../../integrations/linkedin-mcp.js';
+import { linkedinLogin } from '../../../integrations/linkedin-login.js';
 
 type ChannelHealth = { id: 'whatsapp' | 'linkedin'; status: 'connected' | 'not_configured' | 'failed'; capability: 'API autorizada' | 'API não oficial configurável' | 'Assistido' | 'Não configurado'; detail: string; checkedAt: string; provider?: string; latencyMs?: number; instance?: string };
 
@@ -39,23 +39,12 @@ async function checkEvolution(): Promise<ChannelHealth> {
   }
 }
 
-async function checkLinkedIn(): Promise<ChannelHealth> {
+async function checkLinkedIn(userId: string): Promise<ChannelHealth> {
   const checkedAt = new Date().toISOString();
-  const mcp = linkedinMcpConfig();
-  if (mcp) {
-    const health = await linkedinMcpHealth();
-    return { id: 'linkedin', status: health.status === 'connected' ? 'connected' : health.status === 'failed' ? 'failed' : 'not_configured', capability: 'API autorizada', detail: health.detail, checkedAt, provider: 'LinkedIn MCP open source', latencyMs: health.latencyMs };
-  }
-  const baseUrl = process.env.LINKEDIN_PROVIDER_BASE_URL?.trim();
-  const apiKey = process.env.LINKEDIN_PROVIDER_API_KEY?.trim();
-  if (!baseUrl || !apiKey) return { id: 'linkedin', status: 'not_configured', capability: 'API autorizada', detail: 'Configure o LinkedIn MCP open source na VM e LINKEDIN_MCP_BASE_URL no Vercel. A autenticação da conta é feita no servidor MCP.', checkedAt, provider: 'LinkedIn MCP open source' };
-  const started = Date.now();
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, '')}${process.env.LINKEDIN_PROVIDER_HEALTH_PATH ?? '/health'}`, { headers: { Authorization: `Bearer ${apiKey}`, apikey: apiKey }, signal: AbortSignal.timeout(8000) });
-    return { id: 'linkedin', status: response.ok ? 'connected' : 'failed', capability: 'API autorizada', detail: response.ok ? 'Provider LinkedIn respondeu ao health check.' : `Provider LinkedIn respondeu HTTP ${response.status}.`, checkedAt, provider: 'LinkedIn/provider externo', latencyMs: Date.now() - started };
-  } catch {
-    return { id: 'linkedin', status: 'failed', capability: 'API autorizada', detail: 'Não foi possível alcançar o provider LinkedIn.', checkedAt, provider: 'LinkedIn/provider externo', latencyMs: Date.now() - started };
-  }
+    const login = await linkedinLogin(userId, 'GET');
+    return { id: 'linkedin', status: 'not_configured', capability: 'Assistido', detail: login.status === 'authenticated' ? 'Login salvo para seu usuário. Execução automática de campanhas ainda não homologada.' : 'Conecte sua conta no painel LinkedIn desta página.', checkedAt, provider: 'LinkedIn MCP open source' };
+  } catch { return { id: 'linkedin', status: 'failed', capability: 'Assistido', detail: 'O serviço de login não respondeu. Consulte o painel LinkedIn.', checkedAt, provider: 'LinkedIn MCP open source' }; }
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
@@ -64,9 +53,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (!context) return;
   if (context.user.workspaceMode) return json(res, 200, { ok: true, channels: {
     whatsapp: { id: 'whatsapp', status: 'not_configured', capability: 'Não configurado', detail: 'Esta base não utiliza a sessão compartilhada do Owner. É necessário um gateway com sessão exclusiva por usuário.', checkedAt: new Date().toISOString() },
-    linkedin: { id: 'linkedin', status: 'not_configured', capability: 'Assistido', detail: context.user.workspaceMode === 'demo' ? 'Demonstração: conexões e ações externas desativadas.' : 'Conecte sua própria conta no Chrome local pelo Abridge.', checkedAt: new Date().toISOString() },
+    linkedin: { id: 'linkedin', status: 'not_configured', capability: 'Assistido', detail: context.user.workspaceMode === 'demo' ? 'Demonstração: conexões e ações externas desativadas.' : 'Conecte sua própria conta no painel LinkedIn em Configurações.', checkedAt: new Date().toISOString() },
   }, checkedAt: new Date().toISOString() });
   const whatsapp = activeWhatsAppProvider() === 'baileys' ? await checkBaileys() : await checkEvolution();
-  const linkedin = await checkLinkedIn();
+  const linkedin = await checkLinkedIn(context.user.id);
   return json(res, 200, { ok: true, channels: { whatsapp, linkedin }, checkedAt: new Date().toISOString() });
 }
