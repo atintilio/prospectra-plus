@@ -37,6 +37,12 @@ export interface Activity {
 
 export interface Account {
   id: string;
+  cnpj?: string;
+  cnae?: string;
+  uf?: string;
+  municipalityCode?: string;
+  sourceUrl?: string;
+  sourceReferenceDate?: string;
   name: string;
   domain: string;
   sector: string;
@@ -176,6 +182,7 @@ export interface Diagnosis {
 }
 
 export interface ProspectraState {
+  crmExtension?: import('./crm/merge').CRMExtension;
   accounts: Account[];
   campaigns: Campaign[];
   channels: ChannelConnection[];

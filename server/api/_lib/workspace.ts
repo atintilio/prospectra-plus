@@ -1,4 +1,5 @@
 import { get, put } from '@vercel/blob';
+import { validateExtension } from '../../../src/crm/merge.js';
 import { seedState } from '../../../src/data.js';
 import type { Opportunity, ProspectraState } from '../../../src/types.js';
 import type { AuthStore, AuthUser } from './types.js';
@@ -65,6 +66,11 @@ export function visibleWorkspaceState(state: ProspectraState, user: AuthUser): P
   const campaigns = state.campaigns.map((campaign) => ({ ...campaign, accounts: campaign.accounts.filter((id) => accountIds.has(id)), tasks: campaign.tasks.filter((task) => accountIds.has(task.accountId)) })).filter((campaign) => campaign.accounts.length || campaign.tasks.length);
   return {
     ...state,
+    crmExtension: state.crmExtension ? { ...state.crmExtension,
+      values: Object.fromEntries(Object.entries(state.crmExtension.values).filter(([id]) => accountIds.has(id) || accounts.some(a => a.contacts.some(c => c.id === id)) || opportunityIds.has(id))),
+      proposals: state.crmExtension.proposals.filter(p => accounts.some(a => a.contacts.some(c => c.id === p.contactId))),
+      events: state.crmExtension.events.filter(e => accountIds.has(e.accountId)),
+    } : undefined,
     accounts,
     opportunities,
     diagnoses: state.diagnoses.filter((diagnosis) => opportunityIds.has(diagnosis.opportunityId)),
@@ -80,11 +86,13 @@ export function visibleWorkspaceState(state: ProspectraState, user: AuthUser): P
 export function mergeSafeWorkspaceState(current: ProspectraState, candidate: unknown): ProspectraState {
   if (!isState(candidate)) throw new Error('WORKSPACE_STATE_INVALID');
   const safe = candidate as ProspectraState;
+  validateExtension(safe);
   return {
     ...current,
     selectedAccountId: safe.selectedAccountId,
     selectedCampaignId: safe.selectedCampaignId,
     accounts: safe.accounts,
+    crmExtension: safe.crmExtension ?? current.crmExtension,
     campaigns: safe.campaigns,
     channels: current.channels,
     agent: safe.agent,
