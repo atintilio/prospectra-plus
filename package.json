@@ -6,10 +6,11 @@
   "packageManager": "pnpm@10.25.0",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && npm run check:api-runtime && vite build",
     "typecheck": "tsc --noEmit --pretty false",
     "typecheck:api": "tsc -p tsconfig.api.json --noEmit --pretty false",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:api-runtime": "node scripts/check-api-runtime.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",

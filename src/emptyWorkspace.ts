@@ -1,4 +1,4 @@
-import { seedState } from './data';
+import { seedState } from './data.js';
 import type { ProspectraState } from './types';
 
 /** Configuration defaults only; customer and demonstration records are never copied. */
