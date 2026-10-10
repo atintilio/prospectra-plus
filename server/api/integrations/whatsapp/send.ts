@@ -1,20 +1,19 @@
-import { randomUUID } from 'node:crypto';
 import { requireActiveSession, requireSameOrigin } from '../../_lib/access.js';
 import { json, methodNotAllowed, parseBody } from '../../_lib/http.js';
 import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
-import { loadBridgeStore, saveBridgeStore } from '../../_lib/bridge.js';
-import { loadWorkspaceState, saveWorkspaceState, visibleWorkspaceState } from '../../_lib/workspace.js';
-import { normalizeBaileysNumber } from '../../../integrations/baileys.js';
+import { loadWorkspaceState, mutateWorkspaceState, visibleWorkspaceState } from '../../_lib/workspace.js';
+import { baileysConfigured, baileysStatus, normalizeBaileysNumber, sendBaileysText } from '../../../integrations/baileys.js';
 import { activeWhatsAppProvider } from '../../../integrations/whatsapp-provider.js';
 import { normalizeWhatsappNumber, sendEvolutionText } from '../../../integrations/evolution.js';
-import type { CampaignTask } from '../../../../src/types.js';
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const context = await requireActiveSession(req, res);
   if (!context) return;
-    if (context.user.workspaceMode) return json(res, 403, { error: 'shared_gateway_access_disabled' });
+  if (context.user.workspaceMode === 'demo') return json(res, 403, { error: 'demo_external_actions_disabled' });
   if (!requireSameOrigin(req, res)) return;
+  const provider = activeWhatsAppProvider();
+  if (provider === 'evolution' && context.user.workspaceMode) return json(res, 403, { error: 'shared_gateway_access_disabled' });
   const body = parseBody(req);
   const taskId = typeof body.campaignTaskId === 'string' ? body.campaignTaskId : '';
   const accountId = typeof body.accountId === 'string' ? body.accountId : '';
@@ -22,52 +21,59 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const number = typeof body.number === 'string' ? body.number : '';
   const text = typeof body.text === 'string' ? body.text : '';
   if (!taskId || !accountId || !contactId || !number || !text) return json(res, 400, { error: 'campaign_task_account_contact_number_text_required' });
-  const provider = activeWhatsAppProvider();
   try {
     const workspace = await loadWorkspaceState(context.user);
     const scoped = visibleWorkspaceState(workspace.state, context.user);
-    if (!scoped.accounts.some((account) => account.id === accountId)) return json(res, 403, { error: 'whatsapp_task_out_of_scope' });
     const campaign = scoped.campaigns.find((item) => item.tasks.some((task) => task.id === taskId));
-    const task = campaign?.tasks.find((item) => item.id === taskId) as CampaignTask | undefined;
+    const task = campaign?.tasks.find((item) => item.id === taskId);
     const account = scoped.accounts.find((item) => item.id === accountId);
     const contact = account?.contacts.find((item) => item.id === contactId);
     if (!campaign || !task || !account || !contact || task.channel !== 'WhatsApp' || task.accountId !== accountId || task.contactId !== contactId) return json(res, 400, { error: 'whatsapp_task_mismatch' });
-    if (task.providerMessageId && task.state === 'Concluído') return json(res, 200, { ok: true, alreadySent: true, taskId, provider, receipt: { providerMessageId: task.providerMessageId, status: task.providerStatus ?? 'sent' } });
+    if (task.providerMessageId && task.state === 'Concluído') return json(res, 200, { ok: true, alreadySent: true, taskId, provider, receipt: { providerMessageId: task.providerMessageId, status: 'sent' } });
     const approval = task.approval;
     const evidenceIds = approval?.evidenceIds ?? [];
-    const evidenceIsValid = evidenceIds.length > 0 && evidenceIds.every((id) => account.evidence.some((evidence) => evidence.id === id && evidence.verified));
-    if (campaign.copy.state !== 'Aprovado' || !approval || approval.copyRevision !== campaign.copy.revision || approval.contactId !== contactId || approval.channel !== 'WhatsApp' || !evidenceIsValid) return json(res, 409, { error: 'whatsapp_task_not_approved' });
-    if (account.paused || account.suppressed || task.state === 'Pausado' || task.state === 'Concluído') return json(res, 409, { error: 'whatsapp_task_blocked' });
-    if (provider === 'baileys' && contact.optIn !== true) return json(res, 409, { error: 'whatsapp_opt_in_required' });
-    const expectedNumber = provider === 'baileys' ? normalizeBaileysNumber(contact.phone ?? '') : normalizeWhatsappNumber(contact.phone ?? '');
-    const suppliedNumber = provider === 'baileys' ? normalizeBaileysNumber(number) : normalizeWhatsappNumber(number);
-    if (expectedNumber !== suppliedNumber) return json(res, 409, { error: 'whatsapp_number_mismatch' });
+    if (campaign.copy.state !== 'Aprovado' || !approval || approval.copyRevision !== campaign.copy.revision || approval.contactId !== contactId || approval.channel !== 'WhatsApp' || !evidenceIds.length || !evidenceIds.every((id) => account.evidence.some((evidence) => evidence.id === id && evidence.verified))) return json(res, 409, { error: 'whatsapp_task_not_approved' });
+    if (account.paused || account.suppressed || task.state === 'Pausado' || task.state === 'Concluído' || task.providerStatus === 'sending') return json(res, 409, { error: 'whatsapp_task_blocked' });
+    if (contact.optIn !== true) return json(res, 409, { error: 'whatsapp_opt_in_required' });
+    const normalized = provider === 'baileys' ? normalizeBaileysNumber : normalizeWhatsappNumber;
+    const expectedNumber = normalized(contact.phone ?? '');
+    if (expectedNumber !== normalized(number)) return json(res, 409, { error: 'whatsapp_number_mismatch' });
     if (text.trim() !== campaign.copy.text.trim()) return json(res, 409, { error: 'whatsapp_copy_mismatch' });
     if (provider === 'baileys') {
-      const bridgeStore = await loadBridgeStore();
-      const device = bridgeStore.devices.find((item) => item.userId === context.user.id && item.active);
-      if (!device) return json(res, 409, { error: 'whatsapp_bridge_not_paired' });
-      const queuedAt = new Date().toISOString();
-      bridgeStore.tasks.push({ id: randomUUID(), userId: context.user.id, deviceId: device.id, action: 'send_whatsapp', phone: expectedNumber, optIn: true, message: campaign.copy.text, requestedAt: queuedAt, state: 'queued', requiresConfirmation: true, campaignTaskId: task.id, accountId: account.id, contactId: contact.id });
-      await saveBridgeStore(bridgeStore);
-      return json(res, 202, { ok: true, queued: true, taskId, provider, deviceId: device.id, message: 'A tarefa foi enviada ao Abridge e aguarda confirmação local.' });
+      if (!baileysConfigured()) return json(res, 503, { error: 'baileys_not_configured' });
+      const status = await baileysStatus(context.user);
+      if (status.connected !== true) return json(res, 409, { error: 'baileys_not_connected' });
     }
-    const receipt = await sendEvolutionText({ number: expectedNumber, text: campaign.copy.text });
+    await mutateWorkspaceState(context.user, (state) => {
+      const latestCampaign = state.campaigns.find((item) => item.id === campaign.id);
+      const latestTask = latestCampaign?.tasks.find((item) => item.id === task.id);
+      const latestAccount = state.accounts.find((item) => item.id === account.id);
+      const latestContact = latestAccount?.contacts.find((item) => item.id === contact.id);
+      if (!latestCampaign || !latestTask || !latestAccount || !latestContact || latestAccount.paused || latestAccount.suppressed || latestTask.state === 'Pausado' || latestTask.state === 'Concluído' || latestTask.providerStatus === 'sending' || latestContact.optIn !== true || latestCampaign.copy.state !== 'Aprovado' || latestCampaign.copy.revision !== approval.copyRevision || latestCampaign.copy.text.trim() !== text.trim()) throw new Error('WHATSAPP_TASK_CHANGED');
+      latestTask.providerStatus = 'sending';
+      return state;
+    });
+    const receipt = provider === 'baileys' ? await sendBaileysText({ number: expectedNumber, text: campaign.copy.text, user: context.user }) : await sendEvolutionText({ number: expectedNumber, text: campaign.copy.text });
     if (receipt.status !== 'sent' || !receipt.providerMessageId) return json(res, 502, { error: 'whatsapp_delivery_unknown' });
-    const rawCampaign = workspace.state.campaigns.find((item) => item.id === campaign.id);
-    const rawTask = rawCampaign?.tasks.find((item) => item.id === task.id);
-    const rawAccount = workspace.state.accounts.find((item) => item.id === account.id);
-    if (!rawTask || !rawAccount) return json(res, 500, { error: 'whatsapp_receipt_target_missing' });
-    rawTask.state = 'Concluído'; rawTask.providerMessageId = receipt.providerMessageId; rawTask.providerStatus = receipt.status; rawTask.completedAt = new Date().toISOString();
-    rawAccount.activities = [{ id: crypto.randomUUID(), kind: 'Tarefa', actor: context.user.email, createdAt: new Date().toISOString(), text: `Mensagem WhatsApp enviada pela Evolution API para ${contact.name}. Provider ID: ${receipt.providerMessageId}.` }, ...rawAccount.activities];
-    try { await saveWorkspaceState(workspace.state, context.user); } catch { return json(res, 502, { error: 'whatsapp_receipt_persistence_failed' }); }
-    return json(res, 200, { ok: true, taskId, provider, receipt: { providerMessageId: receipt.providerMessageId, status: receipt.status } });
+    try {
+      await mutateWorkspaceState(context.user, (state) => {
+        const latestTask = state.campaigns.find((item) => item.id === campaign.id)?.tasks.find((item) => item.id === task.id);
+        const latestAccount = state.accounts.find((item) => item.id === account.id);
+        if (!latestTask || !latestAccount) throw new Error('WHATSAPP_RECEIPT_TARGET_MISSING');
+        if (latestTask.providerMessageId === receipt.providerMessageId) return null;
+        latestTask.state = 'Concluído'; latestTask.providerMessageId = receipt.providerMessageId; latestTask.providerStatus = 'sent'; latestTask.completedAt = new Date().toISOString();
+        const activityId = `whatsapp-${receipt.providerMessageId}`;
+        if (!latestAccount.activities.some((activity) => activity.id === activityId)) latestAccount.activities.unshift({ id: activityId, kind: 'Tarefa', actor: context.user.email, createdAt: latestTask.completedAt, text: `Mensagem WhatsApp aceita pelo ${provider} para ${contact.name}. Provider ID: ${receipt.providerMessageId}.` });
+        return state;
+      });
+    } catch { return json(res, 502, { error: 'whatsapp_receipt_persistence_failed' }); }
+    return json(res, 200, { ok: true, taskId, provider, receipt: { providerMessageId: receipt.providerMessageId, status: 'sent' } });
   } catch (error) {
-    const code = error instanceof Error ? error.message : 'WHATSAPP_SEND_FAILED';
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'WHATSAPP_TASK_CHANGED') return json(res, 409, { error: 'whatsapp_task_changed' });
     if (code.includes('INVALID_NUMBER') || code.includes('INVALID_TEXT')) return json(res, 400, { error: code.toLowerCase() });
     if (code.includes('NOT_CONFIGURED')) return json(res, 503, { error: `${provider}_not_configured` });
-    if (code === 'BAILEYS_NOT_CONNECTED' || code === 'WHATSAPP_NOT_CONNECTED') return json(res, 409, { error: 'baileys_not_connected' });
     const status = Number((error as { status?: number }).status);
-    return json(res, status >= 400 && status < 600 ? status : 502, { error: 'whatsapp_send_failed' });
+    return json(res, status >= 400 && status < 600 ? status : 502, { error: 'whatsapp_send_failed_or_unconfirmed' });
   }
 }

@@ -8,7 +8,7 @@ import { loadAuthStore } from './db.js';
 const PATH = 'prospectra/abridge.json';
 
 function requireStorage() { if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error('BRIDGE_STORAGE_NOT_CONFIGURED'); }
-function emptyStore(): BridgeStore { return { version: 1, devices: [], tasks: [] }; }
+function emptyStore(): BridgeStore { return { version: 1, devices: [], tasks: [], etag: null }; }
 
 export async function loadBridgeStore(): Promise<BridgeStore> {
   requireStorage();
@@ -16,13 +16,15 @@ export async function loadBridgeStore(): Promise<BridgeStore> {
   if (!blob) return emptyStore();
   try {
     const parsed = JSON.parse(await new Response(blob.stream).text()) as Partial<BridgeStore>;
-    return { version: 1, devices: Array.isArray(parsed.devices) ? parsed.devices : [], tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [] };
+    return { version: 1, devices: Array.isArray(parsed.devices) ? parsed.devices : [], tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [], etag: blob.blob.etag };
   } catch { throw new Error('BRIDGE_STORAGE_INVALID'); }
 }
 
 export async function saveBridgeStore(store: BridgeStore): Promise<void> {
   requireStorage();
-  await put(PATH, JSON.stringify({ ...store, version: 1 }), { access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json', cacheControlMaxAge: 0 });
+  const { etag, ...data } = store;
+  const written = await put(PATH, JSON.stringify({ ...data, version: 1 }), { access: 'private', addRandomSuffix: false, contentType: 'application/json', cacheControlMaxAge: 0, ...(etag ? { ifMatch: etag } : { allowOverwrite: false }) });
+  store.etag = written.etag;
 }
 
 export function redactDevice(device: BridgeDevice) { const { tokenHash: _tokenHash, ...safe } = device; return safe; }

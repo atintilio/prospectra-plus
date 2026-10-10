@@ -1,4 +1,4 @@
-import { requireActiveSession, requireOwner, requireSameOrigin } from '../../_lib/access.js';
+import { requireActiveSession, requireSameOrigin } from '../../_lib/access.js';
 import { json, methodNotAllowed, parseBody } from '../../_lib/http.js';
 import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
 import { activeWhatsAppProvider } from '../../../integrations/whatsapp-provider.js';
@@ -20,8 +20,8 @@ function safeInstances(value: unknown) {
   }).filter(Boolean);
 }
 
-async function baileysInstances() {
-  const payload = await baileysStatus();
+async function baileysInstances(user: Parameters<typeof baileysStatus>[0]) {
+  const payload = await baileysStatus(user);
   return [{ instance: 'prospectra-baileys', name: 'Baileys Gateway', status: typeof payload.status === 'string' ? payload.status : undefined, connectionStatus: typeof payload.status === 'string' ? payload.status : undefined, ownerJid: typeof payload.phone === 'string' ? payload.phone : undefined }];
 }
 
@@ -30,10 +30,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'GET') {
     const context = await requireActiveSession(req, res);
     if (!context) return;
-    if (context.user.workspaceMode) return json(res, 403, { error: 'shared_gateway_access_disabled' });
+    if (context.user.workspaceMode === 'demo' || (provider === 'evolution' && context.user.workspaceMode)) return json(res, 403, { error: 'shared_gateway_access_disabled' });
     if (provider === 'baileys') {
       if (!baileysConfigured()) return json(res, 200, { ok: true, provider, configured: false, instances: [] });
-      try { return json(res, 200, { ok: true, provider, configured: true, instances: await baileysInstances() }); }
+      try { return json(res, 200, { ok: true, provider, configured: true, instances: await baileysInstances(context.user) }); }
       catch { return json(res, 502, { error: 'baileys_unavailable' }); }
     }
     if (!evolutionConfigured()) return json(res, 200, { ok: true, provider, configured: false, instances: [] });
@@ -43,16 +43,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     } catch { return json(res, 502, { error: 'evolution_unavailable' }); }
   }
   if (req.method !== 'POST') return methodNotAllowed(res, ['GET', 'POST']);
-  const context = await requireOwner(req, res);
+  const context = await requireActiveSession(req, res);
   if (!context) return;
-    if (context.user.workspaceMode) return json(res, 403, { error: 'shared_gateway_access_disabled' });
+  if (context.user.workspaceMode === 'demo' || (provider === 'evolution' && (context.user.workspaceMode || context.user.role !== 'admin')) || (!context.user.workspaceMode && context.user.role !== 'admin')) return json(res, 403, { error: 'whatsapp_connection_out_of_scope' });
   if (!requireSameOrigin(req, res)) return;
   const body = parseBody(req);
   if (body.confirm !== true) return json(res, 400, { error: 'confirmation_required' });
   if (provider === 'baileys') {
     if (!baileysConfigured()) return json(res, 503, { error: 'baileys_not_configured' });
-    try { return json(res, 200, { ok: true, provider, ...(await startBaileysSession()) }); }
-    catch { return json(res, 502, { error: 'baileys_session_start_failed' }); }
+    try { return json(res, 200, { ok: true, provider, ...(await startBaileysSession(context.user)) }); }
+    catch (error) { const capacity = Number((error as { status?: number }).status) === 503; return json(res, capacity ? 503 : 502, { error: capacity ? 'baileys_capacity_reached' : 'baileys_session_start_failed' }); }
   }
   if (!evolutionConfigured()) return json(res, 503, { error: 'evolution_not_configured' });
   try {

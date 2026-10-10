@@ -23,6 +23,7 @@ import bridgeHeartbeat from '../server/api/integrations/prospecting/bridge/heart
 import bridgeEvents from '../server/api/integrations/prospecting/bridge/events.js';
 import whatsappInstances from '../server/api/integrations/whatsapp/instances.js';
 import whatsappConnect from '../server/api/integrations/whatsapp/connect.js';
+import whatsappQr from '../server/api/integrations/whatsapp/qr.js';
 import whatsappSend from '../server/api/integrations/whatsapp/send.js';
 import whatsappWebhook from '../server/api/integrations/whatsapp/webhook.js';
 import baileysWebhook from '../server/api/integrations/whatsapp/baileys-webhook.js';
@@ -55,6 +56,7 @@ const routes: Record<string, Handler> = {
   'integrations/prospecting/bridge/events': bridgeEvents,
   'integrations/whatsapp/instances': whatsappInstances,
   'integrations/whatsapp/connect': whatsappConnect,
+  'integrations/whatsapp/qr': whatsappQr,
   'integrations/whatsapp/send': whatsappSend,
   'integrations/whatsapp/webhook': whatsappWebhook,
   'integrations/whatsapp/baileys-webhook': baileysWebhook,

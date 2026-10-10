@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import type { AuthUser } from '../api/_lib/types.js';
 export type BaileysConfig = { baseUrl: string; apiToken: string };
 export type TextReceipt = { providerMessageId: string; status: 'sent'; to: string };
 
@@ -34,16 +36,21 @@ async function baileysRequest(path: string, init: RequestInit = {}) {
   return body as Record<string, unknown>;
 }
 
-export async function baileysStatus() {
-  return baileysRequest('/v1/status');
+export function baileysSessionId(user?: AuthUser): string {
+  if (user?.workspaceMode === 'demo') throw new Error('BAILEYS_DEMO_DISABLED');
+  return user?.workspaceMode === 'production' ? createHash('sha256').update(user.id).digest('hex') : 'legacy';
 }
 
-export async function startBaileysSession() {
-  return baileysRequest('/v1/session/start', { method: 'POST', body: '{}' });
+export async function baileysStatus(user?: AuthUser) {
+  return baileysRequest(`/v1/sessions/${baileysSessionId(user)}/status`);
 }
 
-export async function baileysQr() {
-  return baileysRequest('/v1/qr');
+export async function startBaileysSession(user?: AuthUser) {
+  return baileysRequest(`/v1/sessions/${baileysSessionId(user)}/start`, { method: 'POST', body: '{}' });
+}
+
+export async function baileysQr(user?: AuthUser) {
+  return baileysRequest(`/v1/sessions/${baileysSessionId(user)}/qr`);
 }
 
 export function normalizeBaileysNumber(value: string) {
@@ -52,10 +59,10 @@ export function normalizeBaileysNumber(value: string) {
   return digits;
 }
 
-export async function sendBaileysText(input: { number: string; text: string }): Promise<TextReceipt> {
+export async function sendBaileysText(input: { number: string; text: string; user?: AuthUser }): Promise<TextReceipt> {
   const number = normalizeBaileysNumber(input.number);
   if (!input.text.trim() || input.text.length > 4096) throw new Error('BAILEYS_INVALID_TEXT');
-  const raw = await baileysRequest('/v1/messages/text', { method: 'POST', body: JSON.stringify({ to: number, text: input.text.trim(), approved: true, optIn: true }) });
+  const raw = await baileysRequest(`/v1/sessions/${baileysSessionId(input.user)}/messages/text`, { method: 'POST', body: JSON.stringify({ to: number, text: input.text.trim(), approved: true, optIn: true }) });
   const receipt = raw.receipt && typeof raw.receipt === 'object' ? raw.receipt as Record<string, unknown> : {};
   const providerMessageId = typeof receipt.providerMessageId === 'string' ? receipt.providerMessageId : '';
   if (!providerMessageId) throw new Error('BAILEYS_DELIVERY_UNKNOWN');

@@ -1,6 +1,6 @@
 import type { ApiRequest, ApiResponse } from './types.js';
 
-export function json(res: ApiResponse, status: number, body: unknown) { res.status(status).json(body); }
+export function json(res: ApiResponse, status: number, body: unknown) { res.setHeader('Cache-Control', 'no-store'); res.status(status).json(body); }
 export function methodNotAllowed(res: ApiResponse, allowed: string[]) { res.setHeader('Allow', allowed); json(res, 405, { error: 'method_not_allowed' }); }
 export function parseBody(req: ApiRequest): Record<string, unknown> {
   if (req.body && typeof req.body === 'object') return req.body as Record<string, unknown>;

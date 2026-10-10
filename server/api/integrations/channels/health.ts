@@ -5,18 +5,19 @@ import { activeWhatsAppProvider } from '../../../integrations/whatsapp-provider.
 import { baileysConfigured, baileysStatus } from '../../../integrations/baileys.js';
 import { connectionState, evolutionConfig, evolutionConfigured } from '../../../integrations/evolution.js';
 import { linkedinLogin } from '../../../integrations/linkedin-login.js';
+import type { AuthUser } from '../../_lib/types.js';
 
 type ChannelHealth = { id: 'whatsapp' | 'linkedin'; status: 'connected' | 'not_configured' | 'failed'; capability: 'API autorizada' | 'API não oficial configurável' | 'Assistido' | 'Não configurado'; detail: string; checkedAt: string; provider?: string; latencyMs?: number; instance?: string };
 
-async function checkBaileys(): Promise<ChannelHealth> {
+async function checkBaileys(user: AuthUser): Promise<ChannelHealth> {
   const checkedAt = new Date().toISOString();
   if (!baileysConfigured()) return { id: 'whatsapp', status: 'not_configured', capability: 'API não oficial configurável', detail: 'Configure BAILEYS_GATEWAY_URL e BAILEYS_GATEWAY_TOKEN no backend. O gateway precisa de Node/Docker persistente e volume data/auth.', checkedAt, provider: 'Baileys Gateway' };
   const started = Date.now();
   try {
-    const payload = await baileysStatus();
+    const payload = await baileysStatus(user);
     const state = String(payload.status ?? '').toLowerCase();
     const connected = payload.connected === true || state === 'connected';
-    return { id: 'whatsapp', status: connected ? 'connected' : 'failed', capability: 'API não oficial configurável', detail: connected ? 'Baileys Gateway conectado e pronto para envio aprovado com opt-in.' : `Gateway acessível, mas a sessão está em estado “${state || 'desconhecido'}”. Gere o QR Code no painel Owner.`, checkedAt, provider: 'Baileys Gateway', instance: 'prospectra-baileys', latencyMs: Date.now() - started };
+    return { id: 'whatsapp', status: connected ? 'connected' : 'failed', capability: 'API não oficial configurável', detail: connected ? 'Sua sessão WhatsApp está conectada e pronta para envio aprovado com opt-in.' : `Gateway acessível, mas sua sessão está em estado “${state || 'desconhecido'}”. Gere o QR Code em Configurações.`, checkedAt, provider: 'Baileys Gateway', instance: 'prospectra-baileys', latencyMs: Date.now() - started };
   } catch {
     return { id: 'whatsapp', status: 'failed', capability: 'API não oficial configurável', detail: 'Não foi possível alcançar ou autenticar o Baileys Gateway.', checkedAt, provider: 'Baileys Gateway', latencyMs: Date.now() - started };
   }
@@ -51,11 +52,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const context = await requireActiveSession(req, res);
   if (!context) return;
-  if (context.user.workspaceMode) return json(res, 200, { ok: true, channels: {
+  if (context.user.workspaceMode === 'demo') return json(res, 200, { ok: true, channels: {
     whatsapp: { id: 'whatsapp', status: 'not_configured', capability: 'Não configurado', detail: 'Esta base não utiliza a sessão compartilhada do Owner. É necessário um gateway com sessão exclusiva por usuário.', checkedAt: new Date().toISOString() },
     linkedin: { id: 'linkedin', status: 'not_configured', capability: 'Assistido', detail: context.user.workspaceMode === 'demo' ? 'Demonstração: conexões e ações externas desativadas.' : 'Conecte sua própria conta no painel LinkedIn em Configurações.', checkedAt: new Date().toISOString() },
   }, checkedAt: new Date().toISOString() });
-  const whatsapp = activeWhatsAppProvider() === 'baileys' ? await checkBaileys() : await checkEvolution();
+  const whatsapp = activeWhatsAppProvider() === 'baileys' ? await checkBaileys(context.user) : context.user.workspaceMode ? { id: 'whatsapp' as const, status: 'not_configured' as const, capability: 'Não configurado' as const, detail: 'Evolution compartilhada não está disponível para esta conta. Configure Baileys por usuário.', checkedAt: new Date().toISOString() } : await checkEvolution();
   const linkedin = await checkLinkedIn(context.user.id);
   return json(res, 200, { ok: true, channels: { whatsapp, linkedin }, checkedAt: new Date().toISOString() });
 }

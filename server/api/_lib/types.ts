@@ -100,4 +100,5 @@ export interface BridgeStore {
   version: 1;
   devices: BridgeDevice[];
   tasks: BridgeTaskRecord[];
+  etag?: string | null;
 }

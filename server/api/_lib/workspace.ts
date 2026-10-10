@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { emptyWorkspace } from '../../../src/emptyWorkspace.js';
-import { get, put } from '@vercel/blob';
+import { BlobPreconditionFailedError, get, put } from '@vercel/blob';
 import { validateExtension } from '../../../src/crm/merge.js';
 import { seedState } from '../../../src/data.js';
 import type { Opportunity, ProspectraState } from '../../../src/types.js';
@@ -8,7 +8,7 @@ import type { AuthStore, AuthUser } from './types.js';
 
 const WORKSPACE_PATH = 'prospectra/workspace-state.json';
 
-type WorkspaceEnvelope = { version: 1; updatedAt: string; state: ProspectraState };
+type WorkspaceEnvelope = { version: 1; updatedAt: string; state: ProspectraState; etag: string | null };
 
 function requireStorage() {
   if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error('WORKSPACE_STORAGE_NOT_CONFIGURED');
@@ -33,22 +33,33 @@ function isState(value: unknown): value is ProspectraState {
 export async function loadWorkspaceState(user?: AuthUser): Promise<WorkspaceEnvelope> {
   requireStorage();
   const blob = await get(workspacePath(user), { access: 'private', useCache: false });
-  if (!blob) return { version: 1, updatedAt: new Date().toISOString(), state: initialWorkspace(user) };
+  if (!blob) return { version: 1, updatedAt: new Date().toISOString(), state: initialWorkspace(user), etag: null };
   const text = await new Response(blob.stream).text();
   try {
     const parsed = JSON.parse(text) as Partial<WorkspaceEnvelope>;
     if (!isState(parsed.state)) throw new Error('WORKSPACE_STORAGE_INVALID');
-    return { version: 1, updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(), state: parsed.state };
+    return { version: 1, updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(), state: parsed.state, etag: blob.blob.etag };
   } catch {
     throw new Error('WORKSPACE_STORAGE_INVALID');
   }
 }
 
-export async function saveWorkspaceState(state: ProspectraState, user?: AuthUser): Promise<WorkspaceEnvelope> {
+export async function saveWorkspaceState(state: ProspectraState, user?: AuthUser, expectedEtag: string | null = null): Promise<WorkspaceEnvelope> {
   requireStorage();
-  const envelope: WorkspaceEnvelope = { version: 1, updatedAt: new Date().toISOString(), state };
-  await put(workspacePath(user), JSON.stringify(envelope), { access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json', cacheControlMaxAge: 0 });
-  return envelope;
+  const envelope = { version: 1 as const, updatedAt: new Date().toISOString(), state };
+  const written = await put(workspacePath(user), JSON.stringify(envelope), { access: 'private', addRandomSuffix: false, contentType: 'application/json', cacheControlMaxAge: 0, ...(expectedEtag ? { ifMatch: expectedEtag } : { allowOverwrite: false }) });
+  return { ...envelope, etag: written.etag };
+}
+
+export async function mutateWorkspaceState(user: AuthUser | undefined, change: (state: ProspectraState) => ProspectraState | null): Promise<WorkspaceEnvelope> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const loaded = await loadWorkspaceState(user);
+    const next = change(loaded.state);
+    if (!next) return loaded;
+    try { return await saveWorkspaceState(next, user, loaded.etag); }
+    catch (error) { if (error instanceof BlobPreconditionFailedError) continue; throw error; }
+  }
+  throw new Error('WORKSPACE_WRITE_CONFLICT');
 }
 
 export function synchronizeOrganization(state: ProspectraState, store: AuthStore, user?: AuthUser): ProspectraState {

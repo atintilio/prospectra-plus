@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const blobs = vi.hoisted(() => new Map<string, string>());
+const PreconditionError = vi.hoisted(() => class extends Error {});
 vi.mock('@vercel/blob', () => ({
-  get: vi.fn(async (path: string) => blobs.has(path) ? { stream: new Blob([blobs.get(path)!]).stream(), blob: { etag: 'test-etag' } } : null),
-  put: vi.fn(async (path: string, value: string) => { blobs.set(path, value); return {}; }),
+  BlobPreconditionFailedError: PreconditionError,
+  get: vi.fn(async (path: string) => blobs.has(path) ? { stream: new Blob([blobs.get(path)!]).stream(), blob: { etag: blobs.get(path)! } } : null),
+  put: vi.fn(async (path: string, value: string, options: { ifMatch?: string; allowOverwrite?: boolean }) => {
+    if (options.ifMatch !== undefined && options.ifMatch !== blobs.get(path)) throw new PreconditionError('precondition failed');
+    if (options.ifMatch === undefined && options.allowOverwrite === false && blobs.has(path)) throw new PreconditionError('already exists');
+    blobs.set(path, value); return { etag: value };
+  }),
 }));
 import { seedState } from '../src/data';
 import { emptyWorkspace } from '../src/emptyWorkspace';
@@ -11,11 +17,18 @@ import workspaceHandler from '../server/api/workspace/state';
 import loginHandler from '../server/api/auth/login';
 import logoutHandler from '../server/api/auth/logout';
 import meHandler from '../server/api/auth/me';
+import setPasswordHandler from '../server/api/auth/set-password';
 import organizationHandler from '../server/api/admin/organization';
 import bridgeHandler from '../server/api/integrations/prospecting/bridge/tasks';
 import whatsappHandler from '../server/api/integrations/whatsapp/send';
+import jobsHandler from '../server/api/integrations/prospecting/bridge/jobs';
+import evolutionWebhookHandler from '../server/api/integrations/whatsapp/webhook';
+import baileysWebhookHandler from '../server/api/integrations/whatsapp/baileys-webhook';
+import whatsappConnectHandler from '../server/api/integrations/whatsapp/connect';
+import { baileysSessionId } from '../server/integrations/baileys';
+import { loginLockStatus, recordFailedLogin } from '../server/api/_lib/login-lockout';
 import { issueSession } from '../server/api/_lib/session';
-import { verifyPassword, hashPassword } from '../server/api/_lib/crypto';
+import { verifyPassword, hashPassword, digestToken } from '../server/api/_lib/crypto';
 import type { ApiRequest, ApiResponse, AuthStore, StoredUser } from '../server/api/_lib/types';
 const users: StoredUser[] = [
   { id: 'owner', email: 'owner@example.org', role: 'admin', passwordHash: null, active: true, createdAt: '', updatedAt: '' },
@@ -35,6 +48,7 @@ function request(user: StoredUser, method = 'GET', body?: unknown): ApiRequest {
 }
 beforeEach(() => {
   vi.unstubAllGlobals(); blobs.clear(); process.env.BLOB_READ_WRITE_TOKEN = 'test'; process.env.AUTH_SECRET = 'test-only-session-key';
+  delete process.env.WHATSAPP_PROVIDER; delete process.env.BAILEYS_GATEWAY_URL; delete process.env.BAILEYS_GATEWAY_TOKEN; delete process.env.BAILEYS_WEBHOOK_SECRET;
   const store: AuthStore = { version: 1, users: structuredClone(users), teams: [], resets: [] };
   blobs.set('prospectra/auth.json', JSON.stringify(store));
   blobs.set(workspacePath(), JSON.stringify({ version: 1, updatedAt: 'legacy', state: seedState }));
@@ -68,7 +82,7 @@ describe('isolamento real e demonstração', () => {
   it('API autentica o escopo pelo cadastro e ignora escopos enviados pelo cliente', async () => {
     const state = emptyWorkspace(); state.accounts = [structuredClone(seedState.accounts[0])];
     const { res, result } = response();
-    await workspaceHandler(request(users[1], 'PUT', { state, userId: 'real-b', workspaceMode: 'demo' }), res);
+    await workspaceHandler(request(users[1], 'PUT', { state, etag: null, userId: 'real-b', workspaceMode: 'demo' }), res);
     expect(result.code).toBe(200);
     expect((await loadWorkspaceState(users[1])).state.accounts).toHaveLength(1);
     const other = response(); await workspaceHandler(request(users[2]), other.res);
@@ -99,10 +113,10 @@ describe('isolamento real e demonstração', () => {
   it('demonstração não dispara tarefas externas e não usa o WhatsApp compartilhado', async () => {
     const bridge = response(); await bridgeHandler(request(users[3], 'POST', { action: 'send_message' }), bridge.res);
     expect(bridge.result.code).toBe(403); expect(bridge.result.body.error).toBe('demo_external_actions_disabled');
-    for (const user of [users[1], users[3]]) {
-      const wa = response(); await whatsappHandler(request(user, 'POST', {}), wa.res);
-      expect(wa.result.code).toBe(403);
-    }
+    const demoWa = response(); await whatsappHandler(request(users[3], 'POST', {}), demoWa.res);
+    expect(demoWa.result.code).toBe(403);
+    const realWa = response(); await whatsappHandler(request(users[1], 'POST', {}), realWa.res);
+    expect(realWa.result.code).toBe(400);
   });
 });
 
@@ -175,6 +189,111 @@ it('bloqueia após quatro senhas erradas, permite sair e relogar após desbloque
   expect(logout.result.code).toBe(200);
   expect(logout.result.headers['Set-Cookie']).toContain('Max-Age=0');
   expect((await login('Correct-password-1')).code).toBe(200);
+});
+
+it('conta quatro falhas simultâneas sem perder incrementos', async () => {
+  await Promise.all(Array.from({ length: 4 }, () => recordFailedLogin(users[0].email, false)));
+  expect(await loginLockStatus(users[0].email, false)).toBeGreaterThan(0);
+});
+
+it('recuperação de senha revoga sessão antiga e libera login com a nova senha', async () => {
+  const store = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore;
+  store.users[0].passwordHash = hashPassword('Old-password-1');
+  store.resets.push({ id: 'reset', userId: users[0].id, tokenHash: digestToken('valid-token'), expiresAt: new Date(Date.now() + 60_000).toISOString(), createdAt: new Date().toISOString() });
+  blobs.set('prospectra/auth.json', JSON.stringify(store));
+  const old = response(); issueSession(old.res, { headers: { host: 'localhost' } }, users[0]);
+  for (let n = 0; n < 4; n++) await recordFailedLogin(users[0].email, false);
+  const reset = response();
+  await setPasswordHandler({ method: 'POST', headers: { host: 'localhost' }, body: { token: 'valid-token', password: 'New-password-2' } }, reset.res);
+  expect(reset.result.code).toBe(200);
+  const oldMe = response(); await meHandler({ method: 'GET', headers: { host: 'localhost', cookie: String(old.result.headers['Set-Cookie']).split(';')[0] } }, oldMe.res);
+  expect(oldMe.result.code).toBe(401);
+  const newMe = response(); await meHandler({ method: 'GET', headers: { host: 'localhost', cookie: String(reset.result.headers['Set-Cookie']).split(';')[0] } }, newMe.res);
+  expect(newMe.result.code).toBe(200);
+  const relogin = response(); await loginHandler({ method: 'POST', headers: { host: 'localhost' }, body: { email: users[0].email, password: 'New-password-2' } }, relogin.res);
+  expect(relogin.result.code).toBe(200);
+});
+
+it('recusa snapshot antigo sem apagar a edição mais recente', async () => {
+  const old = await loadWorkspaceState(users[0]);
+  const changed = structuredClone(old.state);
+  changed.accounts[0].paused = true;
+  await saveWorkspaceState(changed, users[0], old.etag);
+  const reply = response();
+  await workspaceHandler(request(users[0], 'PUT', { state: old.state, etag: old.etag }), reply.res);
+  expect(reply.result.code).toBe(409);
+  expect((await loadWorkspaceState(users[0])).state.accounts[0].paused).toBe(true);
+});
+
+it('dois workers concorrentes não recebem o mesmo envio', async () => {
+  const now = new Date().toISOString();
+  blobs.set('prospectra/abridge.json', JSON.stringify({ version: 1, devices: [{ id: 'device', userId: users[0].id, name: 'test', tokenHash: digestToken('token'), active: true, createdAt: now, updatedAt: now }], tasks: [{ id: 'send', userId: users[0].id, action: 'send_whatsapp', requestedAt: now, state: 'queued', requiresConfirmation: true }] }));
+  const req = { method: 'GET', headers: { 'x-abridge-device-id': 'device', authorization: 'Bearer token' } };
+  const first = response(); const second = response();
+  await Promise.all([jobsHandler(req, first.res), jobsHandler(req, second.res)]);
+  expect(first.result.code).toBe(200); expect(second.result.code).toBe(200);
+  expect([...first.result.body.jobs, ...second.result.body.jobs].map((job: any) => job.id)).toEqual(['send']);
+  const stored = JSON.parse(blobs.get('prospectra/abridge.json')!);
+  stored.tasks[0].leasedAt = new Date(Date.now() - 901_000).toISOString();
+  blobs.set('prospectra/abridge.json', JSON.stringify(stored));
+  const later = response(); await jobsHandler(req, later.res);
+  expect(later.result.body.jobs).toEqual([]);
+});
+
+it('webhook Evolution pausa as tarefas e não duplica resposta nem regride tracking', async () => {
+  process.env.EVOLUTION_WEBHOOK_SECRET = 'test-secret'; process.env.EVOLUTION_INSTANCE = 'test-instance';
+  const loaded = await loadWorkspaceState(users[0]);
+  const account = loaded.state.accounts[0]; account.contacts[0].phone = '5511999999999';
+  const task = loaded.state.campaigns[0].tasks[0]; task.accountId = account.id; task.state = 'Aprovado';
+  await saveWorkspaceState(loaded.state, users[0], loaded.etag);
+  const received = { method: 'POST', headers: { 'x-prospectra-webhook-secret': 'test-secret' }, body: { event: 'messages.upsert', instance: 'test-instance', data: { key: { id: 'incoming-1', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' }, message: { conversation: 'Olá' } } } };
+  for (let n = 0; n < 2; n++) { const reply = response(); await evolutionWebhookHandler(received, reply.res); expect(reply.result.code).toBe(200); }
+  const after = await loadWorkspaceState(users[0]);
+  expect(after.state.accounts[0].paused).toBe(true);
+  expect(after.state.campaigns[0].tasks[0].state).toBe('Pausado');
+  expect(after.state.accounts[0].activities.filter((a) => a.id.startsWith('whatsapp-reply-'))).toHaveLength(1);
+  after.state.campaigns[0].tasks[0].providerMessageId = 'outgoing-1';
+  after.state.campaigns[0].tasks[0].providerStatus = 'sent';
+  await saveWorkspaceState(after.state, users[0], after.etag);
+  for (const status of [4, 3]) {
+    const reply = response();
+    await evolutionWebhookHandler({ ...received, body: { event: 'messages.update', instance: 'test-instance', data: { key: { id: 'outgoing-1' }, update: { status } } } }, reply.res);
+    expect(reply.result.code).toBe(200);
+  }
+  expect((await loadWorkspaceState(users[0])).state.campaigns[0].tasks[0].providerStatus).toBe('read');
+});
+
+it('QR Code e resposta WhatsApp ficam isolados por usuário real', async () => {
+  process.env.BAILEYS_GATEWAY_URL = 'https://gateway.example.org'; process.env.BAILEYS_GATEWAY_TOKEN = 'gateway-token';
+  process.env.BAILEYS_WEBHOOK_SECRET = 'webhook-token'; process.env.WHATSAPP_PROVIDER = 'baileys';
+  const urls: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => { urls.push(url); return new Response(JSON.stringify({ ok: true, status: 'qr', qr: 'data:image/png;base64,test' }), { status: 200 }); }));
+  for (const user of [users[1], users[2]]) {
+    const reply = response(); await whatsappConnectHandler(request(user, 'POST'), reply.res);
+    expect(reply.result.code).toBe(200);
+    expect(urls.at(-1)).toContain(`/v1/sessions/${baileysSessionId(user)}/qr`);
+  }
+  expect(baileysSessionId(users[1])).not.toBe(baileysSessionId(users[2]));
+  const stateA = await loadWorkspaceState(users[1]); const stateB = await loadWorkspaceState(users[2]);
+  for (const [user, loaded] of [[users[1], stateA], [users[2], stateB]] as const) {
+    loaded.state.accounts = [structuredClone(seedState.accounts[0])];
+    loaded.state.accounts[0].contacts[0].phone = '5511999999999';
+    loaded.state.campaigns = [structuredClone(seedState.campaigns[0])];
+    loaded.state.campaigns[0].tasks[0].accountId = loaded.state.accounts[0].id;
+    loaded.state.campaigns[0].tasks[0].providerMessageId = 'outgoing-a';
+    loaded.state.campaigns[0].tasks[0].providerStatus = 'sent';
+    await saveWorkspaceState(loaded.state, user, loaded.etag);
+  }
+  const webhook = response();
+  await baileysWebhookHandler({ method: 'POST', headers: { 'x-prospectra-webhook-secret': 'webhook-token' }, body: { type: 'message.received', sessionId: baileysSessionId(users[1]), messageId: 'incoming-a', from: '5511999999999@s.whatsapp.net', text: 'Resposta' } }, webhook.res);
+  expect(webhook.result.code).toBe(200);
+  expect((await loadWorkspaceState(users[1])).state.accounts[0].paused).toBe(true);
+  expect((await loadWorkspaceState(users[2])).state.accounts[0].paused).toBe(false);
+  const status = response();
+  await baileysWebhookHandler({ method: 'POST', headers: { 'x-prospectra-webhook-secret': 'webhook-token' }, body: { type: 'message.status', sessionId: baileysSessionId(users[1]), providerMessageId: 'outgoing-a', status: 'delivered' } }, status.res);
+  expect(status.result.code).toBe(200);
+  expect((await loadWorkspaceState(users[1])).state.campaigns[0].tasks[0].providerStatus).toBe('delivered');
+  expect((await loadWorkspaceState(users[2])).state.campaigns[0].tasks[0].providerStatus).toBe('sent');
 });
 
 function officeMock(accept: boolean) {

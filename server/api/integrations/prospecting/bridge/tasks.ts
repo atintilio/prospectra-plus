@@ -32,6 +32,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
       const store = await loadBridgeStore();
       if (task.deviceId && !store.devices.some((device) => device.id === task.deviceId && device.userId === context.user.id && device.active)) return json(res, 400, { error: 'bridge_device_not_found' });
+      const existing = task.campaignTaskId && store.tasks.find((item) => item.userId === context.user.id && item.campaignTaskId === task.campaignTaskId && item.action === task.action && ['queued', 'leased', 'success'].includes(item.state));
+      if (existing) return json(res, 200, { ok: true, alreadyQueued: true, task: { ...existing, userId: undefined } });
       store.tasks.push(task); await saveBridgeStore(store);
       return json(res, 201, { ok: true, task: { ...task, userId: undefined } });
     }

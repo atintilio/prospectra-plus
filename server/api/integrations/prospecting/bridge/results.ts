@@ -2,7 +2,7 @@ import { requireBridgeDevice } from '../../../_lib/bridge.js';
 import { json, methodNotAllowed, parseBody } from '../../../_lib/http.js';
 import type { ApiRequest, ApiResponse } from '../../../_lib/types.js';
 import { saveBridgeStore } from '../../../_lib/bridge.js';
-import { loadWorkspaceState, saveWorkspaceState } from '../../../_lib/workspace.js';
+import { mutateWorkspaceState } from '../../../_lib/workspace.js';
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
@@ -15,21 +15,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!task) return json(res, 404, { error: 'bridge_task_not_found' });
     const state = body.state;
     if (!['success', 'failed', 'skipped'].includes(String(state))) return json(res, 400, { error: 'invalid_bridge_result' });
+    if (['success', 'failed', 'skipped'].includes(task.state)) return json(res, 200, { ok: true, duplicate: true });
+    if (task.state !== 'leased') return json(res, 409, { error: 'bridge_task_not_leased' });
+    const providerMessageId = typeof (body.profile as { providerMessageId?: unknown } | undefined)?.providerMessageId === 'string' ? (body.profile as { providerMessageId: string }).providerMessageId : undefined;
+    if (state === 'success' && task.action === 'send_whatsapp' && !providerMessageId) return json(res, 422, { error: 'whatsapp_provider_receipt_required' });
     task.state = state as typeof task.state; task.completedAt = new Date().toISOString();
     task.result = { providerStatus: typeof body.providerStatus === 'string' ? body.providerStatus : undefined, profile: body.profile, messages: body.messages, errorCode: typeof body.errorCode === 'string' ? body.errorCode : undefined, errorMessage: typeof body.errorMessage === 'string' ? body.errorMessage : undefined };
     if (state === 'success' && task.action === 'send_whatsapp' && task.campaignTaskId && task.accountId && task.contactId) {
-      const workspace = await loadWorkspaceState(context.user);
-      const campaign = workspace.state.campaigns.find((item) => item.tasks.some((candidate) => candidate.id === task.campaignTaskId));
-      const campaignTask = campaign?.tasks.find((candidate) => candidate.id === task.campaignTaskId);
-      const account = workspace.state.accounts.find((candidate) => candidate.id === task.accountId);
-      const providerMessageId = typeof (body.profile as { providerMessageId?: unknown } | undefined)?.providerMessageId === 'string' ? (body.profile as { providerMessageId: string }).providerMessageId : undefined;
-      if (!campaignTask || !account) return json(res, 500, { error: 'whatsapp_result_target_missing' });
-      campaignTask.state = 'Concluído';
-      campaignTask.providerMessageId = providerMessageId;
-      campaignTask.providerStatus = typeof body.providerStatus === 'string' ? body.providerStatus : 'sent';
-      campaignTask.completedAt = task.completedAt;
-      account.activities = [{ id: crypto.randomUUID(), kind: 'Tarefa', actor: `Abridge · ${context.device.name}`, createdAt: task.completedAt, text: `Mensagem WhatsApp enviada localmente para o contato ${task.contactId}. Provider ID: ${providerMessageId ?? 'não informado'}.` }, ...account.activities];
-      await saveWorkspaceState(workspace.state, context.user);
+      await mutateWorkspaceState(context.user, (workspace) => {
+        const campaignTask = workspace.campaigns.flatMap((campaign) => campaign.tasks).find((candidate) => candidate.id === task.campaignTaskId);
+        const account = workspace.accounts.find((candidate) => candidate.id === task.accountId);
+        if (!campaignTask || !account) throw new Error('whatsapp_result_target_missing');
+        if (campaignTask.providerMessageId === providerMessageId) return null;
+        campaignTask.state = 'Concluído'; campaignTask.providerMessageId = providerMessageId;
+        campaignTask.providerStatus = typeof body.providerStatus === 'string' ? body.providerStatus : 'sent';
+        campaignTask.completedAt = task.completedAt;
+        const activityId = `whatsapp-${task.id}`;
+        if (!account.activities.some((activity) => activity.id === activityId)) account.activities.unshift({ id: activityId, kind: 'Tarefa', actor: `Abridge · ${context.device.name}`, createdAt: task.completedAt!, text: `Mensagem WhatsApp enviada localmente para o contato ${task.contactId}. Provider ID: ${providerMessageId}.` });
+        return workspace;
+      });
     }
     await saveBridgeStore(context.store);
     return json(res, 200, { ok: true });
