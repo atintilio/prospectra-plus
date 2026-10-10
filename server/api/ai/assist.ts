@@ -37,7 +37,7 @@ function localPlan(accountName: string, contactName: string | undefined, evidenc
   const firstName = contactName?.trim().split(/\s+/)[0] || '';
   return {
     insights: first ? [`${first.title}: ${first.excerpt}`] : [],
-    draft: blocked || !first || !firstName ? '' : `Olá, ${firstName}. Vi ${first.title.toLowerCase()} da ${accountName}. Posso compartilhar uma ideia relacionada a esse contexto?`,
+    draft: blocked || !first || !firstName ? '' : `Olá, ${firstName}. Vi uma notícia sobre ${first.title.toLowerCase()} da ${accountName}. Posso compartilhar uma ideia relacionada a esse contexto?`,
     nextAction: 'Revisar a mensagem e executar o contato assistido.',
     rationale: 'Sugestão local baseada em evidência verificada; o modelo gratuito não respondeu em formato utilizável.',
     evidenceIds: first ? [first.id] : [],
