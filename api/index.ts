@@ -1,4 +1,5 @@
 import linkedinConnect from '../server/api/integrations/linkedin/connect.js';
+import aiAssist from '../server/api/ai/assist.js';
 import health from '../server/api/health.js';
 import organization from '../server/api/admin/organization.js';
 import testEmail from '../server/api/admin/test-email.js';
@@ -30,6 +31,7 @@ import type { ApiRequest, ApiResponse } from '../server/api/_lib/types.js';
 type Handler = (req: ApiRequest, res: ApiResponse) => unknown | Promise<unknown>;
 const routes: Record<string, Handler> = {
   'health': health,
+  'ai/assist': aiAssist,
   'integrations/linkedin/connect': linkedinConnect,
   'admin/organization': organization,
   'admin/test-email': testEmail,
@@ -57,6 +59,8 @@ const routes: Record<string, Handler> = {
   'integrations/whatsapp/webhook': whatsappWebhook,
   'integrations/whatsapp/baileys-webhook': baileysWebhook,
 };
+
+export const config = { maxDuration: 60 };
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const pathname = (req.url ?? '').split('?')[0].replace(/^\/+|\/+$/g, '');
