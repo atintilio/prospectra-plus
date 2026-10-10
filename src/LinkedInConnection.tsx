@@ -31,7 +31,7 @@ export default function LinkedInConnection({ demo }: { demo: boolean }) {
     {message && <p role="alert">{message}</p>}
     {connection.status === 'starting' && <p role="status">Preparando sua sessão. Em uma VM com poucos recursos, esta etapa pode demorar. Você pode cancelar a tentativa.</p>}
     {connection.status === 'busy' && <p role="alert">Há outra autenticação em andamento. Aguarde sua conclusão e tente novamente.</p>}
-    {connection.status === 'expired' && <p role="alert">O tempo para entrar terminou. Clique em Conectar LinkedIn para iniciar outra tentativa.</p>}
+    {connection.status === 'expired' && <p role="alert">O tempo para entrar terminou. Use “Tentar pareamento remoto” para iniciar outra tentativa.</p>}
     {connection.status === 'failed' && <p role="alert">O navegador encerrou antes de confirmar seu login. Tente novamente.</p>}
     {connection.status === 'authenticated' && <p role="status">Sessão salva para seu usuário. A autenticação não confirma, por si só, o funcionamento de envios ou campanhas.</p>}
     {connection.viewerUrl && <div className="linkedin-viewer"><a className="text-button" href={connection.viewerUrl} target="_blank" rel="noopener noreferrer">Ampliar tela de login <ExternalLink size={15}/></a><iframe title="Entrar no LinkedIn" src={connection.viewerUrl} referrerPolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms" /></div>}
