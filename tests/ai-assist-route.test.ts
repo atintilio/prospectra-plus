@@ -88,6 +88,17 @@ describe('agente assistido', () => {
     expect((result.body as any).nextAction).not.toContain('Aguardar retorno');
   });
 
+  it('oferece sugestão local identificada quando o modelo devolve formato inválido', async () => {
+    const account = seedState.accounts.find((item) => !item.paused && !item.suppressed && item.contacts.some((contact) => contact.status === 'Revisado') && item.evidence.some((evidence) => evidence.verified))!;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: 'Resposta sem JSON' } }] }) }));
+    const { res, result } = response();
+    await handler({ method: 'POST', body: { accountId: account.id, contactId: account.contacts.find((item) => item.status === 'Revisado')!.id }, headers: {} }, res);
+    expect(result.statusCode).toBe(200);
+    expect((result.body as any).model).toBe('regras locais');
+    expect((result.body as any).draft).toContain(account.evidence.find((item) => item.verified)!.title.toLowerCase());
+    expect((result.body as any).readyForReview).toBe(true);
+  });
+
   it('retorna indisponível sem credencial e não chama a IA', async () => {
     delete process.env.OPENROUTER_API_KEY;
     const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);

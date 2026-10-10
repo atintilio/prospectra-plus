@@ -32,6 +32,18 @@ function parsePlan(content: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
+function localPlan(accountName: string, contactName: string | undefined, evidence: Array<{ id: string; title: string; excerpt: string }>, blocked: boolean): Record<string, unknown> {
+  const first = evidence[0];
+  const firstName = contactName?.trim().split(/\s+/)[0] || '';
+  return {
+    insights: first ? [`${first.title}: ${first.excerpt}`] : [],
+    draft: blocked || !first || !firstName ? '' : `Olá, ${firstName}. Vi ${first.title.toLowerCase()} da ${accountName}. Posso compartilhar uma ideia relacionada a esse contexto?`,
+    nextAction: 'Revisar a mensagem e executar o contato assistido.',
+    rationale: 'Sugestão local baseada em evidência verificada; o modelo gratuito não respondeu em formato utilizável.',
+    evidenceIds: first ? [first.id] : [],
+  };
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET' && req.method !== 'POST') return methodNotAllowed(res, ['GET', 'POST']);
   const context = await requireActiveSession(req, res);
@@ -68,7 +80,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       voz: state.agent.voice.slice(0, 500),
       instrucao: state.agent.instruction.slice(0, 500),
     };
-    const response = await fetch(ENDPOINT, {
+    let content: unknown;
+    try {
+      const response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, 'HTTP-Referer': 'https://prospectra.argusprime.com.br', 'X-Title': 'Prospectra+' },
       body: JSON.stringify({
@@ -80,13 +94,22 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           { role: 'user', content: JSON.stringify(promptData) },
         ],
       }),
-      signal: AbortSignal.timeout(28000),
-    });
-    if (!response.ok) return json(res, response.status === 429 ? 429 : 502, { error: response.status === 429 ? 'ai_free_limit_reached' : 'ai_provider_unavailable' });
-    const payload = await response.json() as { choices?: Array<{ message?: { content?: unknown } }> };
-    const content = payload.choices?.[0]?.message?.content;
-    if (typeof content !== 'string') return json(res, 502, { error: 'ai_invalid_response' });
-    const generated = parsePlan(content);
+      signal: AbortSignal.timeout(20000),
+      });
+      if (response.ok) {
+        const payload = await response.json() as { choices?: Array<{ message?: { content?: unknown } }> };
+        content = payload.choices?.[0]?.message?.content;
+      }
+    } catch { /* A resposta local mantém o fluxo assistido disponível. */ }
+    let generated: Record<string, unknown>;
+    let modelUsed = MODEL;
+    try {
+      if (typeof content !== 'string') throw new Error('INVALID_AI_RESPONSE');
+      generated = parsePlan(content);
+    } catch {
+      generated = localPlan(account.name, contact?.name, verifiedEvidence, blockers.length > 0);
+      modelUsed = 'regras locais';
+    }
     const allowedIds = new Set(verifiedEvidence.map((item) => item.id));
     const evidenceIds = Array.isArray(generated.evidenceIds) ? generated.evidenceIds.filter((id): id is string => typeof id === 'string' && allowedIds.has(id)) : [];
     const evidenceText = verifiedEvidence.map((item) => `${item.title} ${item.excerpt}`).join(' ');
@@ -101,7 +124,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       : generatedNextAction || evaluation?.nextAction || 'Revisar o texto e executar a tarefa assistida.';
     return json(res, 200, {
       ok: true,
-      model: MODEL,
+      model: modelUsed,
       generatedAt: new Date().toISOString(),
       accountId: account.id,
       contactId: contact?.id ?? null,
