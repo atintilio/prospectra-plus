@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const blobs = vi.hoisted(() => new Map<string, string>());
 vi.mock('@vercel/blob', () => ({
-  get: vi.fn(async (path: string) => blobs.has(path) ? { stream: new Blob([blobs.get(path)!]).stream() } : null),
+  get: vi.fn(async (path: string) => blobs.has(path) ? { stream: new Blob([blobs.get(path)!]).stream(), blob: { etag: 'test-etag' } } : null),
   put: vi.fn(async (path: string, value: string) => { blobs.set(path, value); return {}; }),
 }));
 import { seedState } from '../src/data';
@@ -9,6 +9,8 @@ import { emptyWorkspace } from '../src/emptyWorkspace';
 import { initialWorkspace, loadWorkspaceState, saveWorkspaceState, workspacePath } from '../server/api/_lib/workspace';
 import workspaceHandler from '../server/api/workspace/state';
 import loginHandler from '../server/api/auth/login';
+import logoutHandler from '../server/api/auth/logout';
+import meHandler from '../server/api/auth/me';
 import organizationHandler from '../server/api/admin/organization';
 import bridgeHandler from '../server/api/integrations/prospecting/bridge/tasks';
 import whatsappHandler from '../server/api/integrations/whatsapp/send';
@@ -140,6 +142,39 @@ it('login demo usa a senha pessoal e não aceita a senha do Owner de mesmo e-mai
   expect(wrong.result.code).toBe(401);
   const prod = response(); await loginHandler({method:'POST',headers:{host:'localhost'},body:{email:demo.email,password:'Demo-password-1'}},prod.res);
   expect(prod.result.code).toBe(401);
+});
+
+it('bloqueia após quatro senhas erradas, permite sair e relogar após desbloqueio', async () => {
+  const store = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore;
+  store.users[0].passwordHash = hashPassword('Correct-password-1');
+  blobs.set('prospectra/auth.json', JSON.stringify(store));
+  const login = async (password: string) => {
+    const reply = response();
+    await loginHandler({ method: 'POST', headers: { host: 'localhost' }, body: { email: users[0].email, password } }, reply.res);
+    return reply.result;
+  };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = await login('wrong-password');
+    expect(result.code).toBe(401);
+    expect(result.body.attemptsRemaining).toBe(4 - attempt);
+  }
+  const fourth = await login('wrong-password');
+  expect(fourth.code).toBe(423);
+  expect(Number(fourth.headers['Retry-After'])).toBeGreaterThan(0);
+  expect((await login('Correct-password-1')).code).toBe(423);
+  const lockPath = [...blobs.keys()].find((path) => path.startsWith('prospectra/login-attempts/'))!;
+  blobs.set(lockPath, JSON.stringify({ failures: 4, firstFailedAt: Date.now() - 901_000, lockedUntil: Date.now() - 1 }));
+  const success = await login('Correct-password-1');
+  expect(success.code).toBe(200);
+  const cookie = String(success.headers['Set-Cookie']).split(';')[0];
+  const current = response();
+  await meHandler({ method: 'GET', headers: { host: 'localhost', cookie } }, current.res);
+  expect(current.result.code).toBe(200);
+  const logout = response();
+  logoutHandler({ method: 'POST', headers: { host: 'localhost', cookie } }, logout.res);
+  expect(logout.result.code).toBe(200);
+  expect(logout.result.headers['Set-Cookie']).toContain('Max-Age=0');
+  expect((await login('Correct-password-1')).code).toBe(200);
 });
 
 function officeMock(accept: boolean) {

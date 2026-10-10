@@ -17,7 +17,7 @@ export async function requireActiveSession(req: ApiRequest, res: ApiResponse): P
     return null;
   }
   const store = await loadAuthStore();
-  const user = store.users.find((entry) => entry.id === session.id && entry.active && (entry.workspaceMode === 'demo') === isDemoRequest(req));
+  const user = store.users.find((entry) => entry.id === session.id && entry.active && (entry.workspaceMode === 'demo') === isDemoRequest(req) && (entry.sessionVersion ?? 0) === (session.sessionVersion ?? 0));
   if (!user) {
     json(res, 401, { error: 'not_authenticated' });
     return null;
