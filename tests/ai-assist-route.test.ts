@@ -67,6 +67,27 @@ describe('agente assistido', () => {
     expect((result.body as any).nextAction).toContain('Não contatar');
   });
 
+  it('bloqueia promessas numéricas que não aparecem nas evidências', async () => {
+    const account = seedState.accounts.find((item) => !item.paused && !item.suppressed && item.contacts.length && item.evidence.some((evidence) => evidence.verified))!;
+    const evidenceId = account.evidence.find((item) => item.verified)!.id;
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({
+      insights: ['A empresa crescerá 15%'],
+      draft: 'Podemos reduzir seus custos em até 15% nesta operação.',
+      nextAction: 'Aguardar retorno do contato.',
+      rationale: 'Projeção do modelo',
+      evidenceIds: [evidenceId],
+    }) } }] }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const { res, result } = response();
+    await handler({ method: 'POST', body: { accountId: account.id, contactId: account.contacts[0].id }, headers: {} }, res);
+    expect(result.statusCode).toBe(200);
+    expect((result.body as any).draft).toBe('');
+    expect((result.body as any).insights).toEqual([]);
+    expect((result.body as any).readyForReview).toBe(false);
+    expect((result.body as any).blockers.join(' ')).toContain('número sem suporte');
+    expect((result.body as any).nextAction).not.toContain('Aguardar retorno');
+  });
+
   it('retorna indisponível sem credencial e não chama a IA', async () => {
     delete process.env.OPENROUTER_API_KEY;
     const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
