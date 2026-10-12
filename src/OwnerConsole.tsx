@@ -41,6 +41,15 @@ interface ApiResult {
   demoAccessDelivery?: 'accepted' | 'failed' | 'not_requested';
 }
 
+interface MigrationStatus {
+  source: { accounts: number; contacts: number; campaigns: number };
+  demo: { accounts: number; contacts: number; campaigns: number };
+  sourcePersisted: boolean;
+  demoPersisted: boolean;
+  migrated: boolean;
+  resumable: boolean;
+}
+
 function roleLabel(role: ManagedRole) {
   return role === 'admin' ? 'Administrador' : role === 'leader' ? 'Líder' : 'Liderado';
 }
@@ -91,7 +100,8 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  const [newUser, setNewUser] = useState({ name: '', email: '', role: 'member' as ManagedRole, teamId: '', sendInvite: false, workspaceMode: 'production' as 'production' | 'demo', demoPassword: '', demoRecipients: '' });
+  const [migration, setMigration] = useState<MigrationStatus | null>(null);
+  const [newUser, setNewUser] = useState({ name: '', email: '', role: 'member' as ManagedRole, teamId: '', sendInvite: false });
   const [newTeam, setNewTeam] = useState({ name: '', leaderId: '', color: 'purple' as TeamColor });
 
   const sendTestEmail = async () => {
@@ -120,6 +130,23 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
 
   useEffect(() => { void load(); }, []);
 
+  useEffect(() => { apiFetch('/api/admin/migrate-demo', { credentials: 'include' }).then(async response => {
+    if (response.ok) setMigration(await response.json() as MigrationStatus);
+  }).catch(() => undefined); }, []);
+
+  const migrateDemo = async () => {
+    setBusy('migrate-demo'); setError(''); setNotice('');
+    try {
+      const response = await apiFetch('/api/admin/migrate-demo', { method: 'POST', credentials: 'include' });
+      const data = await response.json().catch(() => ({})) as { error?: string; counts?: MigrationStatus['source'] };
+      if (!response.ok) throw new Error(data.error ?? 'migration_failed');
+      setNotice(`${data.counts?.accounts ?? 0} empresas e ${data.counts?.contacts ?? 0} contatos migrados. A produção foi iniciada vazia.`);
+      setMigration((current) => current ? { ...current, migrated: true, demoPersisted: true, source: { accounts: 0, contacts: 0, campaigns: 0 }, demo: data.counts ?? current.demo } : null);
+      window.location.reload();
+    } catch (issue) { setError(issue instanceof Error ? issue.message : 'migration_failed'); }
+    finally { setBusy(''); }
+  };
+
   const createUser = async (event: FormEvent) => {
     event.preventDefault();
     setBusy('create-user'); setError(''); setNotice('');
@@ -127,11 +154,11 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
       const next = await organizationRequest('POST', {
         action: 'create-user', name: newUser.name, email: newUser.email, role: newUser.role,
         teamId: newUser.role === 'member' && newUser.teamId ? newUser.teamId : undefined,
-        sendInvite: newUser.sendInvite, workspaceMode: newUser.workspaceMode, demoPassword: newUser.workspaceMode === 'demo' ? newUser.demoPassword : undefined, demoRecipients: newUser.workspaceMode === 'demo' ? newUser.demoRecipients.split(/[;,\n]+/).map(value => value.trim()).filter(Boolean) : undefined,
+        sendInvite: newUser.sendInvite, workspaceMode: 'production',
       });
       apply(next);
-      setNewUser({ name: '', email: '', role: 'member', teamId: '', sendInvite: false, workspaceMode: 'production' as 'production' | 'demo', demoPassword: '', demoRecipients: '' });
-      setNotice(newUser.workspaceMode === 'demo' && newUser.demoRecipients.trim() ? 'Demonstração criada. O Office 365 aceitou o envio do login e da senha aos destinatários informados.' : newUser.sendInvite ? 'Usuário criado e convite enviado pelo Office 365.' : 'Usuário criado. Envie o convite quando estiver pronto.');
+      setNewUser({ name: '', email: '', role: 'member', teamId: '', sendInvite: false });
+      setNotice(newUser.sendInvite ? 'Usuário criado e convite enviado pelo Office 365. O mesmo login acessa a demonstração.' : 'Usuário criado. O mesmo login acessa produção e demonstração após definir a senha.');
     } catch (issue) { setError(errorText(issue instanceof Error ? issue.message : undefined)); }
     finally { setBusy(''); }
   };
@@ -196,13 +223,13 @@ export default function OwnerConsole({ currentUser, onOrganizationChange }: { cu
       <article><Building2 size={19}/><span>Equipes estruturadas</span><strong>{organization.teams.length}</strong></article>
       <article><UserCog size={19}/><span>Líderes em operação</span><strong>{organization.users.filter((user) => user.active && user.role === 'leader').length}</strong></article>
     </div>
+    <section className="panel owner-form-card"><div className="panel-head"><div><span className="eyebrow">SEPARAÇÃO DAS BASES</span><h2>Dados de demonstração e produção</h2><p>{migration?.migrated ? 'Migração concluída. Todos os usuários existentes podem escolher a demonstração usando seu login atual.' : migration ? `${migration.source.accounts} empresas, ${migration.source.contacts} contatos e ${migration.source.campaigns} campanhas serão copiados para a demonstração compartilhada. Uma cópia privada será preservada antes de zerar a base de produção.` : 'Verificando as bases privadas…'}</p></div><Building2 size={19}/></div>{migration && !migration.migrated && <button className="new-button" disabled={busy === 'migrate-demo' || !migration.sourcePersisted || (migration.demoPersisted && !migration.resumable) || !migration.source.accounts} onClick={() => void migrateDemo()}>{busy === 'migrate-demo' ? <LoaderCircle className="spin" size={16}/> : <Building2 size={16}/>} {migration.resumable ? 'Concluir migração pendente' : 'Migrar dados e iniciar produção vazia'}</button>}{migration?.migrated && <span className="status-tag good">Demo: {migration.demo.accounts} empresas · Produção: {migration.source.accounts} empresas</span>}</section>
     <section className="panel owner-form-card"><div className="panel-head"><div><span className="eyebrow">VALIDAÇÃO DE ENTREGA</span><h2>Enviar teste de e-mail</h2><p>Mensagem fixa, sem credenciais, somente para os dois endereços autorizados.</p></div><MailCheck size={19}/></div><button className="new-button" disabled={busy === 'test-email'} onClick={() => void sendTestEmail()}>{busy === 'test-email' ? <LoaderCircle className="spin" size={16}/> : <MailCheck size={16}/>} Enviar teste para A. Tintilio</button></section>
     <div className="owner-setup-grid">
-      <section className="panel owner-form-card"><div className="panel-head"><div><span className="eyebrow">NOVO USUÁRIO</span><h2>Cadastrar e convidar</h2></div><UserPlus size={19}/></div><form onSubmit={createUser} className="owner-form"><label>Nome completo<input required value={newUser.name} onChange={(event) => setNewUser((current) => ({ ...current, name: event.target.value }))} placeholder="Nome da pessoa" /></label><label>E-mail corporativo<input required type="email" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} placeholder="pessoa@argusprime.com.br" /></label><label>Tipo de base<select value={newUser.workspaceMode} onChange={(event) => setNewUser((current) => ({ ...current, workspaceMode: event.target.value as 'production' | 'demo', teamId: '', sendInvite: false, demoPassword: '', demoRecipients: '' }))}><option value="production">Produção · base vazia e exclusiva</option><option value="demo">Demonstração · ambiente compartilhado</option></select></label>{newUser.workspaceMode === 'demo' && <label>Senha da demonstração<input type="password" required minLength={8} maxLength={200} autoComplete="new-password" value={newUser.demoPassword} onChange={(event) => setNewUser((current) => ({ ...current, demoPassword: event.target.value }))}/></label>}{newUser.workspaceMode === 'demo' && <label>Enviar login e senha da demo para<input value={newUser.demoRecipients} onChange={(event) => setNewUser((current) => ({ ...current, demoRecipients: event.target.value }))} placeholder="Separe os e-mails por ponto e vírgula"/><small>Opcional. Os destinatários receberão acesso à mesma base fictícia compartilhada.</small></label>}<div className="owner-form-row"><label>Papel<select value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as ManagedRole, teamId: event.target.value === 'member' ? current.teamId : '' }))}><option value="member">Liderado</option><option value="leader">Líder</option><option value="admin">Administrador</option></select></label><label>Equipe<select disabled={newUser.role !== 'member' || newUser.workspaceMode === 'demo'} value={newUser.teamId} onChange={(event) => setNewUser((current) => ({ ...current, teamId: event.target.value }))}><option value="">Sem equipe agora</option>{organization.teams.map((team) => <option value={team.id} key={team.id}>{team.name}</option>)}</select></label></div><label className="owner-check"><input type="checkbox" disabled={newUser.workspaceMode === 'demo'} checked={newUser.sendInvite} onChange={(event) => setNewUser((current) => ({ ...current, sendInvite: event.target.checked }))} /><span>Enviar convite de criação de senha pelo Office 365 agora</span></label><button className="new-button" disabled={busy === 'create-user'}>{busy === 'create-user' ? <LoaderCircle className="spin" size={16}/> : <UserPlus size={16}/>} Criar usuário</button></form></section>
+      <section className="panel owner-form-card"><div className="panel-head"><div><span className="eyebrow">NOVO USUÁRIO</span><h2>Cadastrar e convidar</h2></div><UserPlus size={19}/></div><form onSubmit={createUser} className="owner-form"><label>Nome completo<input required value={newUser.name} onChange={(event) => setNewUser((current) => ({ ...current, name: event.target.value }))} placeholder="Nome da pessoa" /></label><label>E-mail corporativo<input required type="email" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} placeholder="pessoa@argusprime.com.br" /></label><p className="owner-help">Cada pessoa usa um único e-mail e senha: produção com base própria vazia e demonstração com a base compartilhada.</p><div className="owner-form-row"><label>Papel<select value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as ManagedRole, teamId: event.target.value === 'member' ? current.teamId : '' }))}><option value="member">Liderado</option><option value="leader">Líder</option><option value="admin">Administrador</option></select></label><label>Equipe<select disabled={newUser.role !== 'member'} value={newUser.teamId} onChange={(event) => setNewUser((current) => ({ ...current, teamId: event.target.value }))}><option value="">Sem equipe agora</option>{organization.teams.map((team) => <option value={team.id} key={team.id}>{team.name}</option>)}</select></label></div><label className="owner-check"><input type="checkbox" checked={newUser.sendInvite} onChange={(event) => setNewUser((current) => ({ ...current, sendInvite: event.target.checked }))} /><span>Enviar convite de criação de senha pelo Office 365 agora</span></label><button className="new-button" disabled={busy === 'create-user'}>{busy === 'create-user' ? <LoaderCircle className="spin" size={16}/> : <UserPlus size={16}/>} Criar usuário</button></form></section>
       <section className="panel owner-form-card"><div className="panel-head"><div><span className="eyebrow">NOVA EQUIPE</span><h2>Definir liderança</h2></div><Building2 size={19}/></div><form onSubmit={createTeam} className="owner-form"><label>Nome da equipe<input required value={newTeam.name} onChange={(event) => setNewTeam((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: Receita Enterprise" /></label><label>Líder<select required value={newTeam.leaderId} onChange={(event) => setNewTeam((current) => ({ ...current, leaderId: event.target.value }))}><option value="">Selecione um líder</option>{leaders.map((leader) => <option value={leader.id} key={leader.id}>{leader.name}</option>)}</select></label><label>Identidade visual<select value={newTeam.color} onChange={(event) => setNewTeam((current) => ({ ...current, color: event.target.value as TeamColor }))}><option value="purple">Roxo</option><option value="emerald">Esmeralda</option><option value="lilac">Lilás</option></select></label><p className="owner-help">Primeiro cadastre a pessoa como <strong>Líder</strong>. Depois, crie a equipe e inclua os liderados no editor abaixo.</p><button className="outline-button" disabled={busy === 'create-team'}>{busy === 'create-team' ? <LoaderCircle className="spin" size={16}/> : <UsersRound size={16}/>} Criar equipe</button></form></section>
     </div>
     <section className="panel owner-roster"><div className="panel-head"><div><span className="eyebrow">DIRETÓRIO DO WORKSPACE</span><h2>Acessos e convites</h2></div><span className="status-tag neutral">{organization.users.length} cadastrados</span></div><div className="owner-user-list">{organization.users.filter(user => user.workspaceMode !== 'demo').map((user) => <UserRow key={user.id} user={user} teams={organization.teams} ownerId={currentUser.id} busy={busy} onSave={updateUser} onInvite={inviteUser} />)}</div></section>
-    <section className="panel owner-roster"><div className="panel-head"><div><span className="eyebrow">USUÁRIOS DA DEMONSTRAÇÃO</span><h2>Credenciais individuais, ambiente compartilhado</h2><p>Todos acessam a mesma base fictícia em /demo. A produção permanece separada.</p></div></div><div className="owner-user-list">{organization.users.filter(user => user.workspaceMode === 'demo').map(user => <UserRow key={user.id} user={user} teams={[]} ownerId={currentUser.id} busy={busy} onSave={updateUser} onInvite={inviteUser}/>)}</div></section>
     <section className="owner-team-section"><div className="section-label"><UsersRound size={17}/><strong>Editor de equipes</strong></div>{organization.teams.length === 0 ? <div className="panel owner-empty">Nenhuma equipe foi criada. Cadastre um líder e monte a primeira frente acima.</div> : <div className="owner-team-grid">{organization.teams.map((team) => <TeamEditor key={team.id} team={team} users={organization.users} busy={busy} onSave={updateTeam} />)}</div>}</section>
   </>;
 }
