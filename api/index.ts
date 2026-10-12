@@ -2,6 +2,7 @@ import linkedinConnect from '../server/api/integrations/linkedin/connect.js';
 import aiAssist from '../server/api/ai/assist.js';
 import health from '../server/api/health.js';
 import organization from '../server/api/admin/organization.js';
+import migrateDemo from '../server/api/admin/migrate-demo.js';
 import testEmail from '../server/api/admin/test-email.js';
 import login from '../server/api/auth/login.js';
 import logout from '../server/api/auth/logout.js';
@@ -15,6 +16,7 @@ import unipileWebhook from '../server/api/integrations/prospecting/unipile-webho
 import scrapegraphEnrich from '../server/api/integrations/scrapegraph/enrich.js';
 import scrapegraphHealth from '../server/api/integrations/scrapegraph/health.js';
 import workspaceState from '../server/api/workspace/state.js';
+import demoBaseline from '../server/api/workspace/demo-baseline.js';
 import bridgeDevices from '../server/api/integrations/prospecting/bridge/devices.js';
 import bridgeTasks from '../server/api/integrations/prospecting/bridge/tasks.js';
 import bridgeJobs from '../server/api/integrations/prospecting/bridge/jobs.js';
@@ -35,6 +37,7 @@ const routes: Record<string, Handler> = {
   'ai/assist': aiAssist,
   'integrations/linkedin/connect': linkedinConnect,
   'admin/organization': organization,
+  'admin/migrate-demo': migrateDemo,
   'admin/test-email': testEmail,
   'auth/login': login,
   'auth/logout': logout,
@@ -48,6 +51,7 @@ const routes: Record<string, Handler> = {
   'integrations/scrapegraph/enrich': scrapegraphEnrich,
   'integrations/scrapegraph/health': scrapegraphHealth,
   'workspace/state': workspaceState,
+  'workspace/demo-baseline': demoBaseline,
   'integrations/prospecting/bridge/devices': bridgeDevices,
   'integrations/prospecting/bridge/tasks': bridgeTasks,
   'integrations/prospecting/bridge/jobs': bridgeJobs,

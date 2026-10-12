@@ -19,6 +19,7 @@ import logoutHandler from '../server/api/auth/logout';
 import meHandler from '../server/api/auth/me';
 import setPasswordHandler from '../server/api/auth/set-password';
 import organizationHandler from '../server/api/admin/organization';
+import migrateDemoHandler from '../server/api/admin/migrate-demo';
 import bridgeHandler from '../server/api/integrations/prospecting/bridge/tasks';
 import whatsappHandler from '../server/api/integrations/whatsapp/send';
 import jobsHandler from '../server/api/integrations/prospecting/bridge/jobs';
@@ -28,13 +29,13 @@ import whatsappConnectHandler from '../server/api/integrations/whatsapp/connect'
 import { baileysSessionId } from '../server/integrations/baileys';
 import { loginLockStatus, recordFailedLogin } from '../server/api/_lib/login-lockout';
 import { issueSession } from '../server/api/_lib/session';
-import { verifyPassword, hashPassword, digestToken } from '../server/api/_lib/crypto';
+import { hashPassword, digestToken } from '../server/api/_lib/crypto';
 import type { ApiRequest, ApiResponse, AuthStore, StoredUser } from '../server/api/_lib/types';
 const users: StoredUser[] = [
   { id: 'owner', email: 'owner@example.org', role: 'admin', passwordHash: null, active: true, createdAt: '', updatedAt: '' },
   { id: 'real-a', email: 'a@example.org', role: 'member', workspaceMode: 'production', passwordHash: null, active: true, createdAt: '', updatedAt: '' },
   { id: 'real-b', email: 'b@example.org', role: 'admin', workspaceMode: 'production', passwordHash: null, active: true, createdAt: '', updatedAt: '' },
-  { id: 'demo', email: 'demo@example.org', role: 'admin', workspaceMode: 'demo', passwordHash: null, active: true, createdAt: '', updatedAt: '' },
+  { id: 'owner', email: 'owner@example.org', role: 'admin', workspaceMode: 'demo', passwordHash: null, active: true, createdAt: '', updatedAt: '' },
 ];
 function response() {
   const result = { code: 0, body: {} as any, headers: {} as Record<string, string | string[]> };
@@ -49,7 +50,7 @@ function request(user: StoredUser, method = 'GET', body?: unknown): ApiRequest {
 beforeEach(() => {
   vi.unstubAllGlobals(); blobs.clear(); process.env.BLOB_READ_WRITE_TOKEN = 'test'; process.env.AUTH_SECRET = 'test-only-session-key';
   delete process.env.WHATSAPP_PROVIDER; delete process.env.BAILEYS_GATEWAY_URL; delete process.env.BAILEYS_GATEWAY_TOKEN; delete process.env.BAILEYS_WEBHOOK_SECRET;
-  const store: AuthStore = { version: 1, users: structuredClone(users), teams: [], resets: [] };
+  const store: AuthStore = { version: 1, users: structuredClone(users.slice(0, 3)), teams: [], resets: [] };
   blobs.set('prospectra/auth.json', JSON.stringify(store));
   blobs.set(workspacePath(), JSON.stringify({ version: 1, updatedAt: 'legacy', state: seedState }));
 });
@@ -96,14 +97,11 @@ describe('isolamento real e demonstração', () => {
     const user = store.users.find(u => u.email === 'new@example.org')!;
     expect(user.workspaceMode).toBe('production'); expect(initialWorkspace(user).accounts).toEqual([]);
   });
-  it('senha de demonstração é somente hash salgado e não aparece na resposta', async () => {
-    const password = 'test-demo-only***'; const { res, result } = response();
-    await organizationHandler(request(users[0], 'POST', { action: 'create-user', name: 'Demo', email: 'new-demo@example.org', role: 'member', workspaceMode: 'demo', demoPassword: password }), res);
-    expect(result.code).toBe(201);
-    const saved = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore;
-    const user = saved.users.find(u => u.email === 'new-demo@example.org')!;
-    expect(user.workspaceMode).toBe('demo'); expect(verifyPassword(password, user.passwordHash!)).toBe(true);
-    expect(JSON.stringify(result.body)).not.toContain('passwordHash'); expect(blobs.get('prospectra/auth.json')).not.toContain(password);
+  it('não cria credenciais separadas de demonstração', async () => {
+    const { res, result } = response();
+    await organizationHandler(request(users[0], 'POST', { action: 'create-user', name: 'Demo', email: 'new-demo@example.org', role: 'member', workspaceMode: 'demo' }), res);
+    expect(result.code).toBe(400);
+    expect(result.body.error).toBe('demo_uses_existing_login');
   });
   it('administradores de bases individuais e demo não administram usuários globais', async () => {
     for (const user of [users[2], users[3]]) {
@@ -121,9 +119,7 @@ describe('isolamento real e demonstração', () => {
 });
 
 it('participantes diferentes compartilham somente a base demo, com sessões individuais', async () => {
-  const second = { ...users[3], id: 'demo-2', email: 'owner@example.org' };
-  const store = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore; store.users.push(second);
-  blobs.set('prospectra/auth.json', JSON.stringify(store));
+  const second = { ...users[2], workspaceMode: 'demo' as const };
   expect(workspacePath(users[3])).toBe(workspacePath(second));
   const state = initialWorkspace(users[3]); state.accounts[0].name = 'Demo compartilhada';
   await saveWorkspaceState(state, users[3]);
@@ -134,28 +130,26 @@ it('participantes diferentes compartilham somente a base demo, com sessões indi
   const prod = response(); await workspaceHandler(req, prod.res); expect(prod.result.code).toBe(401);
 });
 
-it('um email do Owner pode ter credenciais demo sem modificar a conta de produção', async () => {
-  const ownerBefore = JSON.parse(blobs.get('prospectra/auth.json')!).users[0];
+it('um email do Owner usa as mesmas credenciais nos dois ambientes', async () => {
   const created = response();
-  await organizationHandler(request(users[0], 'POST', {action:'create-user',name:'Owner demo',email:users[0].email,role:'member',workspaceMode:'demo',demoPassword:'test-pass***'}),created.res);
-  expect(created.result.code).toBe(201);
+  await organizationHandler(request(users[0], 'POST', {action:'create-user',name:'Owner demo',email:users[0].email,role:'member',workspaceMode:'demo'}),created.res);
+  expect(created.result.code).toBe(400);
   const store = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore;
-  expect(store.users.find(user => user.id === 'owner')).toEqual(ownerBefore);
-  expect(store.users.filter(user => user.email === users[0].email)).toHaveLength(2);
+  expect(store.users.filter(user => user.email === users[0].email)).toHaveLength(1);
 });
 
-it('login demo usa a senha pessoal e não aceita a senha do Owner de mesmo e-mail', async () => {
+it('login de produção e demo usam a mesma senha e sessões separadas', async () => {
   const store = JSON.parse(blobs.get('prospectra/auth.json')!) as AuthStore;
   store.users[0].passwordHash = hashPassword('Production-password-1');
-  const demo = {...users[3], id:'owner-demo',email:users[0].email,passwordHash:hashPassword('Demo-password-1')}; store.users.push(demo);
   blobs.set('prospectra/auth.json', JSON.stringify(store));
-  const good = response(); await loginHandler({method:'POST',headers:{host:'localhost','x-prospectra-session':'demo'},body:{email:demo.email,password:'Demo-password-1'}},good.res);
-  expect(good.result.code).toBe(200); expect(good.result.body.user.id).toBe('owner-demo');
+  const good = response(); await loginHandler({method:'POST',headers:{host:'localhost','x-prospectra-session':'demo'},body:{email:users[0].email,password:'Production-password-1'}},good.res);
+  expect(good.result.code).toBe(200); expect(good.result.body.user.id).toBe('owner');
   expect(good.result.headers['Set-Cookie']).toContain('prospectra_demo_session=');
-  const wrong = response(); await loginHandler({method:'POST',headers:{host:'localhost','x-prospectra-session':'demo'},body:{email:demo.email,password:'Production-password-1'}},wrong.res);
+  const wrong = response(); await loginHandler({method:'POST',headers:{host:'localhost','x-prospectra-session':'demo'},body:{email:users[0].email,password:'Demo-password-1'}},wrong.res);
   expect(wrong.result.code).toBe(401);
-  const prod = response(); await loginHandler({method:'POST',headers:{host:'localhost'},body:{email:demo.email,password:'Demo-password-1'}},prod.res);
-  expect(prod.result.code).toBe(401);
+  const prod = response(); await loginHandler({method:'POST',headers:{host:'localhost'},body:{email:users[0].email,password:'Production-password-1'}},prod.res);
+  expect(prod.result.code).toBe(200);
+  expect(prod.result.headers['Set-Cookie']).toContain('prospectra_session=');
 });
 
 it('bloqueia após quatro senhas erradas, permite sair e relogar após desbloqueio', async () => {
@@ -296,23 +290,33 @@ it('QR Code e resposta WhatsApp ficam isolados por usuário real', async () => {
   expect((await loadWorkspaceState(users[2])).state.campaigns[0].tasks[0].providerStatus).toBe('sent');
 });
 
-function officeMock(accept: boolean) {
-  process.env.OFFICE365_TENANT_ID='test-tenant'; process.env.OFFICE365_CLIENT_ID='test-client'; process.env.OFFICE365_CLIENT_SECRET='test-secret'; process.env.OFFICE365_SENDER_EMAIL='sender@example.org';
-  const fetchMock = vi.fn(async (url: string) => url.includes('/oauth2/') ? new Response(JSON.stringify({access_token:'test-token'}),{status:200}) : new Response(null,{status:accept?202:503}));
-  vi.stubGlobal('fetch',fetchMock); return fetchMock;
-}
-it('envia o acesso demo apenas aos destinatários selecionados após criar a conta', async () => {
-  const fetchMock=officeMock(true); const created=response(); const password='test-demo***';
-  await organizationHandler(request(users[0],'POST',{action:'create-user',name:'Demo mail',email:'mail-demo@example.org',role:'member',workspaceMode:'demo',demoPassword:password,demoRecipients:['mail-demo@example.org','recipient@example.org']}),created.res);
-  expect(created.result.code).toBe(201); expect(created.result.body.demoAccessDelivery).toBe('accepted');
-  const sent=JSON.parse((fetchMock.mock.calls[1] as unknown as [string,RequestInit])[1].body as string);
-  expect(sent.message.toRecipients.map((r:any)=>r.emailAddress.address)).toEqual(['mail-demo@example.org','recipient@example.org']);
-  expect(sent.message.body.content).toContain(password); expect(sent.message.body.content).toContain('/demo');
-  expect(blobs.get('prospectra/auth.json')).not.toContain(password); expect(JSON.stringify(created.result.body)).not.toContain(password);
+it('migra os dados para a demo, salva backup e inicia produção vazia', async () => {
+  const before = structuredClone(seedState);
+  const reply = response(); await migrateDemoHandler(request(users[0], 'POST'), reply.res);
+  expect(reply.result.code).toBe(200);
+  expect((await loadWorkspaceState(users[3])).state.accounts).toEqual(before.accounts);
+  expect((await loadWorkspaceState(users[0])).state.accounts).toEqual([]);
+  expect(blobs.has('prospectra/workspaces/demo-baseline.json')).toBe(true);
+  expect([...blobs.keys()].some(path => path.startsWith('prospectra/backups/legacy-'))).toBe(true);
+  const again = response(); await migrateDemoHandler(request(users[0], 'POST'), again.res);
+  expect(again.result.code).toBe(409);
 });
-it('rejeição de e-mail não apaga a conta criada nem simula envio bem sucedido', async () => {
-  officeMock(false); const created=response();
-  await organizationHandler(request(users[0],'POST',{action:'create-user',name:'Demo mail',email:'mail-demo@example.org',role:'member',workspaceMode:'demo',demoPassword:'test-demo***',demoRecipients:['recipient@example.org']}),created.res);
-  expect(created.result.code).toBe(201); expect(created.result.body.demoAccessDelivery).toBe('failed');
-  expect(JSON.parse(blobs.get('prospectra/auth.json')!).users.some((u:any)=>u.email==='mail-demo@example.org')).toBe(true);
+
+it('não limpa produção quando a demo já contém dados diferentes', async () => {
+  const demo = initialWorkspace(users[3]); demo.accounts[0].name = 'Outra base';
+  await saveWorkspaceState(demo, users[3]);
+  const reply = response(); await migrateDemoHandler(request(users[0], 'POST'), reply.res);
+  expect(reply.result.code).toBe(409);
+  expect((await loadWorkspaceState(users[0])).state.accounts).toEqual(seedState.accounts);
+});
+
+it('conclui uma migração interrompida após gravar a base de recuperação', async () => {
+  const source = await loadWorkspaceState(users[0]);
+  const migrated = structuredClone(source.state);
+  migrated.members = []; migrated.teams = [];
+  blobs.set('prospectra/workspaces/demo-baseline.json', JSON.stringify({ version: 1, sourceEtag: source.etag, backupPath: 'prospectra/backups/legacy.json', state: migrated }));
+  const reply = response(); await migrateDemoHandler(request(users[0], 'POST'), reply.res);
+  expect(reply.result.code).toBe(200);
+  expect((await loadWorkspaceState(users[3])).state.accounts).toEqual(migrated.accounts);
+  expect((await loadWorkspaceState(users[0])).state.accounts).toEqual([]);
 });

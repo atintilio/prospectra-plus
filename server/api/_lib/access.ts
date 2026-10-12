@@ -1,7 +1,7 @@
 import { loadAuthStore } from './db.js';
 import { header, json, publicOrigin } from './http.js';
 import { readSession, isDemoRequest } from './session.js';
-import type { ApiRequest, ApiResponse, AuthStore, StoredUser } from './types.js';
+import type { ApiRequest, ApiResponse, AuthStore, AuthUser, StoredUser } from './types.js';
 
 export interface ActiveSessionContext {
   store: AuthStore;
@@ -10,6 +10,14 @@ export interface ActiveSessionContext {
 
 export interface OwnerContext extends ActiveSessionContext {}
 
+/** One account authenticates in either realm; the signed session selects its data scope. */
+export function scopedSessionUser(store: AuthStore, session: AuthUser, demo: boolean): StoredUser | null {
+  const stored = store.users.find((entry) => entry.id === session.id && entry.active && entry.workspaceMode !== 'demo' && (entry.sessionVersion ?? 0) === (session.sessionVersion ?? 0));
+  if (!stored || (session.workspaceMode === 'demo') !== demo) return null;
+  if (!demo && session.workspaceMode !== stored.workspaceMode) return null;
+  return demo ? { ...stored, workspaceMode: 'demo' } : stored;
+}
+
 export async function requireActiveSession(req: ApiRequest, res: ApiResponse): Promise<ActiveSessionContext | null> {
   const session = readSession(req);
   if (!session) {
@@ -17,7 +25,7 @@ export async function requireActiveSession(req: ApiRequest, res: ApiResponse): P
     return null;
   }
   const store = await loadAuthStore();
-  const user = store.users.find((entry) => entry.id === session.id && entry.active && (entry.workspaceMode === 'demo') === isDemoRequest(req) && (entry.sessionVersion ?? 0) === (session.sessionVersion ?? 0));
+  const user = scopedSessionUser(store, session, isDemoRequest(req));
   if (!user) {
     json(res, 401, { error: 'not_authenticated' });
     return null;
