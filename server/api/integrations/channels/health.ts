@@ -4,7 +4,7 @@ import type { ApiRequest, ApiResponse } from '../../_lib/types.js';
 import { activeWhatsAppProvider } from '../../../integrations/whatsapp-provider.js';
 import { baileysConfigured, baileysStatus } from '../../../integrations/baileys.js';
 import { connectionState, evolutionConfig, evolutionConfigured } from '../../../integrations/evolution.js';
-import { linkedinLogin } from '../../../integrations/linkedin-login.js';
+import { linkedinOidcConfigured, readLinkedInProfile } from '../../../integrations/linkedin-oidc.js';
 import type { AuthUser } from '../../_lib/types.js';
 
 type ChannelHealth = { id: 'whatsapp' | 'linkedin'; status: 'connected' | 'not_configured' | 'failed'; capability: 'API autorizada' | 'API não oficial configurável' | 'Assistido' | 'Não configurado'; detail: string; checkedAt: string; provider?: string; latencyMs?: number; instance?: string };
@@ -42,10 +42,11 @@ async function checkEvolution(): Promise<ChannelHealth> {
 
 async function checkLinkedIn(userId: string): Promise<ChannelHealth> {
   const checkedAt = new Date().toISOString();
+  if (!linkedinOidcConfigured()) return { id: 'linkedin', status: 'not_configured', capability: 'Assistido', detail: 'O aplicativo LinkedIn OpenID Connect precisa ser configurado no servidor. Tarefas manuais continuam disponíveis.', checkedAt, provider: 'LinkedIn OpenID Connect' };
   try {
-    const login = await linkedinLogin(userId, 'GET');
-    return { id: 'linkedin', status: 'not_configured', capability: 'Assistido', detail: login.status === 'authenticated' ? 'Login salvo para seu usuário. Execução automática de campanhas ainda não homologada.' : 'Conecte sua conta no painel LinkedIn desta página.', checkedAt, provider: 'LinkedIn MCP open source' };
-  } catch { return { id: 'linkedin', status: 'failed', capability: 'Assistido', detail: 'O serviço de login não respondeu. Consulte o painel LinkedIn.', checkedAt, provider: 'LinkedIn MCP open source' }; }
+    const profile = await readLinkedInProfile(userId);
+    return { id: 'linkedin', status: profile ? 'connected' : 'not_configured', capability: 'Assistido', detail: profile ? `Conta ${profile.name} vinculada. Mensagens, convites e tracking de conversas continuam assistidos.` : 'Conecte sua própria conta LinkedIn em Configurações.', checkedAt, provider: 'LinkedIn OpenID Connect' };
+  } catch { return { id: 'linkedin', status: 'failed', capability: 'Assistido', detail: 'Não foi possível consultar o vínculo LinkedIn salvo.', checkedAt, provider: 'LinkedIn OpenID Connect' }; }
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
