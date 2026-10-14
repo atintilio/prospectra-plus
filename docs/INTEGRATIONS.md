@@ -26,7 +26,7 @@ O `WHATSAPP_PROVIDER` padrão é `baileys`. Evolution API continua disponível c
 
 ## LinkedIn
 
-O Prospectra V0 usa o LinkedIn MCP open source self-hosted na VM Oracle. A conta é autenticada no próprio serviço; o Vercel guarda apenas o estado da conexão e nunca recebe cookies ou senhas.
+O Prospectra usa OpenID Connect para cada usuário vincular sua própria identidade LinkedIn. A autorização abre em uma janela do LinkedIn e retorna ao painel; a Vercel guarda apenas a identificação da conta em Blob privado por usuário. Nenhuma senha, cookie ou token de acesso do LinkedIn é persistido. A VM e o servidor MCP não participam dessa conexão. A ativação requer um aplicativo LinkedIn configurado uma vez, conforme [o guia de implantação](LINKEDIN_OIDC.md).
 
 Conectar uma conta **não autoriza automaticamente convites ou mensagens**. O adapter não armazena cookies, não simula cliques e não envia nada no estado atual; qualquer provider futuro precisa comprovar escopos, quota, custo, webhook assinado, reconciliação e compatibilidade contratual antes de habilitar transporte.
 

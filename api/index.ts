@@ -1,4 +1,6 @@
 import linkedinConnect from '../server/api/integrations/linkedin/connect.js';
+import linkedinStart from '../server/api/integrations/linkedin/start.js';
+import linkedinCallback from '../server/api/integrations/linkedin/callback.js';
 import aiAssist from '../server/api/ai/assist.js';
 import health from '../server/api/health.js';
 import organization from '../server/api/admin/organization.js';
@@ -36,6 +38,8 @@ const routes: Record<string, Handler> = {
   'health': health,
   'ai/assist': aiAssist,
   'integrations/linkedin/connect': linkedinConnect,
+  'integrations/linkedin/start': linkedinStart,
+  'integrations/linkedin/callback': linkedinCallback,
   'admin/organization': organization,
   'admin/migrate-demo': migrateDemo,
   'admin/test-email': testEmail,

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conexão LinkedIn · Prospectra</title></head>
+<body style="font:16px system-ui,sans-serif;margin:3rem;max-width:34rem">
+  <h1>Conexão LinkedIn</h1><p id="message">Finalizando conexão…</p><a href="/configuracoes">Voltar ao Prospectra</a>
+  <script>
+    const result = new URLSearchParams(location.search).get('result');
+    document.getElementById('message').textContent = result === 'connected' ? 'Conta vinculada. Você pode voltar ao Prospectra.' : result === 'cancelled' ? 'Autorização cancelada. Você pode voltar ao Prospectra.' : 'Não foi possível concluir a conexão. Volte ao Prospectra e tente novamente.';
+    if (window.opener) {
+      window.opener.postMessage({ type: 'prospectra-linkedin-oidc', result }, location.origin);
+      window.close();
+    } else {
+      setTimeout(() => { location.replace('/configuracoes'); }, 1500);
+    }
+  </script>
+</body>
+</html>
