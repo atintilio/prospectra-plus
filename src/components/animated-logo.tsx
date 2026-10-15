@@ -1,42 +1,18 @@
-'use client';
-
 import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
 
-const ANIMATION_PATH = '/animations/prospectra-logo.json';
-
-/** Logo animado (Lottie). Se o JSON não existir ou falhar, mostra o logo estático. */
-export function AnimatedLogo({ className = 'h-40 w-40 md:h-48 md:w-48' }: { className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [fallback, setFallback] = useState(false);
-
-  useEffect(() => {
-    let destroy: (() => void) | undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(ANIMATION_PATH, { method: 'HEAD' });
-        if (!res.ok) throw new Error('sem animação');
-        // import dinâmico: lottie-web acessa `document` e quebra no SSR
-        const { default: lottie } = await import('lottie-web');
-        if (cancelled || !ref.current) return;
-        const anim = lottie.loadAnimation({ container: ref.current, renderer: 'svg', loop: true, autoplay: true, path: ANIMATION_PATH });
-        anim.setSpeed(0.8);
-        destroy = () => anim.destroy();
-      } catch {
-        if (!cancelled) setFallback(true);
-      }
-    })();
-    return () => { cancelled = true; destroy?.(); };
-  }, []);
-
+/** Logo 3D flutuante: sem moldura, fundo transparente, com sombra suave no "chão". */
+export function AnimatedLogo({ className = 'h-72 w-72 lg:h-[26rem] lg:w-[26rem]' }: { className?: string }) {
   return (
-    <div className="flex w-full items-center justify-center">
-      {fallback ? (
-        <Image src="/logo.png" alt="Prospectra" width={192} height={192} priority className={`${className} rounded-3xl object-contain`} />
-      ) : (
-        <div ref={ref} className={`${className} drop-shadow-[0_0_25px_rgba(59,130,246,0.3)]`} aria-label="Logo Prospectra animado" />
-      )}
+    <div className={`relative mx-auto lg:mx-0 ${className}`} aria-label="Logo Prospectra">
+      <Image
+        src="/logo-hero.png"
+        alt="Prospectra"
+        width={900}
+        height={900}
+        priority
+        className="logo-float relative z-10 h-full w-full select-none object-contain drop-shadow-[0_0_40px_rgba(59,100,255,.45)] [animation:logo-float_7s_ease-in-out_infinite]"
+      />
+      <div className="logo-shadow pointer-events-none absolute -bottom-3 left-1/2 h-5 w-3/5 -translate-x-1/2 rounded-[50%] bg-[#0b2f8a]/40 blur-xl [animation:logo-shadow_7s_ease-in-out_infinite]" />
     </div>
   );
 }
