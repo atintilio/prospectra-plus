@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useActionState } from 'react';
+import { AnimatedLogo } from '@/components/animated-logo';
 import { FormMessage, Submit } from '@/components/form';
 import { loginAction } from '../actions';
 
@@ -9,6 +10,7 @@ export default function LoginPage() {
   const [state, action] = useActionState(loginAction, undefined);
   return (
     <>
+      <AnimatedLogo className="mb-4 h-24 w-24" />
       <h2 className="text-2xl font-semibold tracking-tight">Entrar</h2>
       <p className="mt-1.5 text-sm text-muted">Acesse sua conta de parceiro.</p>
       <form action={action} className="mt-8 space-y-4">
