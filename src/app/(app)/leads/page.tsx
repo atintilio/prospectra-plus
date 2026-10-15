@@ -30,7 +30,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       <LeadsView
         leads={rows.map((l) => ({ id: l.id, fullName: l.fullName, headline: l.headline, company: l.company, location: l.location, linkedinUrl: l.linkedinUrl, stage: l.stage, tag: l.tag, source: l.source, createdAt: l.createdAt.toISOString() }))}
         total={total} page={page} tags={tags.map((t) => t.tag)} campaigns={campaigns} filters={{ q: sp.q ?? '', etapa: sp.etapa ?? '', tag: sp.tag ?? '' }}
-        aiOn={aiConfigured()} credits={ctx.org.searchCreditsMonth} />
+        aiOn={aiConfigured() || ctx.org.isDemo} credits={ctx.org.searchCreditsMonth} />
     </>
   );
 }

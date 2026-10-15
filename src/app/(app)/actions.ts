@@ -12,6 +12,7 @@ import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } 
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { ensureDemo } from '@/lib/demo';
+import { addSearchResults, searchDemoLeads, seedFeed, simulateCycle } from '@/lib/demo-sim';
 
 type State = { error?: string; ok?: string } | undefined;
 
@@ -108,10 +109,16 @@ export async function deleteLeadsAction(ids: string[]) {
   revalidatePath('/leads');
 }
 
-export async function aiSearchAction(prompt: string): Promise<{ plan?: SearchPlan; error?: string; remaining?: number }> {
+export type SimLead = { linkedinUrl: string; fullName: string; headline: string; company: string; location: string };
+
+export async function aiSearchAction(prompt: string): Promise<{ plan?: SearchPlan; error?: string; remaining?: number; results?: SimLead[] }> {
   const ctx = await requireOrg();
   const text = prompt.trim().slice(0, 400);
   if (text.length < 4) return { error: 'Descreva quem você procura.' };
+  if (ctx.org.isDemo) {
+    // demonstração: simula a busca que traz leads reais (nenhuma consulta externa)
+    return { results: searchDemoLeads(text), remaining: 287 };
+  }
   const db = await getDb();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const [{ used }] = await db.select({ used: count() }).from(schema.events)
@@ -325,4 +332,30 @@ export async function setUserStatusAction(userId: string, status: 'active' | 'di
   await db.update(schema.users).set({ status }).where(and(eq(schema.users.id, userId), sql`${schema.users.passwordHash} is not null`));
   if (status === 'disabled') await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
   revalidatePath('/admin');
+}
+
+// ---------- Demonstração: piloto automático simulado ----------
+
+export async function addSearchResultsAction(urls: string[], tag: string): Promise<{ ok?: string; error?: string }> {
+  const ctx = await requireOrg();
+  if (!ctx.org.isDemo) return { error: 'Disponível apenas na demonstração.' };
+  const db = await getDb();
+  const n = await addSearchResults(db, ctx.org.id, ctx.user.id, urls, tag.slice(0, 40) || 'Busca com IA');
+  revalidatePath('/leads');
+  return { ok: n ? `${n} lead(s) adicionados à sua base.` : 'Esses leads já estavam na base.' };
+}
+
+export async function simulateCycleAction() {
+  const ctx = await requireOrg();
+  if (!ctx.org.isDemo) return;
+  const db = await getDb();
+  await seedFeedIfEmpty(ctx.org.id);
+  await simulateCycle(db, ctx.org.id);
+  revalidatePath('/automacao'); revalidatePath('/painel'); revalidatePath('/leads'); revalidatePath('/fila');
+}
+
+async function seedFeedIfEmpty(orgId: string) {
+  const db = await getDb();
+  const [row] = await db.select({ id: schema.simFeed.id }).from(schema.simFeed).where(eq(schema.simFeed.orgId, orgId)).limit(1);
+  if (!row) await seedFeed(db, orgId);
 }

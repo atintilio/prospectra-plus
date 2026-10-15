@@ -20,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh">
-      <Sidebar isAdmin={ctx.user.platformRole === 'admin'} canManage={ctx.role === 'owner' || ctx.role === 'manager'} />
+      <Sidebar isDemo={isDemo} isAdmin={ctx.user.platformRole === 'admin'} canManage={ctx.role === 'owner' || ctx.role === 'manager'} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b border-border bg-white/90 px-4 backdrop-blur md:px-8">
           <div className="md:hidden" />

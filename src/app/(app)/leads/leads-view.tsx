@@ -3,7 +3,7 @@
 import { ExternalLink, FileUp, Megaphone, Plus, Search, Sparkles, Trash2, UserSearch, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useActionState, useState, useTransition } from 'react';
-import { addLeadAction, aiSearchAction, deleteLeadsAction, enrollAction, importLeadsAction, updateLeadStageAction } from '../actions';
+import { addLeadAction, addSearchResultsAction, aiSearchAction, type SimLead, deleteLeadsAction, enrollAction, importLeadsAction, updateLeadStageAction } from '../actions';
 import type { SearchPlan } from '@/lib/ai';
 import { FormMessage, Submit } from '@/components/form';
 import { Avatar, Empty, STAGE_LABEL, StagePill } from '@/components/ui';
@@ -156,16 +156,40 @@ function AiSearch({ aiOn, credits, onClose }: { aiOn: boolean; credits: number; 
   const [prompt, setPrompt] = useState('');
   const [plan, setPlan] = useState<SearchPlan | null>(null);
   const [state, setState] = useState<{ error?: string; remaining?: number }>({});
+  const [results, setResults] = useState<SimLead[] | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [added, setAdded] = useState<string>();
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [importState, importAction] = useActionState(importLeadsAction, undefined);
   return (
     <PanelShell title="Busca com IA" onClose={onClose}>
-      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); start(async () => { const r = await aiSearchAction(prompt); setState(r); setPlan(r.plan ?? null); }); }}>
+      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); start(async () => { const r = await aiSearchAction(prompt); setState(r); setPlan(r.plan ?? null); setResults(r.results ?? null); setPicked((r.results ?? []).map((x) => x.linkedinUrl)); setAdded(undefined); }); }}>
         <input className="input flex-1" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder='Ex.: "CFOs de indústrias em Santa Catarina com mais de 200 funcionários"' />
         <button className="btn-primary" disabled={pending || prompt.trim().length < 4}><Sparkles className="h-4 w-4" />{pending ? 'Pensando…' : 'Gerar busca'}</button>
       </form>
       <p className="mt-2 text-xs text-muted">{aiOn ? 'A IA transforma sua descrição em filtros de busca.' : 'IA desligada: a busca usa o texto como palavras-chave.'} {state.remaining != null ? `${state.remaining} créditos restantes neste mês.` : `${credits} créditos por mês.`}</p>
       {state.error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{state.error}</p>}
+      {results && (
+        <div className="mt-5 rounded-xl border border-border">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+            <p className="text-sm font-semibold">{results.length} leads encontrados <span className="pill ml-2 bg-violet-soft text-violet">simulado</span></p>
+            <button className="btn-primary" disabled={!picked.length || pending} onClick={() => start(async () => { const r = await addSearchResultsAction(picked, prompt.slice(0, 40)); setAdded(r.ok ?? r.error); router.refresh(); })}>
+              <Plus className="h-4 w-4" /> Adicionar {picked.length} à base
+            </button>
+          </div>
+          <ul className="divide-y divide-border">
+            {results.map((r) => (
+              <li key={r.linkedinUrl} className="flex items-center gap-3 px-4 py-3">
+                <input type="checkbox" className="h-4 w-4 accent-[var(--color-accent)]" checked={picked.includes(r.linkedinUrl)} onChange={() => setPicked((p) => (p.includes(r.linkedinUrl) ? p.filter((x) => x !== r.linkedinUrl) : [...p, r.linkedinUrl]))} aria-label={`Selecionar ${r.fullName}`} />
+                <Avatar name={r.fullName} />
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{r.fullName}</p><p className="truncate text-xs text-muted">{r.headline} · {r.company} · {r.location}</p></div>
+              </li>
+            ))}
+          </ul>
+          {added && <p className="border-t border-border px-4 py-2.5 text-sm text-success">{added}</p>}
+        </div>
+      )}
       {plan && (
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
           <div className="rounded-xl border border-border bg-surface p-4">
