@@ -1,18 +1,19 @@
 'use client';
 
-import { Building2, LayoutDashboard, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch } from 'lucide-react';
+import { Bot, Building2, LayoutDashboard, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { logoutAction } from '@/app/(auth)/actions';
 import { Logo } from './logo';
 
-export function Sidebar({ isAdmin, canManage }: { isAdmin: boolean; canManage: boolean }) {
+export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boolean; canManage: boolean; isDemo?: boolean }) {
   const path = usePathname();
   const items = [
     { href: '/painel', label: 'Painel', icon: LayoutDashboard },
     { href: '/fila', label: 'Fila do dia', icon: ListChecks },
     { href: '/leads', label: 'Leads', icon: UserSearch },
     { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
+    ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
     ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
     { href: '/conta', label: 'Minha conta', icon: Settings },
     ...(isAdmin ? [{ href: '/admin', label: 'Parceiros', icon: Building2 }] : []),
@@ -31,8 +32,8 @@ export function Sidebar({ isAdmin, canManage }: { isAdmin: boolean; canManage: b
           ))}
         </nav>
         <div className="mt-auto rounded-xl border border-border bg-gradient-to-br from-surface-accent to-violet-soft p-4">
-          <p className="text-sm font-semibold">Modo assistido</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted">O Prospectra prepara cada ação; o envio é seu, com um clique. Sua conta do LinkedIn fica protegida.</p>
+          <p className="text-sm font-semibold">{isDemo ? 'Piloto automático (simulado)' : 'Modo assistido'}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted">{isDemo ? 'Prévia de como o agente enviará convites, responderá leads e comentará publicações sozinho.' : 'O Prospectra prepara cada ação; o envio é seu, com um clique. Sua conta do LinkedIn fica protegida.'}</p>
         </div>
         <form action={logoutAction} className="mt-3">
           <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted hover:bg-surface hover:text-text">

@@ -148,3 +148,16 @@ export const events = pgTable('events', {
   type: text('type', { enum: EVENT_TYPES }).notNull(),
   at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('events_org_type_at_idx').on(t.orgId, t.type, t.at), index('events_org_user_at_idx').on(t.orgId, t.userId, t.at)]);
+
+// Linha do tempo do piloto automático SIMULADO (só existe na organização de demonstração).
+export const SIM_KINDS = ['invite', 'message', 'accept', 'reply', 'auto_reply', 'handoff', 'post', 'comment'] as const;
+export type SimKind = (typeof SIM_KINDS)[number];
+export const simFeed = pgTable('sim_feed', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'set null' }),
+  kind: text('kind', { enum: SIM_KINDS }).notNull(),
+  body: text('body').notNull().default(''),
+  detail: text('detail').notNull().default(''),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('sim_feed_org_at_idx').on(t.orgId, t.at)]);
