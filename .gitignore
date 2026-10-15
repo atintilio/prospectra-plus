@@ -8,3 +8,7 @@ dist
 .vercel
 
 .api-runtime-*/
+.next
+.data
+next-env.d.ts
+*.tsbuildinfo

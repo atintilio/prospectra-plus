@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@import "@fontsource/libre-baskerville/400-italic.css";
+
+/* Identidade Prospectra: base LeadFlow (branco, azul elétrico) + logo azul/roxo/prata */
+:root {
+  --bg: #fefefe; --surface: #f7f8fa; --surface-accent: #eaf2ff;
+  --border: #e5e7eb; --border-input: #8a8f98;
+  --text: #080809; --text-muted: #5c5f66;
+  --accent: #155dfc; --accent-bright: #2b7fff; --accent-hover: #1447e6; --on-accent: #ffffff;
+  --secondary: #1e293b; --danger: #c81e1e;
+  --success: #15803d; --success-soft: #dcfce7; --warning: #b45309; --warning-soft: #fef3c7;
+  --brand-violet: #7c3aed; --brand-violet-soft: #f3e8ff; --brand-silver: #c0c4cc; --brand-dark: #05070d;
+}
+
+@theme inline {
+  --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-accent: var(--surface-accent);
+  --color-border: var(--border); --color-border-input: var(--border-input);
+  --color-text: var(--text); --color-muted: var(--text-muted);
+  --color-accent: var(--accent); --color-accent-bright: var(--accent-bright); --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent); --color-secondary: var(--secondary); --color-danger: var(--danger);
+  --color-success: var(--success); --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning); --color-warning-soft: var(--warning-soft);
+  --color-violet: var(--brand-violet); --color-violet-soft: var(--brand-violet-soft);
+  --color-silver: var(--brand-silver); --color-ink: var(--brand-dark);
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: "Libre Baskerville", Georgia, serif;
+}
+
+html, body { background: var(--bg); color: var(--text); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+@utility card { @apply rounded-2xl border border-border bg-white; }
+@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright disabled:opacity-50 disabled:pointer-events-none cursor-pointer; }
+@utility btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover shadow-sm; }
+@utility btn-outline { @apply btn border border-border bg-white text-text hover:bg-surface; }
+@utility btn-ghost { @apply btn text-muted hover:bg-surface hover:text-text; }
+@utility btn-danger { @apply btn border border-border bg-white text-danger hover:bg-red-50; }
+@utility input { @apply w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20; }
+@utility label { @apply mb-1.5 block text-sm font-medium text-text; }
+@utility pill { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium; }
+@utility th { @apply px-4 py-2.5 text-left text-xs font-medium text-muted; }
+@utility td { @apply px-4 py-3 text-sm; }

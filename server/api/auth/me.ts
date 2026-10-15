@@ -1,6 +1,0 @@
-import { loadAuthStore } from '../_lib/db.js';
-import { scopedSessionUser } from '../_lib/access.js';
-import { json, methodNotAllowed } from '../_lib/http.js';
-import { readSession, isDemoRequest } from '../_lib/session.js';
-import type { ApiRequest, ApiResponse } from '../_lib/types.js';
-export default async function handler(req: ApiRequest, res: ApiResponse) { if (req.method !== 'GET') return methodNotAllowed(res, ['GET']); try { const session = readSession(req); if (!session) return json(res, 401, { error: 'not_authenticated' }); const store = await loadAuthStore(); const user = scopedSessionUser(store, session, isDemoRequest(req)); if (!user) return json(res, 401, { error: 'not_authenticated' }); return json(res, 200, { user: { id: user.id, email: user.email, name: user.name, role: user.role, teamId: user.teamId, workspaceMode: user.workspaceMode } }); } catch (error) { const code = error instanceof Error ? error.message : 'AUTH_ME_FAILED'; if (code.includes('NOT_CONFIGURED')) return json(res, 503, { error: 'auth_not_configured' }); return json(res, 500, { error: 'auth_me_failed' }); } }

@@ -1,0 +1,35 @@
+import { asc, eq, sql } from 'drizzle-orm';
+import { getDb, schema } from '@/db';
+import { requireAdmin } from '@/lib/auth';
+import { aiConfigured } from '@/lib/ai';
+import { mailerConfigured } from '@/lib/mailer';
+import { PageHeader } from '@/components/ui';
+import { AdminView } from './admin-view';
+
+export const metadata = { title: 'Parceiros' };
+
+export default async function AdminPage() {
+  await requireAdmin();
+  const db = await getDb();
+  const orgs = await db.select({
+    o: schema.orgs,
+    members: sql<number>`(select count(*) from ${schema.memberships} m where m.org_id = ${schema.orgs.id})`.mapWith(Number),
+    leads: sql<number>`(select count(*) from ${schema.leads} l where l.org_id = ${schema.orgs.id})`.mapWith(Number),
+    meetings: sql<number>`(select count(*) from ${schema.events} e where e.org_id = ${schema.orgs.id} and e.type = 'meeting_booked')`.mapWith(Number),
+    owner: sql<string>`(select u.email from ${schema.memberships} m join ${schema.users} u on u.id = m.user_id where m.org_id = ${schema.orgs.id} and m.role = 'owner' order by m.created_at limit 1)`,
+  }).from(schema.orgs).orderBy(asc(schema.orgs.name));
+  const users = await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, status: schema.users.status, platformRole: schema.users.platformRole,
+    orgs: sql<string>`coalesce((select string_agg(o.name, ', ') from ${schema.memberships} m join ${schema.orgs} o on o.id = m.org_id where m.user_id = ${schema.users.id}), '')` })
+    .from(schema.users).orderBy(asc(schema.users.email));
+  return (
+    <>
+      <PageHeader eyebrow="Admin master" title="Parceiros e usuários" subtitle="Crie parceiros, defina cotas e acompanhe o uso de todos." />
+      <div className="mb-4 flex flex-wrap gap-2 text-xs">
+        <span className={`pill ${mailerConfigured() ? 'bg-success-soft text-success' : 'bg-red-50 text-danger'}`}>Office 365 {mailerConfigured() ? 'configurado' : 'não configurado'}</span>
+        <span className={`pill ${aiConfigured() ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'}`}>IA {aiConfigured() ? 'ligada' : 'desligada (usa textos base)'}</span>
+      </div>
+      <AdminView orgs={orgs.map(({ o, ...rest }) => ({ id: o.id, name: o.name, seats: o.seats, credits: o.searchCreditsMonth, active: o.active, ...rest }))}
+        users={users} />
+    </>
+  );
+}
