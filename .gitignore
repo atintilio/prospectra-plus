@@ -12,3 +12,7 @@ dist
 .data
 next-env.d.ts
 *.tsbuildinfo
+
+# gerados pelo next dev
+AGENTS.md
+CLAUDE.md
