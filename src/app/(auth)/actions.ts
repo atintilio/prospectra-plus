@@ -7,6 +7,7 @@ import { createSession, destroySession, isMasterEmail, issueAccessLink, normaliz
 import { hashPassword, sha256, verifyPassword } from '@/lib/crypto';
 import { sendAccessEmail } from '@/lib/mailer';
 import { findLegacyUser } from '@/lib/legacy';
+import { ensureTeam } from '@/lib/membership';
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -23,13 +24,14 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
   const email = normalizeEmail(String(form.get('email') ?? ''));
   const password = String(form.get('password') ?? '');
   if (!email || !password) return { error: 'Informe e-mail e senha.' };
-  let userId: string;
   try {
     const db = await getDb();
     let [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
-    if (!user || !user.passwordHash) {
-      // conta do v1: traz usuário + hash da senha antiga, sem exigir troca de senha
-      const legacy = await findLegacyUser(email);
+    if (user?.status === 'disabled') return { error: 'E-mail ou senha incorretos.' };
+    let legacy: Awaited<ReturnType<typeof findLegacyUser>> = null;
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
+      // conta do v1: traz (ou restaura) usuário + hash da senha antiga, sem exigir troca de senha
+      legacy = await findLegacyUser(email);
       if (legacy?.passwordHash && (await verifyPassword(password, legacy.passwordHash))) {
         user = user ?? (isMasterEmail(email) ? await ensureMaster(email) : (await db.insert(schema.users).values({ email, name: legacy.name ?? '', status: 'invited' }).returning())[0]);
         [user] = await db.update(schema.users).set({ passwordHash: legacy.passwordHash, status: 'active', ...(legacy.name && !user.name ? { name: legacy.name } : {}) }).where(eq(schema.users.id, user.id)).returning();
@@ -38,13 +40,16 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
     if (!user || user.status !== 'active' || !(await verifyPassword(password, user.passwordHash))) {
       return { error: 'E-mail ou senha incorretos.' };
     }
+    if (user.platformRole !== 'admin') {
+      // conta migrada do v1 chega sem equipe: coloca na equipe padrão com o papel equivalente
+      legacy = legacy ?? (await findLegacyUser(email));
+      if (legacy) await ensureTeam(db, user.id, legacy.role);
+    }
     await createSession(user.id, await firstOrgOf(user.id));
-    userId = user.id;
   } catch (e) {
     console.error('login failed', e);
     return { error: 'Não foi possível entrar agora. Tente novamente em instantes.' };
   }
-  void userId;
   redirect('/ambiente');
 }
 
