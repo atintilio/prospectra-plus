@@ -17,7 +17,7 @@ export function dayString(d: Date, tz = 'America/Sao_Paulo'): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 }
 
-function addDays(d: Date, days: number): Date {
+export function addDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * 86400_000);
 }
 

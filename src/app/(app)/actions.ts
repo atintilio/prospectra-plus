@@ -11,11 +11,30 @@ import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, r
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
+import { ensureDemo } from '@/lib/demo';
 
 type State = { error?: string; ok?: string } | undefined;
 
 export async function switchOrgAction(orgId: string) {
   await switchOrg(orgId);
+  revalidatePath('/', 'layout');
+  redirect('/painel');
+}
+
+export async function chooseEnvAction(form: FormData) {
+  const ctx = await requireUser();
+  const db = await getDb();
+  if (form.get('env') === 'demo') {
+    const orgId = await ensureDemo(db, { id: ctx.user.id, name: ctx.user.name });
+    await switchOrg(orgId);
+  } else {
+    const [m] = ctx.user.platformRole === 'admin'
+      ? await db.select({ id: schema.orgs.id }).from(schema.orgs).where(eq(schema.orgs.isDemo, false)).orderBy(schema.orgs.createdAt).limit(1)
+      : await db.select({ id: schema.orgs.id }).from(schema.memberships).innerJoin(schema.orgs, eq(schema.orgs.id, schema.memberships.orgId))
+          .where(and(eq(schema.memberships.userId, ctx.user.id), eq(schema.orgs.isDemo, false), eq(schema.orgs.active, true))).orderBy(schema.memberships.createdAt).limit(1);
+    if (!m) redirect('/sem-equipe');
+    await switchOrg(m.id);
+  }
   revalidatePath('/', 'layout');
   redirect('/painel');
 }
@@ -188,6 +207,7 @@ export async function refreshQueueAction() {
 export async function inviteMemberAction(_: State, form: FormData): Promise<State> {
   const ctx = await requireOrg();
   if (!canManage(ctx.role)) return { error: 'Só donos e gestores convidam pessoas.' };
+  if (ctx.org.isDemo) return { ok: 'Demonstração: convite simulado, nenhum e-mail foi enviado.' };
   const email = normalizeEmail(String(form.get('email') ?? ''));
   const name = String(form.get('name') ?? '').trim();
   const role = z.enum(['owner', 'manager', 'sdr', 'closer']).catch('sdr').parse(form.get('role'));
@@ -215,6 +235,7 @@ export async function inviteMemberAction(_: State, form: FormData): Promise<Stat
 export async function resendInviteAction(userId: string): Promise<{ ok?: string; error?: string }> {
   const ctx = await requireOrg();
   if (!canManage(ctx.role)) return { error: 'Sem permissão.' };
+  if (ctx.org.isDemo) return { ok: 'Demonstração: nenhum e-mail foi enviado.' };
   const db = await getDb();
   const [row] = await db.select({ user: schema.users }).from(schema.memberships)
     .innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))

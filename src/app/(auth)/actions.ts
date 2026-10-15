@@ -14,7 +14,7 @@ async function firstOrgOf(userId: string): Promise<string | null> {
   const db = await getDb();
   const [m] = await db.select({ orgId: schema.memberships.orgId }).from(schema.memberships)
     .innerJoin(schema.orgs, eq(schema.orgs.id, schema.memberships.orgId))
-    .where(and(eq(schema.memberships.userId, userId), eq(schema.orgs.active, true)))
+    .where(and(eq(schema.memberships.userId, userId), eq(schema.orgs.active, true), eq(schema.orgs.isDemo, false)))
     .orderBy(schema.memberships.createdAt).limit(1);
   return m?.orgId ?? null;
 }
@@ -45,7 +45,7 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
     return { error: 'Não foi possível entrar agora. Tente novamente em instantes.' };
   }
   void userId;
-  redirect('/painel');
+  redirect('/ambiente');
 }
 
 /** Garante o usuário master e o parceiro "Argus Prime" no primeiro acesso. */
@@ -97,7 +97,7 @@ export async function setPasswordAction(_: FormState, form: FormData): Promise<F
     .where(eq(schema.users.id, row.userId));
   await db.delete(schema.sessions).where(eq(schema.sessions.userId, row.userId));
   await createSession(row.userId, await firstOrgOf(row.userId));
-  redirect('/painel');
+  redirect('/ambiente');
 }
 
 export async function logoutAction() {

@@ -25,6 +25,7 @@ export const orgs = pgTable('orgs', {
   searchCreditsMonth: integer('search_credits_month').notNull().default(300),
   driver: text('driver', { enum: ['assisted', 'unipile'] }).notNull().default('assisted'),
   active: boolean('active').notNull().default(true),
+  isDemo: boolean('is_demo').notNull().default(false),
   createdAt: createdAt(),
 });
 
