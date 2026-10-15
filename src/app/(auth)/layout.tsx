@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         <div className="my-auto grid items-center gap-10 py-10 lg:grid-cols-[1.1fr_420px]">
           <div className="text-center lg:text-left">
-            <AnimatedLogo className="mb-6 h-64 w-64 sm:h-72 sm:w-72 lg:-ml-10 lg:h-[26rem] lg:w-[26rem]" />
+            <AnimatedLogo className="relative mb-4 h-40 w-40 sm:h-48 sm:w-48 lg:absolute lg:-left-10 lg:top-10 lg:mb-0 lg:h-64 lg:w-64" />
             <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[.18em] text-muted backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Prospecção assistida por IA
             </p>
