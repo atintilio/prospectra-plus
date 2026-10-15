@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scrypt as scryptCb, scryptSync, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
@@ -11,7 +11,15 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
   if (!stored) return false;
-  const [algo, saltB64, keyB64] = stored.split('$');
+  const parts = stored.split('$');
+  if (parts[0] === 'scrypt' && parts.length === 6) {
+    // formato do v1: scrypt$N$r$p$salt$derived (base64url)
+    const [, n, r, p, salt, derived] = parts;
+    const expectedLegacy = Buffer.from(derived, 'base64url');
+    const actualLegacy = scryptSync(password, salt, expectedLegacy.length, { N: Number(n), r: Number(r), p: Number(p) });
+    return actualLegacy.length === expectedLegacy.length && timingSafeEqual(actualLegacy, expectedLegacy);
+  }
+  const [algo, saltB64, keyB64] = parts;
   if (algo !== 'scrypt' || !saltB64 || !keyB64) return false;
   const expected = Buffer.from(keyB64, 'base64');
   const actual = await scrypt(password, Buffer.from(saltB64, 'base64'), expected.length);

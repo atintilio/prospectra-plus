@@ -6,6 +6,7 @@ import { getDb, schema } from '@/db';
 import { createSession, destroySession, isMasterEmail, issueAccessLink, normalizeEmail } from '@/lib/auth';
 import { hashPassword, sha256, verifyPassword } from '@/lib/crypto';
 import { sendAccessEmail } from '@/lib/mailer';
+import { findLegacyUser } from '@/lib/legacy';
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -22,12 +23,28 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
   const email = normalizeEmail(String(form.get('email') ?? ''));
   const password = String(form.get('password') ?? '');
   if (!email || !password) return { error: 'Informe e-mail e senha.' };
-  const db = await getDb();
-  const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
-  if (!user || user.status !== 'active' || !(await verifyPassword(password, user.passwordHash))) {
-    return { error: 'E-mail ou senha incorretos.' };
+  let userId: string;
+  try {
+    const db = await getDb();
+    let [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
+    if (!user || !user.passwordHash) {
+      // conta do v1: traz usuário + hash da senha antiga, sem exigir troca de senha
+      const legacy = await findLegacyUser(email);
+      if (legacy?.passwordHash && (await verifyPassword(password, legacy.passwordHash))) {
+        user = user ?? (isMasterEmail(email) ? await ensureMaster(email) : (await db.insert(schema.users).values({ email, name: legacy.name ?? '', status: 'invited' }).returning())[0]);
+        [user] = await db.update(schema.users).set({ passwordHash: legacy.passwordHash, status: 'active', ...(legacy.name && !user.name ? { name: legacy.name } : {}) }).where(eq(schema.users.id, user.id)).returning();
+      }
+    }
+    if (!user || user.status !== 'active' || !(await verifyPassword(password, user.passwordHash))) {
+      return { error: 'E-mail ou senha incorretos.' };
+    }
+    await createSession(user.id, await firstOrgOf(user.id));
+    userId = user.id;
+  } catch (e) {
+    console.error('login failed', e);
+    return { error: 'Não foi possível entrar agora. Tente novamente em instantes.' };
   }
-  await createSession(user.id, await firstOrgOf(user.id));
+  void userId;
   redirect('/painel');
 }
 
@@ -48,16 +65,16 @@ async function ensureMaster(email: string) {
 export async function requestResetAction(_: FormState, form: FormData): Promise<FormState> {
   const email = normalizeEmail(String(form.get('email') ?? ''));
   if (!email.includes('@')) return { error: 'Informe um e-mail válido.' };
-  const db = await getDb();
-  const user = isMasterEmail(email) ? await ensureMaster(email) : (await db.select().from(schema.users).where(eq(schema.users.email, email)))[0];
-  if (user && user.status !== 'disabled') {
-    try {
+  try {
+    const db = await getDb();
+    const user = isMasterEmail(email) ? await ensureMaster(email) : (await db.select().from(schema.users).where(eq(schema.users.email, email)))[0];
+    if (user && user.status !== 'disabled') {
       const link = await issueAccessLink(user.id, 'reset');
       await sendAccessEmail(user.email, link, { kind: 'reset', name: user.name });
-    } catch (e) {
-      console.error('reset email failed', e);
-      return { error: 'Não foi possível enviar o e-mail agora. Tente novamente em alguns minutos.' };
     }
+  } catch (e) {
+    console.error('reset email failed', e);
+    return { error: 'Não foi possível enviar o e-mail agora. Tente novamente em alguns minutos.' };
   }
   // Resposta igual para e-mails existentes ou não (não revela quem tem acesso)
   return { ok: 'Se este e-mail tiver acesso, você vai receber um link em instantes.' };
