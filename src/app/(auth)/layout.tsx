@@ -1,5 +1,5 @@
-import { Logo } from '@/components/logo';
 import { LiquidMetal } from '@/components/liquid-metal';
+import { AnimatedLogo } from '@/components/animated-logo';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,12 +12,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       <div className="relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-6 py-6">
         <header className="flex items-center justify-between">
-          <span className="rounded-2xl bg-white/80 py-1.5 pl-1.5 pr-4 shadow-sm ring-1 ring-black/5 backdrop-blur"><Logo size={38} /></span>
+          <span className="text-xl font-semibold tracking-tight text-text">Prospectra</span>
           <span className="hidden rounded-full border border-border bg-white/70 px-3 py-1 text-xs text-muted backdrop-blur sm:inline">Uma ferramenta Argus Prime</span>
         </header>
 
         <div className="my-auto grid items-center gap-10 py-10 lg:grid-cols-[1.1fr_420px]">
           <div className="text-center lg:text-left">
+            <AnimatedLogo className="mb-6 h-64 w-64 sm:h-72 sm:w-72 lg:-ml-10 lg:h-[26rem] lg:w-[26rem]" />
             <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[.18em] text-muted backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Prospecção assistida por IA
             </p>
