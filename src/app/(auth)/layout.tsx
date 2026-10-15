@@ -23,7 +23,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             </p>
             <h1 className="text-5xl font-semibold leading-[1.02] tracking-[-0.03em] text-text sm:text-6xl lg:text-7xl">
               Conexões que viram{' '}
-              <span className="bg-gradient-to-b from-[#2b7fff] via-[#155dfc] to-[#0b2f8a] bg-clip-text font-serif font-normal italic text-transparent">conversas</span>
+              <span className="bg-gradient-to-b from-[#2b7fff] via-[#155dfc] to-[#0b2f8a] bg-clip-text font-serif font-normal italic text-transparent">negócios</span>
             </h1>
             <p className="mx-auto mt-6 max-w-md text-base leading-relaxed text-muted lg:mx-0">
               Busca com IA, cadências no LinkedIn com mensagens personalizadas e um painel que mostra de onde vêm suas reuniões.
