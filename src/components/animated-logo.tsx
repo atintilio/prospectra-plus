@@ -1,9 +1,9 @@
 import Image from 'next/image';
 
 /** Logo 3D flutuante: sem moldura, fundo transparente, com sombra suave no "chão". */
-export function AnimatedLogo({ className = 'h-72 w-72 lg:h-[26rem] lg:w-[26rem]' }: { className?: string }) {
+export function AnimatedLogo({ className = 'h-40 w-40' }: { className?: string }) {
   return (
-    <div className={`relative mx-auto lg:mx-0 ${className}`} aria-label="Logo Prospectra">
+    <div className={`mx-auto lg:mx-0 ${className}`} aria-label="Logo Prospectra">
       <Image
         src="/logo-hero.png"
         alt="Prospectra"
