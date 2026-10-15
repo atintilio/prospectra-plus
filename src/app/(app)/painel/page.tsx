@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { CalendarCheck, Handshake, ListChecks, MessageSquareReply, Send, TrendingUp, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { getDb, schema } from '@/db';
@@ -24,7 +24,7 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
 
   const counts = async (start: Date, end: Date) => {
     const rows = await db.select({ type: schema.events.type, n: count() }).from(schema.events)
-      .where(and(scope(schema.events), gte(schema.events.at, start), sql`${schema.events.at} < ${end}`)).groupBy(schema.events.type);
+      .where(and(scope(schema.events), gte(schema.events.at, start), lt(schema.events.at, end))).groupBy(schema.events.type);
     return Object.fromEntries(rows.map((r) => [r.type, r.n])) as Record<string, number>;
   };
   const [cur, prev] = await Promise.all([counts(from, now), counts(prevFrom, from)]);
