@@ -92,3 +92,14 @@ describe('motor da cadência', () => {
     expect(pending).toHaveLength(1);
   });
 });
+
+
+it('IA desligada na operação usa o texto base sem chamar o provedor', async () => {
+ const {db,org,camp,lead}=await setup();
+ await db.update(schema.orgs).set({aiEnabled:false}).where(eq(schema.orgs.id,org.id));
+ await db.update(schema.campaigns).set({steps:[{...steps[0],useAi:true}]}).where(eq(schema.campaigns.id,camp.id));
+ await enrollLeads(db,org.id,camp.id,[lead.id],day(0));
+ let calls=0;
+ await runScheduler(db,{now:day(0),generate:async()=>{calls++;return 'generated';}});
+ expect(calls).toBe(0);expect((await db.select().from(schema.actions))[0].body).toBe('Oi Ana, vi seu trabalho na Acme.');
+});

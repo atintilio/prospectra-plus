@@ -29,7 +29,7 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
     let [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
     if (user?.status === 'disabled') return { error: 'E-mail ou senha incorretos.' };
     let legacy: Awaited<ReturnType<typeof findLegacyUser>> = null;
-    if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    if (!user) {
       // conta do v1: traz (ou restaura) usuário + hash da senha antiga, sem exigir troca de senha
       legacy = await findLegacyUser(email);
       if (legacy?.passwordHash && (await verifyPassword(password, legacy.passwordHash))) {
@@ -109,3 +109,4 @@ export async function logoutAction() {
   await destroySession();
   redirect('/login');
 }
+

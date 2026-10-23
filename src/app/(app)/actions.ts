@@ -11,6 +11,8 @@ import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, r
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
+import { canChangeUser } from '@/lib/admin-policy';
+import { deleteAuditedLeads, flushDeletionReports } from '@/lib/deletion-audit';
 import { ensureDemo } from '@/lib/demo';
 import { addSearchResults, searchDemoLeads, seedFeed, simulateCycle } from '@/lib/demo-sim';
 
@@ -98,14 +100,11 @@ export async function updateLeadStageAction(leadId: string, outcome: Outcome) {
 }
 
 export async function deleteLeadsAction(ids: string[]) {
+  ids = z.array(z.string().uuid()).max(2000).parse(ids);
   const ctx = await requireOrg();
-  if (!canManage(ctx.role) && ctx.user.platformRole !== 'admin') {
-    const db = await getDb();
-    await db.delete(schema.leads).where(and(eq(schema.leads.orgId, ctx.org.id), eq(schema.leads.ownerId, ctx.user.id), inArray(schema.leads.id, ids)));
-  } else {
-    const db = await getDb();
-    await db.delete(schema.leads).where(and(eq(schema.leads.orgId, ctx.org.id), inArray(schema.leads.id, ids)));
-  }
+  const db = await getDb();
+  await deleteAuditedLeads(db, ctx.user, ctx.org, ids, !canManage(ctx.role) && ctx.user.platformRole !== 'admin');
+  await flushDeletionReports(db);
   revalidatePath('/leads');
 }
 
@@ -113,6 +112,7 @@ export type SimLead = { linkedinUrl: string; fullName: string; headline: string;
 
 export async function aiSearchAction(prompt: string): Promise<{ plan?: SearchPlan; error?: string; remaining?: number; results?: SimLead[] }> {
   const ctx = await requireOrg();
+  if (!ctx.org.aiEnabled) return { error: 'A IA está desligada nesta operação. O administrador pode ativá-la em Administração de parceiros.' };
   const text = prompt.trim().slice(0, 400);
   if (text.length < 4) return { error: 'Descreva quem você procura.' };
   if (ctx.org.isDemo) {
@@ -260,6 +260,8 @@ export async function setMemberRoleAction(userId: string, role: 'owner' | 'manag
   const ctx = await requireOrg();
   if (!canManage(ctx.role) || (role === 'owner' && ctx.role !== 'owner')) return;
   const db = await getDb();
+  const [target] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+  if (!target || !canChangeUser({ ...ctx.user, platformRole: 'admin' }, target)) return;
   await db.update(schema.memberships).set({ role }).where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.memberships.userId, userId)));
   revalidatePath('/equipe');
 }
@@ -268,7 +270,12 @@ export async function removeMemberAction(userId: string) {
   const ctx = await requireOrg();
   if (!canManage(ctx.role) || userId === ctx.user.id) return;
   const db = await getDb();
+  const [target] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+  if (!target || !canChangeUser({ ...ctx.user, platformRole: 'admin' }, target)) return;
   await db.delete(schema.memberships).where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.memberships.userId, userId)));
+  await db.delete(schema.sessions).where(and(eq(schema.sessions.userId, userId), eq(schema.sessions.orgId, ctx.org.id)));
+  const [remaining] = await db.select({ id: schema.memberships.orgId }).from(schema.memberships).innerJoin(schema.orgs, eq(schema.orgs.id, schema.memberships.orgId)).where(and(eq(schema.memberships.userId, userId), eq(schema.orgs.isDemo, false))).limit(1);
+  if (!remaining) { await db.update(schema.users).set({status:'disabled'}).where(eq(schema.users.id,userId)); await db.delete(schema.sessions).where(eq(schema.sessions.userId,userId)); await db.update(schema.authTokens).set({usedAt:new Date()}).where(eq(schema.authTokens.userId,userId)); }
   revalidatePath('/equipe');
 }
 
@@ -318,10 +325,11 @@ export async function createPartnerAction(_: State, form: FormData): Promise<Sta
   return { ok: `Parceiro ${name} criado e convite enviado para ${ownerEmail}.` };
 }
 
-export async function updatePartnerAction(orgId: string, patch: { seats?: number; searchCreditsMonth?: number; active?: boolean }) {
+export async function updatePartnerAction(orgId: string, patch: { seats?: number; searchCreditsMonth?: number; active?: boolean; aiEnabled?: boolean }) {
   await requireAdmin();
   const db = await getDb();
-  await db.update(schema.orgs).set(patch).where(eq(schema.orgs.id, orgId));
+  const validated = z.object({ seats: z.number().int().min(1).max(200).optional(), searchCreditsMonth: z.number().int().min(0).max(100000).optional(), active: z.boolean().optional(), aiEnabled: z.boolean().optional() }).strict().parse(patch);
+  await db.update(schema.orgs).set(validated).where(eq(schema.orgs.id, orgId));
   revalidatePath('/admin');
 }
 
@@ -329,6 +337,8 @@ export async function setUserStatusAction(userId: string, status: 'active' | 'di
   const ctx = await requireAdmin();
   if (userId === ctx.user.id) return;
   const db = await getDb();
+  const [target] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+  if (!target || !canChangeUser(ctx.user, target)) return;
   await db.update(schema.users).set({ status }).where(and(eq(schema.users.id, userId), sql`${schema.users.passwordHash} is not null`));
   if (status === 'disabled') await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
   revalidatePath('/admin');
@@ -359,3 +369,4 @@ async function seedFeedIfEmpty(orgId: string) {
   const [row] = await db.select({ id: schema.simFeed.id }).from(schema.simFeed).where(eq(schema.simFeed.orgId, orgId)).limit(1);
   if (!row) await seedFeed(db, orgId);
 }
+

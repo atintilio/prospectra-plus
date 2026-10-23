@@ -16,7 +16,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
     ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
     { href: '/conta', label: 'Minha conta', icon: Settings },
-    ...(isAdmin ? [{ href: '/admin', label: 'Parceiros', icon: Building2 }] : []),
+    ...(isAdmin ? [{ href: '/admin', label: 'Administração de parceiros', icon: Building2 }] : []),
   ];
   const active = (href: string) => path === href || path.startsWith(`${href}/`);
   return (
@@ -42,9 +42,9 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
         </form>
       </aside>
       {/* Navegação no celular */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-white md:hidden">
-        {items.slice(0, 5).map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className={`flex flex-col items-center gap-1 py-2 text-[11px] ${active(href) ? 'text-accent' : 'text-muted'}`}>
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-border bg-white md:hidden">
+        {items.map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className={`flex min-w-20 shrink-0 flex-col items-center gap-1 px-2 py-2 text-[11px] ${active(href) ? 'text-accent' : 'text-muted'}`}>
             <Icon className="h-5 w-5" /> {label.split(' ')[0]}
           </Link>
         ))}
@@ -52,3 +52,4 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     </>
   );
 }
+
