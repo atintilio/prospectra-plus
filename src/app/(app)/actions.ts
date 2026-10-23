@@ -274,6 +274,8 @@ export async function removeMemberAction(userId: string) {
   if (!target || !canChangeUser({ ...ctx.user, platformRole: 'admin' }, target)) return;
   await db.delete(schema.memberships).where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.memberships.userId, userId)));
   await db.delete(schema.sessions).where(and(eq(schema.sessions.userId, userId), eq(schema.sessions.orgId, ctx.org.id)));
+  const [remaining] = await db.select({ id: schema.memberships.orgId }).from(schema.memberships).innerJoin(schema.orgs, eq(schema.orgs.id, schema.memberships.orgId)).where(and(eq(schema.memberships.userId, userId), eq(schema.orgs.isDemo, false))).limit(1);
+  if (!remaining) { await db.update(schema.users).set({status:'disabled'}).where(eq(schema.users.id,userId)); await db.delete(schema.sessions).where(eq(schema.sessions.userId,userId)); await db.update(schema.authTokens).set({usedAt:new Date()}).where(eq(schema.authTokens.userId,userId)); }
   revalidatePath('/equipe');
 }
 
