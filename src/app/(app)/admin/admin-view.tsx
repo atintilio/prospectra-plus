@@ -3,7 +3,7 @@
 import { LogIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useActionState, useTransition } from 'react';
-import { createPartnerAction, setUserStatusAction, switchOrgAction, updatePartnerAction } from '../actions';
+import { createPartnerAction, switchOrgAction, updatePartnerAction } from '../actions';
 import { FormMessage, Submit } from '@/components/form';
 import { Avatar } from '@/components/ui';
 
@@ -50,23 +50,8 @@ export function AdminView({ orgs, users }: { orgs: Org[]; users: User[] }) {
           <Submit pendingText="Criando…">Criar e enviar convite</Submit>
         </form>
       </div>
-      <div className="card overflow-x-auto">
-        <h2 className="border-b border-border px-5 py-4 font-semibold">Todos os usuários ({users.length})</h2>
-        <table className="w-full min-w-[640px]">
-          <tbody className="divide-y divide-border">
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td className="td"><div className="flex items-center gap-3"><Avatar name={u.name || u.email} size={28} /><div><p className="font-medium">{u.name || '—'} {u.platformRole === 'admin' && <span className="pill ml-1 bg-violet-soft text-violet">admin</span>}</p><p className="text-xs text-muted">{u.email}</p></div></div></td>
-                <td className="td text-muted">{u.orgs || '—'}</td>
-                <td className="td">{u.status === 'active' ? <span className="pill bg-success-soft text-success">Ativo</span> : u.status === 'invited' ? <span className="pill bg-warning-soft text-warning">Convidado</span> : <span className="pill bg-red-50 text-danger">Desativado</span>}</td>
-                <td className="td text-right">{u.platformRole !== 'admin' && u.status !== 'invited' && (
-                  <button className="btn-ghost px-2 py-1 text-xs" disabled={pending} onClick={() => start(async () => { await setUserStatusAction(u.id, u.status === 'active' ? 'disabled' : 'active'); router.refresh(); })}>
-                    {u.status === 'active' ? 'Desativar' : 'Reativar'}</button>)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
     </div>
   );
 }
+

@@ -11,6 +11,7 @@ import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, r
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
+import { canChangeUser } from '@/lib/admin-policy';
 import { ensureDemo } from '@/lib/demo';
 import { addSearchResults, searchDemoLeads, seedFeed, simulateCycle } from '@/lib/demo-sim';
 
@@ -260,6 +261,8 @@ export async function setMemberRoleAction(userId: string, role: 'owner' | 'manag
   const ctx = await requireOrg();
   if (!canManage(ctx.role) || (role === 'owner' && ctx.role !== 'owner')) return;
   const db = await getDb();
+  const [target] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+  if (!target || !canChangeUser({ ...ctx.user, platformRole: 'admin' }, target)) return;
   await db.update(schema.memberships).set({ role }).where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.memberships.userId, userId)));
   revalidatePath('/equipe');
 }
@@ -268,7 +271,10 @@ export async function removeMemberAction(userId: string) {
   const ctx = await requireOrg();
   if (!canManage(ctx.role) || userId === ctx.user.id) return;
   const db = await getDb();
+  const [target] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+  if (!target || !canChangeUser({ ...ctx.user, platformRole: 'admin' }, target)) return;
   await db.delete(schema.memberships).where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.memberships.userId, userId)));
+  await db.delete(schema.sessions).where(and(eq(schema.sessions.userId, userId), eq(schema.sessions.orgId, ctx.org.id)));
   revalidatePath('/equipe');
 }
 
@@ -329,6 +335,8 @@ export async function setUserStatusAction(userId: string, status: 'active' | 'di
   const ctx = await requireAdmin();
   if (userId === ctx.user.id) return;
   const db = await getDb();
+  const [target] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+  if (!target || !canChangeUser(ctx.user, target)) return;
   await db.update(schema.users).set({ status }).where(and(eq(schema.users.id, userId), sql`${schema.users.passwordHash} is not null`));
   if (status === 'disabled') await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
   revalidatePath('/admin');
@@ -359,3 +367,4 @@ async function seedFeedIfEmpty(orgId: string) {
   const [row] = await db.select({ id: schema.simFeed.id }).from(schema.simFeed).where(eq(schema.simFeed.orgId, orgId)).limit(1);
   if (!row) await seedFeed(db, orgId);
 }
+

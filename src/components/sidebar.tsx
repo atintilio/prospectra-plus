@@ -16,7 +16,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
     ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
     { href: '/conta', label: 'Minha conta', icon: Settings },
-    ...(isAdmin ? [{ href: '/admin', label: 'Parceiros', icon: Building2 }] : []),
+    ...(isAdmin ? [{ href: '/admin', label: 'Administração', icon: Building2 }] : []),
   ];
   const active = (href: string) => path === href || path.startsWith(`${href}/`);
   return (
@@ -52,3 +52,4 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     </>
   );
 }
+
