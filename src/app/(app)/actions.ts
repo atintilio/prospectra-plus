@@ -12,6 +12,7 @@ import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } 
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
+import { deleteAuditedLeads, flushDeletionReports } from '@/lib/deletion-audit';
 import { ensureDemo } from '@/lib/demo';
 import { addSearchResults, searchDemoLeads, seedFeed, simulateCycle } from '@/lib/demo-sim';
 
@@ -99,14 +100,11 @@ export async function updateLeadStageAction(leadId: string, outcome: Outcome) {
 }
 
 export async function deleteLeadsAction(ids: string[]) {
+  ids = z.array(z.string().uuid()).max(2000).parse(ids);
   const ctx = await requireOrg();
-  if (!canManage(ctx.role) && ctx.user.platformRole !== 'admin') {
-    const db = await getDb();
-    await db.delete(schema.leads).where(and(eq(schema.leads.orgId, ctx.org.id), eq(schema.leads.ownerId, ctx.user.id), inArray(schema.leads.id, ids)));
-  } else {
-    const db = await getDb();
-    await db.delete(schema.leads).where(and(eq(schema.leads.orgId, ctx.org.id), inArray(schema.leads.id, ids)));
-  }
+  const db = await getDb();
+  await deleteAuditedLeads(db, ctx.user, ctx.org, ids, !canManage(ctx.role) && ctx.user.platformRole !== 'admin');
+  await flushDeletionReports(db);
   revalidatePath('/leads');
 }
 
@@ -114,6 +112,7 @@ export type SimLead = { linkedinUrl: string; fullName: string; headline: string;
 
 export async function aiSearchAction(prompt: string): Promise<{ plan?: SearchPlan; error?: string; remaining?: number; results?: SimLead[] }> {
   const ctx = await requireOrg();
+  if (!ctx.org.aiEnabled) return { error: 'A IA está desligada nesta operação. O administrador pode ativá-la em Administração de parceiros.' };
   const text = prompt.trim().slice(0, 400);
   if (text.length < 4) return { error: 'Descreva quem você procura.' };
   if (ctx.org.isDemo) {
@@ -324,10 +323,11 @@ export async function createPartnerAction(_: State, form: FormData): Promise<Sta
   return { ok: `Parceiro ${name} criado e convite enviado para ${ownerEmail}.` };
 }
 
-export async function updatePartnerAction(orgId: string, patch: { seats?: number; searchCreditsMonth?: number; active?: boolean }) {
+export async function updatePartnerAction(orgId: string, patch: { seats?: number; searchCreditsMonth?: number; active?: boolean; aiEnabled?: boolean }) {
   await requireAdmin();
   const db = await getDb();
-  await db.update(schema.orgs).set(patch).where(eq(schema.orgs.id, orgId));
+  const validated = z.object({ seats: z.number().int().min(1).max(200).optional(), searchCreditsMonth: z.number().int().min(0).max(100000).optional(), active: z.boolean().optional(), aiEnabled: z.boolean().optional() }).strict().parse(patch);
+  await db.update(schema.orgs).set(validated).where(eq(schema.orgs.id, orgId));
   revalidatePath('/admin');
 }
 

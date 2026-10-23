@@ -25,6 +25,7 @@ export const orgs = pgTable('orgs', {
   searchCreditsMonth: integer('search_credits_month').notNull().default(300),
   driver: text('driver', { enum: ['assisted', 'unipile'] }).notNull().default('assisted'),
   active: boolean('active').notNull().default(true),
+  aiEnabled: boolean('ai_enabled').notNull().default(true),
   isDemo: boolean('is_demo').notNull().default(false),
   createdAt: createdAt(),
 });
@@ -161,3 +162,17 @@ export const simFeed = pgTable('sim_feed', {
   detail: text('detail').notNull().default(''),
   at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('sim_feed_org_at_idx').on(t.orgId, t.at)]);
+
+
+// Auditoria do proprietário: registro persistente e fila de aviso de exclusões.
+export const deletionReports = pgTable('deletion_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  actorId: uuid('actor_id').notNull(),
+  actorEmail: text('actor_email').notNull(),
+  orgId: uuid('org_id').notNull(),
+  orgName: text('org_name').notNull(),
+  records: jsonb('records').$type<{ id: string; name: string }[]>().notNull(),
+  createdAt: createdAt(),
+  notifiedAt: timestamp('notified_at', { withTimezone: true }),
+  claimedAt: timestamp('claimed_at', { withTimezone: true }),
+}, t => [index('deletion_reports_pending_idx').on(t.notifiedAt, t.claimedAt)]);

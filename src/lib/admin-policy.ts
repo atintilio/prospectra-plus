@@ -6,6 +6,3 @@ export function isPrimaryAdmin(email: string) {
 export function canChangeUser(actor: { id: string; email: string; platformRole: string }, target: { id: string; email: string }) {
   return actor.platformRole === 'admin' && actor.id !== target.id && !isPrimaryAdmin(target.email);
 }
-export function canDeleteData(actor: { email: string; platformRole: string }) {
-  return actor.platformRole !== 'admin' || isPrimaryAdmin(actor.email);
-}

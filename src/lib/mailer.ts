@@ -61,3 +61,17 @@ export async function sendAccessEmail(to: string, link: string, opts: { name?: s
   });
   if (!res.ok) throw new Error(`OFFICE365_SEND_FAILED_${res.status}`);
 }
+
+
+export async function sendDeletionReport(report: { id: string; actorEmail: string; orgName: string; createdAt: Date; records: { id: string; name: string }[] }): Promise<void> {
+  const sender = env('OFFICE365_SENDER_EMAIL', 'MS_GRAPH_USER_ID', 'MAIL_FROM');
+  if (!sender) throw new Error('OFFICE365_NOT_CONFIGURED');
+  const token = await accessToken();
+  const to = process.env.MASTER_USER_EMAIL || 'atintilio@argusprime.com.br';
+  const content = `<p>Exclusão registrada no Prospectra.</p><p>Responsável: ${escapeHtml(report.actorEmail)}<br>Equipe: ${escapeHtml(report.orgName)}<br>Data: ${escapeHtml(report.createdAt.toISOString())}<br>Registro: ${escapeHtml(report.id)}</p><ul>${report.records.map(r => `<li>${escapeHtml(r.name)} — ${escapeHtml(r.id)}</li>`).join('')}</ul>`;
+  const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: { subject: `Prospectra · exclusão de ${report.records.length} registro(s)`, body: { contentType: 'HTML', content }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: true }),
+  });
+  if (!res.ok) throw new Error(`OFFICE365_SEND_FAILED_${res.status}`);
+}

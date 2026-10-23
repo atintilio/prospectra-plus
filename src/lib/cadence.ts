@@ -59,15 +59,16 @@ export async function runScheduler(db: DB, opts: { orgId?: string; now?: Date; g
   const conds = [eq(schema.enrollments.state, 'running'), lte(schema.enrollments.nextRunAt, now), eq(schema.campaigns.status, 'active')];
   if (opts.orgId) conds.push(eq(schema.enrollments.orgId, opts.orgId));
   const due = await db
-    .select({ enr: schema.enrollments, camp: schema.campaigns, lead: schema.leads })
+    .select({ enr: schema.enrollments, camp: schema.campaigns, lead: schema.leads, aiEnabled: schema.orgs.aiEnabled })
     .from(schema.enrollments)
+    .innerJoin(schema.orgs, eq(schema.orgs.id, schema.enrollments.orgId))
     .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.enrollments.campaignId))
     .innerJoin(schema.leads, eq(schema.leads.id, schema.enrollments.leadId))
     .where(and(...conds))
     .limit(500);
 
   let created = 0;
-  for (const { enr, camp, lead } of due) {
+  for (const { enr, camp, lead, aiEnabled } of due) {
     const step = camp.steps[enr.stepIndex];
     if (!step) {
       await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
@@ -83,7 +84,7 @@ export async function runScheduler(db: DB, opts: { orgId?: string; now?: Date; g
     }
     let body = '';
     if (step.type === 'invite' || step.type === 'message' || step.type === 'comment') {
-      body = step.useAi ? await generate({ step, lead, brief: camp.aiBrief }).catch(() => fillTemplate(step.template, lead)) : fillTemplate(step.template, lead);
+      body = step.useAi && aiEnabled ? await generate({ step, lead, brief: camp.aiBrief }).catch(() => fillTemplate(step.template, lead)) : fillTemplate(step.template, lead);
       if (step.type === 'invite') body = body.slice(0, 300); // limite da nota de convite do LinkedIn
     }
     const res = await db.insert(schema.actions).values({
@@ -154,3 +155,4 @@ export async function markOutcome(db: DB, orgId: string, userId: string, leadId:
   }
   return { stage };
 }
+
