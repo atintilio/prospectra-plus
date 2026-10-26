@@ -176,3 +176,14 @@ export const deletionReports = pgTable('deletion_reports', {
   notifiedAt: timestamp('notified_at', { withTimezone: true }),
   claimedAt: timestamp('claimed_at', { withTimezone: true }),
 }, t => [index('deletion_reports_pending_idx').on(t.notifiedAt, t.claimedAt)]);
+
+// Receipts survive retries; an uncertain send is never retried automatically.
+export const whatsappCommands = pgTable('whatsapp_commands', {
+ id: uuid('id').primaryKey(),
+ orgId: uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId: uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ payloadHash:text('payload_hash').notNull(),
+ state:text('state',{enum:['pending','sent','unknown']}).notNull().default('pending'),
+ providerMessageId:text('provider_message_id'),
+ createdAt:createdAt(),
+},t=>[index('whatsapp_commands_user_created_idx').on(t.userId,t.createdAt)]);
