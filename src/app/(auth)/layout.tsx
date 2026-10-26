@@ -1,16 +1,24 @@
-import { Logo } from '@/components/logo';
+import { LiquidMetal } from '@/components/liquid-metal';
+import { AnimatedLogo } from '@/components/animated-logo';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <main className="relative min-h-dvh overflow-hidden bg-white">
+      {/* Gotas de metal líquido azul ao fundo */}
+      <div className="pointer-events-none absolute inset-0">
+        <LiquidMetal />
+      </div>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,.85)_0%,rgba(255,255,255,.35)_45%,rgba(255,255,255,0)_75%)]" />
+
       <div className="relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-6 py-6">
         <header className="flex items-center justify-between">
-          <Logo size={40} />
+          <span className="text-xl font-semibold tracking-tight text-text">Prospectra</span>
           <span className="hidden rounded-full border border-border bg-white/70 px-3 py-1 text-xs text-muted backdrop-blur sm:inline">Uma ferramenta Argus Prime</span>
         </header>
 
         <div className="my-auto grid items-center gap-10 py-10 lg:grid-cols-[1.1fr_420px]">
           <div className="text-center lg:text-left">
+            <AnimatedLogo className="relative mb-4 h-40 w-40 sm:h-48 sm:w-48 lg:absolute lg:-left-10 lg:top-10 lg:mb-0 lg:h-64 lg:w-64" />
             <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[.18em] text-muted backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Prospecção assistida por IA
             </p>
@@ -33,4 +41,3 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     </main>
   );
 }
-
