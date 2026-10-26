@@ -54,3 +54,30 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 @media (prefers-reduced-motion: reduce) {
   .logo-float, .logo-shadow { animation: none !important; }
 }
+
+/* Navigation motion: existing identity, no artificial navigation delay. */
+@keyframes prospectra-page-enter {
+ from { opacity: 0; transform: translate3d(0, 8px, 0); }
+ to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes prospectra-loading {
+ 0%, 100% { opacity: .55; }
+ 50% { opacity: 1; }
+}
+.prospectra-page-enter { animation: prospectra-page-enter 500ms cubic-bezier(.22,1,.36,1) both; }
+.prospectra-loading { animation: prospectra-loading 800ms cubic-bezier(.22,1,.36,1) infinite; }
+button, a.btn-primary, a.btn-outline, a.btn-ghost, a.btn-danger {
+ transition-property: transform, background-color, color, opacity, border-color;
+ transition-duration: 300ms;
+ transition-timing-function: cubic-bezier(.22,1,.36,1);
+}
+button:active:not(:disabled), a.btn-primary:active, a.btn-outline:active { transform: scale(.98); }
+nav a { transition: color 300ms cubic-bezier(.22,1,.36,1), background-color 300ms cubic-bezier(.22,1,.36,1), transform 500ms cubic-bezier(.22,1,.36,1); }
+@media (hover:hover) {
+ nav a:hover { transform: translateX(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+ .prospectra-page-enter, .prospectra-loading { animation: none; }
+ button, nav a, a.btn-primary, a.btn-outline, a.btn-ghost, a.btn-danger { transition: none; }
+ button:active:not(:disabled), a.btn-primary:active, a.btn-outline:active, nav a:hover { transform: none; }
+}
