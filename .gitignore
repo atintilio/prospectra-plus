@@ -16,3 +16,6 @@ next-env.d.ts
 # gerados pelo next dev
 AGENTS.md
 CLAUDE.md
+infra/wa-akg/source/
+package-lock.json
+.codebase-memory/

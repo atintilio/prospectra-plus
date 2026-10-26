@@ -1,0 +1,37 @@
+services:
+  wa-akg:
+    build: ./source
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: mysql://akg:${AKG_DB_PASSWORD:?required}@database:3306/wa_akg
+      ENABLE_TELEMETRY: 'false'
+      ENABLE_AUTO_UPDATE_CHECK: 'false'
+    ports:
+      - '127.0.0.1:3101:3000'
+    volumes:
+      - media:/app/data
+    depends_on:
+      database:
+        condition: service_healthy
+  database:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: wa_akg
+      MARIADB_USER: akg
+      MARIADB_PASSWORD: ${AKG_DB_PASSWORD:?required}
+      MARIADB_ROOT_PASSWORD: ${AKG_DB_ROOT_PASSWORD:?required}
+    volumes:
+      - gateway_database:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+volumes:
+  gateway_database:
+  media:
