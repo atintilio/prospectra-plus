@@ -22,8 +22,9 @@ export class AkgGateway {
  constructor(private config:{baseUrl:string;apiKey:string},private fetcher:typeof fetch=fetch){
   const url=new URL(config.baseUrl);
   const local=['localhost','127.0.0.1','[::1]'].includes(url.hostname);
-  if((url.protocol!=='https:'&&!(local&&url.protocol==='http:'&&process.env.NODE_ENV!=='production'))||url.username||url.password||url.search||url.hash||url.pathname.replace(/\/$/,'')!=='') throw Error('Configure a URL HTTPS do WA-AKG sem /api.');
-  this.base=url.origin;
+  const prefix=url.pathname.replace(/\/$/,'');
+  if((url.protocol!=='https:'&&!(local&&url.protocol==='http:'&&process.env.NODE_ENV!=='production'))||url.username||url.password||url.search||url.hash||(prefix!==''&&!/^\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(prefix))||/\/api$/i.test(prefix)) throw Error('Configure a URL HTTPS do WA-AKG sem /api.');
+  this.base=url.origin+prefix;
  }
  private async request(path:string,method='GET',body?:unknown,missing=false):Promise<any>{
   let response:Response;

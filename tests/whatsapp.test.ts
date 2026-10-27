@@ -2,6 +2,22 @@ import {expect,test,vi} from 'vitest';
 import {AkgGateway,sessionIdFor,assertWhatsAppAccess} from '@/lib/whatsapp/akg';
 
 const scope={orgId:'org-a',userId:'seller-a'};
+test('reverse proxy prefix is preserved for session, QR and send requests',async()=>{
+ const replies=[{status:true,data:{status:'SCAN_QR',hasInstance:true}},{success:true,base64:'data:image/png;base64,aGVsbG8='},{status:true,data:{status:'CONNECTED',hasInstance:true,me:{id:'5511@s.whatsapp.net'}}},{status:true,data:{key:{id:'msg-prefix'}}}];
+ const fetcher=vi.fn(async()=>new Response(JSON.stringify(replies.shift()),{status:200}));
+ const api=new AkgGateway({baseUrl:'https://gateway.example.test/prospectra-whatsapp/',apiKey:'secret'},fetcher as typeof fetch);
+ expect((await api.status(scope)).state).toBe('qr_ready');
+ expect(await api.sendText(scope,'5511999999999','Teste')).toEqual({providerMessageId:'msg-prefix'});
+ for(const [url,options] of fetcher.mock.calls as unknown as Array<[string,RequestInit]>){
+  expect(url).toMatch(/^https:\/\/gateway\.example\.test\/prospectra-whatsapp\/api\//);
+  expect(options.redirect).toBe('error');
+ }
+});
+test('gateway configuration rejects insecure URLs and ambiguous prefixes',()=>{
+ for(const baseUrl of ['http://gateway.example.test','https://user:secret@gateway.example.test','https://gateway.example.test/?key=secret','https://gateway.example.test/#fragment','https://gateway.example.test/api','https://gateway.example.test/prefix/api/','https://gateway.example.test/a//b','https://gateway.example.test/a%2fb']){
+  expect(()=>new AkgGateway({baseUrl,apiKey:'secret'})).toThrow();
+ }
+});
 function gateway(responses: Array<[number,unknown]>) {
  const fetcher=vi.fn(async()=>{const [status,body]=responses.shift()!;return new Response(JSON.stringify(body),{status});});
  return {api:new AkgGateway({baseUrl:'https://gateway.example.test',apiKey:'secret'},fetcher as typeof fetch),fetcher};

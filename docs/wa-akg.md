@@ -16,6 +16,8 @@ Demo cannot connect or send. API session IDs never come from form input. Polling
 7. Configure Vercel server vars `WA_AKG_BASE_URL=https://your-gateway-host` (without `/api`) and `WA_AKG_API_KEY=...`, then redeploy. Neither variable has NEXT_PUBLIC prefix. Do not paste keys into chat or repository.
 
 ## Operator flow
+The server-only base URL also supports a reverse-proxy prefix, for example `https://api.crm.argusprime.com.br/prospectra-whatsapp` (without trailing `/api`). Session, QR and message requests preserve that prefix. This permits reuse of an existing HTTPS domain when the provider's free domain quota is full. The prefix alone does not configure nginx or make the gateway live. Keep the AKG dashboard and database private; only forward required API routes to loopback3101 after validating their authentication. Prefixes reject encoded separators, repeated slashes, credentials, query strings and fragments; redirects remain disabled.
+
 Open WhatsApp in the left navigation. Click Conectar WhatsApp, scan QR in WhatsApp → Dispositivos conectados → Conectar dispositivo. Connected is shown only with live instance and authenticated account data. Desvincular logs out and stops the instance; another number can pair afterward. If gateway unreachable/config missing, UI states it honestly.
 The page allows one explicitly submitted text per command; command receipt prevents blind retries after timeout. `sent` means the gateway returned a message ID, not delivered/read by recipient. No new WhatsApp campaign automation is activated by this change. Incoming inbox/webhooks and durable multi-channel campaign delivery remain a separate increment; existing LinkedIn assisted queue stays intact.
 
