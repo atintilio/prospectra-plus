@@ -1,0 +1,13 @@
+services:
+  intelligence-worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DRY_RUN: 'true'
+      TZ: America/Sao_Paulo
+    volumes:
+      - ./data:/app/data
+    mem_limit: 256m
+    cpus: 0.5
+    # Não há porta, endpoint público, navegador headless ou banco adicional.

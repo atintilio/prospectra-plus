@@ -1,0 +1,26 @@
+node_modules
+.dist
+dist
+.env
+.env.*
+!.env.example
+.DS_Store
+.vercel
+
+.api-runtime-*/
+.next
+.data
+next-env.d.ts
+*.tsbuildinfo
+
+# gerados pelo next dev
+AGENTS.md
+CLAUDE.md
+infra/wa-akg/source/
+package-lock.json
+.codebase-memory/
+__pycache__/
+*.pyc
+services/intelligence/data/
+services/intelligence/.venv/
+infra/voice-studio/source/

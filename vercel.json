@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm build",
+  "regions": ["gru1"],
+  "crons": [{ "path": "/api/cron", "schedule": "0 10 * * *" }]
+}
