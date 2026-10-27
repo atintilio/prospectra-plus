@@ -15,6 +15,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
     { href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
     { href: '/inteligencia', label: 'Inteligência comercial', icon: Sparkles },
+    { href: '/comunicacao', label: 'Perfil de comunicação', icon: MessageCircle },
     ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
     ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
     { href: '/conta', label: 'Minha conta', icon: Settings },

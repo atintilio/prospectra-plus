@@ -231,7 +231,7 @@ export const commercialProfiles=pgTable('commercial_profiles',{
 },t=>[primaryKey({columns:[t.orgId,t.userId]})]);
 export const harveyConversations=pgTable('harvey_conversations',{
  id:uuid('id').primaryKey().defaultRandom(),orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),leadId:uuid('lead_id').notNull().references(()=>leads.id,{onDelete:'cascade'}),
- phone:text('phone').notNull(),qualification:text('qualification').notNull(),profile:jsonb('profile').$type<{sellerName:string;companyName:string;sellerPhone:string;strategy:string;offers:CommercialOffer[]}>().notNull(),
+ phone:text('phone').notNull(),qualification:text('qualification').notNull(),profile:jsonb('profile').$type<{sellerName:string;companyName:string;sellerPhone:string;strategy:string;offers:CommercialOffer[];communication?:import('@/lib/communication-copy').CommunicationContext}>().notNull(),
  state:text('state',{enum:['active','processing','handoff','stopped']}).notNull().default('active'),turns:integer('turns').notNull().default(0),summary:text('summary').notNull().default(''),
  recipients:jsonb('recipients').$type<string[]>().notNull().default(sql`'[]'::jsonb`),approvedAt:timestamp('approved_at',{withTimezone:true}).notNull().defaultNow(),nextReminderAt:timestamp('next_reminder_at',{withTimezone:true}),
 },t=>[uniqueIndex('harvey_conversation_lead_uq').on(t.orgId,t.leadId),uniqueIndex('harvey_conversation_phone_uq').on(t.orgId,t.userId,t.phone)]);

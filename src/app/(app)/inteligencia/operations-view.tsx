@@ -2,10 +2,13 @@
 import {useState,useTransition} from 'react';
 import {saveProfileAction,approveHarveyAction,stopHarveyAction} from './operations-actions';
 import type {CommercialProfile} from '@/lib/harvey-operations';
+import {commercialMessage,communicationQuestion,type CommunicationContext} from '@/lib/communication-copy';
 type Conversation={id:string;leadName:string;state:string;summary:string;qualification:string;pending:number;unknown:number};
-export function HarveyOperations({profile,leads,conversations,sellerName,enabled}:{profile:CommercialProfile|null;leads:{id:string;fullName:string;company:string}[];conversations:Conversation[];sellerName:string;enabled:boolean}){
+export function HarveyOperations({profile,leads,conversations,sellerName,enabled}:{profile:CommercialProfile|null;leads:{id:string;fullName:string;company:string;communication?:CommunicationContext}[];conversations:Conversation[];sellerName:string;enabled:boolean}){
  const [draft,setDraft]=useState<CommercialProfile>(profile??{sellerName,companyName:'',sellerPhone:'',strategy:'',offers:[{name:'',description:''}]});
  const [saved,setSaved]=useState(Boolean(profile));const [leadId,setLeadId]=useState(leads[0]?.id??'');const [phone,setPhone]=useState('');const [qualification,setQualification]=useState('');const [approved,setApproved]=useState(false);const [message,setMessage]=useState('');const [pending,start]=useTransition();
+ const selected=leads.find(l=>l.id===leadId);
+ const firstMessage=commercialMessage(`Olá, ${selected?.fullName??'lead'}. Sou ${draft.sellerName.trim()}, da ${draft.companyName.trim()}.`,draft.offers[0]?.description.trim()??'',communicationQuestion('permission',selected?.communication),selected?.communication);
  const edit=(key:keyof CommercialProfile,value:CommercialProfile[keyof CommercialProfile])=>{setDraft({...draft,[key]:value});setSaved(false);setApproved(false);};
  return <section className="space-y-5 mb-8" aria-labelledby="harvey-title">
  <div><h2 id="harvey-title" className="text-xl font-semibold">Operação comercial</h2><p className="mt-1 text-sm text-muted">Cadastre suas ofertas e aprove o fluxo por lead. As conversas usam sua identidade; interesse, dúvidas técnicas e situações inesperadas passam para uma pessoa.</p></div>
@@ -24,7 +27,7 @@ export function HarveyOperations({profile,leads,conversations,sellerName,enabled
  <label className="block text-sm">Lead<select className="input mt-1 w-full" value={leadId} onChange={e=>{setLeadId(e.target.value);setApproved(false);}} required>{leads.map(l=><option key={l.id} value={l.id}>{l.fullName}{l.company?' · '+l.company:''}</option>)}</select></label>
  <label className="block text-sm">WhatsApp do lead<input className="input mt-1 w-full" value={phone} onChange={e=>{setPhone(e.target.value);setApproved(false);}} required placeholder="5511999999999" maxLength={16}/></label>
  <label className="block text-sm">Qualificação CRM<textarea className="input mt-1 w-full" value={qualification} onChange={e=>{setQualification(e.target.value);setApproved(false);}} required minLength={10} maxLength={2000} rows={4} placeholder="Por que este contato corresponde ao público? Registre cargo, necessidade conhecida, fonte e contexto."/></label>
- {saved&&<div className="rounded-xl bg-surface p-3 text-sm"><strong>Primeira mensagem</strong><p className="mt-2">Olá, {leads.find(l=>l.id===leadId)?.fullName??'lead'}. Sou {draft.sellerName}, da {draft.companyName}. {draft.offers[0]?.description} Faz sentido conversarmos sobre esse tema?</p></div>}
+ {saved&&<div className="rounded-xl bg-surface p-3 text-sm"><strong>Primeira mensagem</strong><p className="mt-2 whitespace-pre-wrap">{firstMessage}</p>{selected?.communication&&<p className="mt-2 text-xs text-muted">Abordagem ajustada ao perfil de comunicação {selected.communication.evidenceLabel==='estimate'?'estimado':'informado'} deste contato.</p>}</div>}
  <label className="flex gap-2 text-sm"><input type="checkbox" checked={approved} onChange={e=>setApproved(e.target.checked)} required/>Aprovo esta estratégia, identidade, ofertas e telefone para o fluxo automático deste lead. Após a passagem humana, nenhuma resposta automática continuará; os lembretes irão apenas ao vendedor a cada dois dias.</label>
  <button className="btn-primary" disabled={!enabled||!saved||!approved||!leadId||pending}>Aprovar e colocar na fila</button>
  <p className="text-xs text-muted">A entrega depende do WhatsApp conectado. Horários sugeridos e interesse em reunião são encaminhados para confirmação humana. Alterações no perfil só afetam novas aprovações.</p>

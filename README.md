@@ -23,3 +23,6 @@ pnpm test                                                         # motor da cad
 
 ## Como funciona a cadência (modo assistido)
 O scheduler transforma inscrições vencidas em ações na Fila do dia de quem executa a campanha (roda ao abrir Painel/Fila e diariamente via `/api/cron`). O usuário abre o LinkedIn com o texto copiado, envia e marca "Feito". Aceite libera passos "só depois que aceitar"; resposta, reunião ou venda encerram a cadência do lead. Nada é enviado automaticamente ao LinkedIn.
+
+## Perfil de comunicação
+As sugestões usam regras locais e originais em português, inspiradas pela organização DISC e pelos exemplos de componentes e guias dos materiais anexados `crystal-components` e `personality-ai`. Não há integração com a API da Crystal nem classificação por nome, cargo ou e-mail. Tipos informados manualmente são identificados como declarados; questionários sobre comportamentos observados são sempre identificados como estimativas, e respostas sem padrão claro não recebem classificação.

@@ -57,6 +57,13 @@
       "when": 1793088002000,
       "tag": "0007_harvey",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793088003000,
+      "tag": "0008_communication",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,8 @@ import {commercialInputSchema,generateCommercial,optOut,routeHandoff} from '@/li
 import {sendWhatsAppCommand} from '@/lib/whatsapp/commands';
 import {AkgGateway,akgConfig,type Scope} from '@/lib/whatsapp/akg';
 import {sendCommercialNotification,mailerConfigured} from '@/lib/mailer';
+import {getLeadCommunicationProfile,communicationContext} from '@/lib/communication';
+import {commercialMessage,communicationQuestion} from '@/lib/communication-copy';
 
 const phoneSchema=z.string().trim().regex(/^\+?[1-9]\d{7,14}$/).transform(v=>v.replace(/^\+/,''));
 export const commercialProfileSchema=commercialInputSchema.pick({sellerName:true,strategy:true,offers:true}).extend({companyName:z.string().trim().min(1).max(200),sellerPhone:phoneSchema}).strict();
@@ -35,8 +37,9 @@ export async function approveConversation(db:DB,scope:Scope,raw:unknown){
   if(input.phone===profile.sellerPhone)throw Error('O telefone do lead deve ser diferente do telefone interno do vendedor.');
   const [existing]=await tx.select().from(schema.harveyConversations).where(and(eq(schema.harveyConversations.orgId,scope.orgId),eq(schema.harveyConversations.leadId,lead.id)));
   if(existing)throw Error('Este lead já tem um fluxo aprovado; encerre ou acompanhe o fluxo existente.');
-  const [conversation]=await tx.insert(schema.harveyConversations).values({...scope,leadId:lead.id,phone:input.phone,qualification:input.qualification,profile}).returning();
-  await tx.insert(schema.harveyOutbox).values({conversationId:conversation.id,kind:'lead',recipient:input.phone,body:`Olá, ${lead.fullName}. Sou ${profile.sellerName}, da ${profile.companyName}. ${profile.offers[0].description} Faz sentido conversarmos sobre esse tema?`});
+  const communication=communicationContext(await getLeadCommunicationProfile(tx as unknown as DB,scope,lead.id));
+  const [conversation]=await tx.insert(schema.harveyConversations).values({...scope,leadId:lead.id,phone:input.phone,qualification:input.qualification,profile:{...profile,communication}}).returning();
+  await tx.insert(schema.harveyOutbox).values({conversationId:conversation.id,kind:'lead',recipient:input.phone,body:commercialMessage(`Olá, ${lead.fullName}. Sou ${profile.sellerName}, da ${profile.companyName}.`,profile.offers[0].description,communicationQuestion('permission',communication),communication)});
   await tx.update(schema.leads).set({qualification:input.qualification,notes:sql`${schema.leads.notes} || ${'\n[Qualificação comercial aprovada] '+input.qualification}`,lastActivityAt:new Date()}).where(eq(schema.leads.id,lead.id));
   // Approval gives Harvey exclusive automation ownership for this lead.
   await stopCadence(tx as unknown as DB,scope.orgId,lead.id);
@@ -108,7 +111,7 @@ export async function receiveHarveyMessage(db:DB,scope:Scope,raw:{providerId:str
  try{
   if(!lead||['do_not_contact','won','lost'].includes(lead.stage))throw Error('LEAD_UNAVAILABLE');
   if(interested||technical||claim.turns>=2)result={draft:'',handoff:{reason:interested?'interested':technical?'technical':'unexpected',recipients:routeHandoff(technical?'unknown':topic)}};
-  else result=await generateCommercial({userId:user.id,status:user.status,orgId:org.id,orgActive:org.active,aiEnabled:org.aiEnabled},{sellerName:claim.profile.sellerName,strategy:claim.profile.strategy,offers:claim.profile.offers,inbound:input.text,lead:{id:lead.id,orgId:lead.orgId,ownerId:lead.ownerId,fullName:lead.fullName,company:lead.company,headline:lead.headline,stage:lead.stage}});
+  else result=await generateCommercial({userId:user.id,status:user.status,orgId:org.id,orgActive:org.active,aiEnabled:org.aiEnabled},{sellerName:claim.profile.sellerName,strategy:claim.profile.strategy,offers:claim.profile.offers,inbound:input.text,lead:{id:lead.id,orgId:lead.orgId,ownerId:lead.ownerId,fullName:lead.fullName,company:lead.company,headline:lead.headline,stage:lead.stage}},claim.profile.communication);
  }catch{result={draft:'',handoff:{reason:'unexpected',recipients:routeHandoff('unknown')}};}
  await db.transaction(async tx=>{
   const [current]=await tx.select().from(schema.harveyConversations).where(eq(schema.harveyConversations.id,claim.id)).for('update');
@@ -156,10 +159,11 @@ export function verifyHarveySignature(body:string,signature:string|null,secret:s
  const expected=createHmac('sha256',secret).update(body).digest();
  return timingSafeEqual(expected,Buffer.from(signature.slice(7),'hex'));
 }
-export async function runHarveyQueue(db:DB,deps:{send?:(scope:Scope,recipient:string,text:string)=>Promise<{providerMessageId:string}>;email?:(recipients:string[],body:string)=>Promise<void>;now?:Date;maxJobs?:number}={}){
+export async function runHarveyQueue(db:DB,deps:{send?:(scope:Scope,recipient:string,text:string)=>Promise<{providerMessageId:string}>;email?:(recipients:string[],body:string)=>Promise<void>;now?:Date;maxJobs?:number;conversationId?:string}={}){
  const now=deps.now??new Date();const config=akgConfig();
  await db.update(schema.harveyOutbox).set({state:'unknown',error:'Processamento interrompido; confirme a entrega antes de reenviar.'}).where(and(eq(schema.harveyOutbox.state,'processing'),lte(schema.harveyOutbox.claimedAt,new Date(now.getTime()-20*60000))));
- const send=deps.send??(config?new AkgGateway(config).sendText.bind(new AkgGateway(config)):null);
+ const gateway=config?new AkgGateway(config):null;
+ const send=deps.send??(gateway?gateway.sendText.bind(gateway):null);
  const email=deps.email??sendCommercialNotification;
  const emailReady=Boolean(deps.email)||mailerConfigured();
  const availableKinds:('lead'|'internal'|'email')[]=[...(send?['lead' as const,'internal' as const]:[]),...(emailReady?['email' as const]:[])];
@@ -175,7 +179,7 @@ export async function runHarveyQueue(db:DB,deps:{send?:(scope:Scope,recipient:st
  let processed=0;
  for(let i=0;i<Math.min(deps.maxJobs??10,10)&&availableKinds.length;i++){
   const job=await db.transaction(async tx=>{
-   const [row]=await tx.select().from(schema.harveyOutbox).where(and(eq(schema.harveyOutbox.state,'pending'),lte(schema.harveyOutbox.dueAt,now),inArray(schema.harveyOutbox.kind,availableKinds))).orderBy(schema.harveyOutbox.createdAt).limit(1).for('update',{skipLocked:true});
+   const [row]=await tx.select().from(schema.harveyOutbox).where(and(eq(schema.harveyOutbox.state,'pending'),lte(schema.harveyOutbox.dueAt,now),inArray(schema.harveyOutbox.kind,availableKinds),deps.conversationId?eq(schema.harveyOutbox.conversationId,deps.conversationId):undefined)).orderBy(schema.harveyOutbox.createdAt).limit(1).for('update',{skipLocked:true});
    if(!row)return null;
    const [conversation]=await tx.select().from(schema.harveyConversations).where(eq(schema.harveyConversations.id,row.conversationId));
    if(!conversation)return null;
@@ -190,6 +194,13 @@ export async function runHarveyQueue(db:DB,deps:{send?:(scope:Scope,recipient:st
   });
   if(!job)break;if(job.skip)continue;
   const {row,conversation}=job;let state:'sent'|'unknown'='unknown';let error:string|null=null;
+  if(row.kind!=='email'&&!deps.send){
+   let connected=false;try{connected=(await gateway!.status({orgId:conversation.orgId,userId:conversation.userId})).state==='connected';}catch{}
+   if(!connected){
+    await db.update(schema.harveyOutbox).set({state:'pending',claimedAt:null,dueAt:new Date(Date.now()+60000),error:'WhatsApp não conectado; aguardando pareamento.'}).where(eq(schema.harveyOutbox.id,row.id));
+    continue;
+   }
+  }
   try{
    if(row.kind==='email'){await email(row.recipient.split(','),row.body);state='sent';}
    else{
