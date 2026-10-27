@@ -70,6 +70,7 @@ export const leads = pgTable('leads', {
   source: text('source', { enum: ['import', 'search', 'manual', 'signal'] }).notNull().default('import'),
   stage: text('stage', { enum: LEAD_STAGES }).notNull().default('new'),
   notes: text('notes').notNull().default(''),
+  qualification: text('qualification').notNull().default(''),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
@@ -221,3 +222,34 @@ export const voiceJobs=pgTable('voice_jobs',{
  state:text('state',{enum:['queued','running','sent','unknown','failed','waiting_transport']}).notNull(),
  createdAt:createdAt(),startedAt:timestamp('started_at',{withTimezone:true}),
 },t=>[index('voice_jobs_scope_idx').on(t.orgId,t.userId,t.createdAt),index('voice_jobs_queue_idx').on(t.state,t.createdAt)]);
+
+export type CommercialOffer = {name:string;description:string};
+export const commercialProfiles=pgTable('commercial_profiles',{
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ sellerName:text('seller_name').notNull(),companyName:text('company_name').notNull(),sellerPhone:text('seller_phone').notNull(),strategy:text('strategy').notNull(),
+ offers:jsonb('offers').$type<CommercialOffer[]>().notNull(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.orgId,t.userId]})]);
+export const harveyConversations=pgTable('harvey_conversations',{
+ id:uuid('id').primaryKey().defaultRandom(),orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),leadId:uuid('lead_id').notNull().references(()=>leads.id,{onDelete:'cascade'}),
+ phone:text('phone').notNull(),qualification:text('qualification').notNull(),profile:jsonb('profile').$type<{sellerName:string;companyName:string;sellerPhone:string;strategy:string;offers:CommercialOffer[]}>().notNull(),
+ state:text('state',{enum:['active','processing','handoff','stopped']}).notNull().default('active'),turns:integer('turns').notNull().default(0),summary:text('summary').notNull().default(''),
+ recipients:jsonb('recipients').$type<string[]>().notNull().default(sql`'[]'::jsonb`),approvedAt:timestamp('approved_at',{withTimezone:true}).notNull().defaultNow(),nextReminderAt:timestamp('next_reminder_at',{withTimezone:true}),
+},t=>[uniqueIndex('harvey_conversation_lead_uq').on(t.orgId,t.leadId),uniqueIndex('harvey_conversation_phone_uq').on(t.orgId,t.userId,t.phone)]);
+export const harveyInbox=pgTable('harvey_inbox',{
+ id:uuid('id').primaryKey().defaultRandom(),conversationId:uuid('conversation_id').notNull().references(()=>harveyConversations.id,{onDelete:'cascade'}),providerId:text('provider_id').notNull(),text:text('text').notNull(),createdAt:createdAt(),
+},t=>[uniqueIndex('harvey_inbox_receipt_uq').on(t.conversationId,t.providerId)]);
+export const harveyOutbox=pgTable('harvey_outbox',{
+ id:uuid('id').primaryKey().defaultRandom(),conversationId:uuid('conversation_id').notNull().references(()=>harveyConversations.id,{onDelete:'cascade'}),kind:text('kind',{enum:['lead','internal','email']}).notNull(),
+ recipient:text('recipient').notNull(),body:text('body').notNull(),state:text('state',{enum:['pending','processing','sent','unknown','cancelled']}).notNull().default('pending'),error:text('error'),claimedAt:timestamp('claimed_at',{withTimezone:true}),dueAt:timestamp('due_at',{withTimezone:true}).notNull().defaultNow(),createdAt:createdAt(),
+},t=>[index('harvey_outbox_due_idx').on(t.state,t.dueAt)]);
+export const harveySellerInbox=pgTable('harvey_seller_inbox',{
+ id:uuid('id').primaryKey().defaultRandom(),orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ conversationId:uuid('conversation_id').references(()=>harveyConversations.id,{onDelete:'set null'}),providerId:text('provider_id').notNull(),text:text('text').notNull(),createdAt:createdAt(),
+},t=>[uniqueIndex('harvey_seller_inbox_receipt_uq').on(t.orgId,t.userId,t.providerId)]);
+
+export const harveyInboundJobs=pgTable('harvey_inbound_jobs',{
+ id:uuid('id').primaryKey().defaultRandom(),orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ providerId:text('provider_id').notNull(),phone:text('phone').notNull(),text:text('text').notNull(),
+ state:text('state',{enum:['queued','processing','completed','review']}).notNull().default('queued'),error:text('error'),
+ claimedAt:timestamp('claimed_at',{withTimezone:true}),createdAt:createdAt(),
+},t=>[uniqueIndex('harvey_inbound_receipt_uq').on(t.orgId,t.userId,t.providerId),index('harvey_inbound_queue_idx').on(t.state,t.createdAt)]);

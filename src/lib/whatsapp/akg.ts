@@ -38,6 +38,16 @@ export class AkgGateway {
   return data;
  }
  private path(scope:Scope){return '/sessions/'+encodeURIComponent(sessionIdFor(scope));}
+ async configureWebhook(scope:Scope,callback:string,secret:string):Promise<void>{
+  const url=new URL(callback);
+  if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/api/harvey/inbound'||secret.length<32)throw Error('Configuração do recebimento comercial inválida.');
+  const path='/webhooks/'+encodeURIComponent(sessionIdFor(scope));
+  const list=await this.request(path);
+  if(!Array.isArray(list.data))throw Error('Não foi possível verificar o recebimento de mensagens.');
+  const existing=list.data.find((h:any)=>h.name==='Prospectra commercial'&&h.session?.sessionId===sessionIdFor(scope));
+  const body={name:'Prospectra commercial',url:url.toString(),secret,events:['message.received'],isActive:true};
+  await this.request(existing?path+'/'+encodeURIComponent(existing.id):path,existing?'PUT':'POST',body);
+ }
  async status(scope:Scope):Promise<WhatsAppStatus>{
   const result=await this.request(this.path(scope),'GET',undefined,true);
   const checkedAt=new Date().toISOString();

@@ -8,7 +8,7 @@ import type { SearchPlan } from '@/lib/ai';
 import { FormMessage, Submit } from '@/components/form';
 import { Avatar, Empty, STAGE_LABEL, StagePill } from '@/components/ui';
 
-type Lead = { id: string; fullName: string; headline: string; company: string; location: string; linkedinUrl: string; stage: string; tag: string; source: string; createdAt: string };
+type Lead = { id: string; fullName: string; headline: string; company: string; qualification: string; location: string; linkedinUrl: string; stage: string; tag: string; source: string; createdAt: string };
 
 export function LeadsView({ leads, total, page, tags, campaigns, filters, aiOn, credits }: {
   leads: Lead[]; total: number; page: number; tags: string[]; campaigns: { id: string; name: string; status: string }[];
@@ -90,7 +90,7 @@ export function LeadsView({ leads, total, page, tags, campaigns, filters, aiOn, 
                 <tr>
                   <th className="th w-10"><input type="checkbox" aria-label="Selecionar todos" checked={selected.length === leads.length}
                     onChange={(e) => setSelected(e.target.checked ? leads.map((l) => l.id) : [])} /></th>
-                  <th className="th">Nome</th><th className="th">Empresa</th><th className="th">Lista</th><th className="th">Etapa</th><th className="th">Entrou em</th><th className="th" />
+                  <th className="th">Nome</th><th className="th">Empresa</th><th className="th">Qualificação</th><th className="th">Lista</th><th className="th">Etapa</th><th className="th">Entrou em</th><th className="th" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -100,6 +100,7 @@ export function LeadsView({ leads, total, page, tags, campaigns, filters, aiOn, 
                     <td className="td"><div className="flex items-center gap-3"><Avatar name={l.fullName} />
                       <div className="min-w-0"><p className="font-medium">{l.fullName}</p><p className="max-w-[260px] truncate text-xs text-muted">{l.headline || '—'}</p></div></div></td>
                     <td className="td">{l.company || <span className="text-muted">—</span>}</td>
+                    <td className="td max-w-[240px]"><p className="text-sm whitespace-pre-wrap">{l.qualification || <span className="text-muted">Não qualificado</span>}</p></td>
                     <td className="td">{l.tag ? <span className="pill bg-violet-soft text-violet">{l.tag}</span> : <span className="text-muted">—</span>}</td>
                     <td className="td"><StageMenu lead={l} /></td>
                     <td className="td text-muted">{new Date(l.createdAt).toLocaleDateString('pt-BR')}</td>
