@@ -10,11 +10,11 @@ export async function POST(req:Request){
  try{
   const db=await getDb();
   const result=await ingestHarveyWebhook(db,body,req.headers.get('x-webhook-signature'),process.env.HARVEY_WEBHOOK_SECRET);
-  if('received' in result)after(async()=>{
-   try{await processHarveyInbound(db);await runHarveyQueue(db,{maxJobs:1});}
+  if('received' in result&&result.jobId)after(async()=>{
+   try{await processHarveyInbound(db,result.jobId);await runHarveyQueue(db,{maxJobs:1,conversationId:result.conversationId});}
    catch{console.error('Commercial processing deferred to durable queue.');}
   });
-  return Response.json(result);
+  return Response.json('received' in result?{received:true}:{ignored:true});
  }
  catch(error){const code=error instanceof Error?error.message:'';return new Response('callback unavailable',{status:code==='WEBHOOK_UNAUTHORIZED'||code==='WEBHOOK_EXPIRED'?401:code==='WEBHOOK_INVALID'?400:503});}
 }

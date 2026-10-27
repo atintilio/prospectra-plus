@@ -28,22 +28,23 @@ export async function ingestHarveyWebhook(db:DB,body:string,signature:string|nul
  if(!unresolved&&phone!==profile.sellerPhone&&(!conversation||at<conversation.approvedAt.getTime()-1000))return {ignored:true};
  const text=data.type==='TEXT'&&typeof data.content==='string'?data.content.slice(0,4000):'[Mensagem de mídia recebida; revisão humana necessária]';
  if(!text.trim())return {ignored:true};
- await db.transaction(async tx=>{
+ const jobId=await db.transaction(async tx=>{
   const [inserted]=await tx.insert(schema.harveyInboundJobs).values({orgId:profile.orgId,userId:profile.userId,providerId:data.key.id,phone,text,state:unresolved?'review':'queued',error:unresolved?'Identificador WhatsApp sem telefone confirmado. Confira a conversa antes de associar ao CRM.':null}).onConflictDoNothing().returning();
   if(inserted&&conversation)await tx.update(schema.harveyOutbox).set({state:'cancelled'}).where(and(eq(schema.harveyOutbox.conversationId,conversation.id),eq(schema.harveyOutbox.kind,'lead'),eq(schema.harveyOutbox.state,'pending')));
+  return inserted?.id;
  });
  // An opt-out never waits for the AI queue or its scheduling interval.
  if(conversation&&optOut.test(text)){
   await receiveHarveyMessage(db,profile,{providerId:data.key.id,phone,text});
   await db.update(schema.harveyInboundJobs).set({state:'completed'}).where(and(eq(schema.harveyInboundJobs.orgId,profile.orgId),eq(schema.harveyInboundJobs.userId,profile.userId),eq(schema.harveyInboundJobs.providerId,data.key.id)));
  }
- return {received:true};
+ return {received:true,jobId,conversationId:conversation?.id};
 }
 // Acknowledge callbacks after persistence, without waiting for an AI request.
-export async function processHarveyInbound(db:DB){
+export async function processHarveyInbound(db:DB,jobId?:string){
  const stale=await db.update(schema.harveyInboundJobs).set({state:'review',error:'Análise interrompida. Conferência humana necessária.'}).where(and(eq(schema.harveyInboundJobs.state,'processing'),lte(schema.harveyInboundJobs.claimedAt,new Date(Date.now()-2*60000)))).returning();
  for(const job of stale){const [lead]=await db.select().from(schema.harveyConversations).where(and(eq(schema.harveyConversations.orgId,job.orgId),eq(schema.harveyConversations.userId,job.userId),eq(schema.harveyConversations.phone,job.phone)));if(lead)await db.transaction(async tx=>{await handoffCommercialFlow(tx as unknown as DB,job,lead.leadId,'unexpected',['atintilio@argusprime.com.br','mloro@argusprime.com.br'],'Processamento interrompido; conferir a mensagem recebida.');});}
- const job=await db.transaction(async tx=>{const [row]=await tx.select().from(schema.harveyInboundJobs).where(eq(schema.harveyInboundJobs.state,'queued')).orderBy(schema.harveyInboundJobs.createdAt).limit(1).for('update',{skipLocked:true});if(!row)return null;await tx.update(schema.harveyInboundJobs).set({state:'processing',claimedAt:new Date()}).where(eq(schema.harveyInboundJobs.id,row.id));return row;});
+ const job=await db.transaction(async tx=>{const [row]=await tx.select().from(schema.harveyInboundJobs).where(and(eq(schema.harveyInboundJobs.state,'queued'),jobId?eq(schema.harveyInboundJobs.id,jobId):undefined)).orderBy(schema.harveyInboundJobs.createdAt).limit(1).for('update',{skipLocked:true});if(!row)return null;await tx.update(schema.harveyInboundJobs).set({state:'processing',claimedAt:new Date()}).where(eq(schema.harveyInboundJobs.id,row.id));return row;});
  if(!job)return {processed:0};
  try{await receiveHarveyMessage(db,job,{providerId:job.providerId,phone:job.phone,text:job.text});await db.update(schema.harveyInboundJobs).set({state:'completed'}).where(eq(schema.harveyInboundJobs.id,job.id));}
  catch{await db.update(schema.harveyInboundJobs).set({state:'review',error:'Não foi possível analisar a resposta; confira o acesso e a conversa.'}).where(eq(schema.harveyInboundJobs.id,job.id));}
