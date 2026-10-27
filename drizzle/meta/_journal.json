@@ -43,6 +43,13 @@
       "when": 1793088000000,
       "tag": "0005_intelligence_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793088001000,
+      "tag": "0006_voice",
+      "breakpoints": true
     }
   ]
 }

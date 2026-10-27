@@ -73,3 +73,20 @@ test('ambiguous send timeout or missing message id never becomes a confirmed del
  const {api}=gateway([[200,{status:true,data:{status:'CONNECTED',hasInstance:true,me:{id:'5511@s.whatsapp.net'}}}],[200,{status:true,data:{}}]]);
  await expect(api.sendText(scope,'+5511999999999','Olá')).rejects.toThrow('Envio sem confirmação');
 });
+test('voice messages upload private Opus bytes without a public media URL',async()=>{
+ const {api,fetcher}=gateway([[200,{status:true,data:{status:'CONNECTED',hasInstance:true,me:{id:'5511@s.whatsapp.net'}}}],[200,{status:true,data:{key:{id:'voice-1'}}}]]);
+ const audio=new Blob(['OggSsampleOpusHead'],{type:'audio/ogg'});
+ expect(await api.sendAudio(scope,'5511999999999',audio)).toEqual({providerMessageId:'voice-1'});
+ const calls=fetcher.mock.calls as unknown as Array<[string,RequestInit]>;
+ expect(calls[1][0]).toContain('/media');
+ const form=calls[1][1].body as FormData;
+ expect(form.get('type')).toBe('voice');
+ expect(form.get('file')).toBeInstanceOf(Blob);
+ expect(calls[1][1].headers).not.toHaveProperty('Content-Type');
+});
+test('invalid or oversized voice data is rejected before any provider request',async()=>{
+ const {api,fetcher}=gateway([]);
+ await expect(api.sendAudio(scope,'5511999999999',new Blob(['not opus'],{type:'audio/ogg'}))).rejects.toThrow();
+ await expect(api.sendAudio(scope,'5511999999999',new Blob(['OggSOpusHead'],{type:'audio/mp4'}))).rejects.toThrow();
+ expect(fetcher).not.toHaveBeenCalled();
+});

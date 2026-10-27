@@ -33,6 +33,7 @@ def prepare(archive, destination):
             raise ValueError('Patch precondition failed: ' + name)
         p.write_text(text.replace(old, new))
     patch('src/modules/whatsapp/manager.ts', 'enabled: true,', 'enabled: false,')
+    patch('src/server/index.ts','server.listen(port, () => {','server.listen(port, hostname, () => {')
     patch('src/app/api/sessions/[sessionId]/bot-config/route.ts',
           'update: {\n                botMode: body.botMode,',
           'update: {\n                enabled: body.enabled,\n                botMode: body.botMode,')
@@ -43,9 +44,15 @@ def prepare(archive, destination):
     patch('src/app/api/sessions/[sessionId]/[action]/route.ts',
           'await instance.socket.logout();',
           'await instance.socket.logout();\n                    await prisma.authState.deleteMany({ where: { sessionId } });\n                    await prisma.session.update({ where: { sessionId }, data: { status: "LOGGED_OUT", qr: null } });')
+    patch('src/modules/whatsapp/chat.service.ts',
+          "content = { audio: buffer, mimetype: 'audio/mp4', ptt: true };",
+          "content = { audio: buffer, mimetype: mimetype.startsWith('audio/ogg') ? 'audio/ogg; codecs=opus' : mimetype, ptt: true };")
+    patch('src/modules/whatsapp/chat.service.ts',
+          "webhookMsg.message = { audioMessage: { mimetype: 'audio/mp4', ptt: type === 'voice' } };",
+          "webhookMsg.message = { audioMessage: { mimetype: type === 'voice' && mimetype.startsWith('audio/ogg') ? 'audio/ogg; codecs=opus' : 'audio/mp4', ptt: type === 'voice' } };")
     (destination / 'PROSPECTRA-PATCHES.md').write_text(
         '# Prospectra integration patches\nOriginal archive SHA256: ' + EXPECTED +
-        '\nBot defaults off; bot config persists enabled; logout removes persisted credentials.\n'
+        '\nBot defaults off; bot config persists enabled; logout removes persisted credentials; voice PTT preserves Ogg/Opus MIME.\n'
         'MIT notices retained in LICENSE. No dependency or UI rebrand.\n')
     return destination
 

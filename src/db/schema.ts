@@ -201,3 +201,23 @@ export const intelligenceJobs = pgTable('intelligence_jobs', {
  completedAt:timestamp('completed_at',{withTimezone:true}),
  createdAt:createdAt(),
 },t=>[index('intelligence_jobs_claim_idx').on(t.state,t.createdAt),index('intelligence_jobs_scope_idx').on(t.orgId,t.userId,t.createdAt)]);
+
+export const voiceProfiles=pgTable('voice_profiles',{
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ externalId:text('external_id').notNull(),engine:text('engine').notNull(),
+ enabled:boolean('enabled').notNull().default(true),consentAt:timestamp('consent_at',{withTimezone:true}).notNull(),
+},t=>[primaryKey({columns:[t.orgId,t.userId]})]);
+export const voiceRegistrations=pgTable('voice_registrations',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),createdAt:createdAt(),
+},t=>[index('voice_registrations_user_created_idx').on(t.userId,t.createdAt)]);
+export const voiceJobs=pgTable('voice_jobs',{
+ id:uuid('id').primaryKey(),orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ profileId:text('profile_id').notNull(),recipient:text('recipient').notNull(),text:text('text').notNull(),
+ kind:text('kind',{enum:['audio','call']}).notNull(),
+ state:text('state',{enum:['queued','running','sent','unknown','failed','waiting_transport']}).notNull(),
+ createdAt:createdAt(),startedAt:timestamp('started_at',{withTimezone:true}),
+},t=>[index('voice_jobs_scope_idx').on(t.orgId,t.userId,t.createdAt),index('voice_jobs_queue_idx').on(t.state,t.createdAt)]);
