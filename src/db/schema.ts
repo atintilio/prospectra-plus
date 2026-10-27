@@ -187,3 +187,17 @@ export const whatsappCommands = pgTable('whatsapp_commands', {
  providerMessageId:text('provider_message_id'),
  createdAt:createdAt(),
 },t=>[index('whatsapp_commands_user_created_idx').on(t.userId,t.createdAt)]);
+
+export const intelligenceJobs = pgTable('intelligence_jobs', {
+ id:uuid('id').primaryKey(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ leadId:uuid('lead_id').notNull().references(()=>leads.id,{onDelete:'cascade'}),
+ state:text('state',{enum:['queued','running','completed','failed','cancelled']}).notNull().default('queued'),
+ result:jsonb('result').$type<{score:number;priority:string;factors:Record<string,number>;hot:boolean}>(),
+ error:text('error'),
+ attempts:integer('attempts').notNull().default(0),
+ claimedAt:timestamp('claimed_at',{withTimezone:true}),
+ completedAt:timestamp('completed_at',{withTimezone:true}),
+ createdAt:createdAt(),
+},t=>[index('intelligence_jobs_claim_idx').on(t.state,t.createdAt),index('intelligence_jobs_scope_idx').on(t.orgId,t.userId,t.createdAt)]);
