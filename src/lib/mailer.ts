@@ -75,3 +75,16 @@ export async function sendDeletionReport(report: { id: string; actorEmail: strin
   });
   if (!res.ok) throw new Error(`OFFICE365_SEND_FAILED_${res.status}`);
 }
+
+export async function sendCommercialNotification(recipients:string[],body:string):Promise<void>{
+  const allowed=new Set(['atintilio@argusprime.com.br','mloro@argusprime.com.br']);
+  if(!recipients.length||recipients.some(to=>!allowed.has(to)))throw Error('COMMERCIAL_RECIPIENT_INVALID');
+  const sender=env('OFFICE365_SENDER_EMAIL','MS_GRAPH_USER_ID','MAIL_FROM');
+  if(!sender)throw Error('OFFICE365_NOT_CONFIGURED');
+  const token=await accessToken();
+  const response=await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,{
+    method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(15000),
+    body:JSON.stringify({message:{subject:'Prospectra+ · conversa comercial para assumir',body:{contentType:'Text',content:body},toRecipients:recipients.map(address=>({emailAddress:{address}}))},saveToSentItems:true}),
+  });
+  if(!response.ok)throw Error(`OFFICE365_SEND_FAILED_${response.status}`);
+}

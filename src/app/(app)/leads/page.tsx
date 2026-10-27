@@ -28,7 +28,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader title="Leads" subtitle={`${total} ${total === 1 ? 'pessoa' : 'pessoas'} na base de ${ctx.org.name}`} />
       <LeadsView
-        leads={rows.map((l) => ({ id: l.id, fullName: l.fullName, headline: l.headline, company: l.company, location: l.location, linkedinUrl: l.linkedinUrl, stage: l.stage, tag: l.tag, source: l.source, createdAt: l.createdAt.toISOString() }))}
+        leads={rows.map((l) => ({ id: l.id, fullName: l.fullName, headline: l.headline, company: l.company, qualification: l.qualification, location: l.location, linkedinUrl: l.linkedinUrl, stage: l.stage, tag: l.tag, source: l.source, createdAt: l.createdAt.toISOString() }))}
         total={total} page={page} tags={tags.map((t) => t.tag)} campaigns={campaigns} filters={{ q: sp.q ?? '', etapa: sp.etapa ?? '', tag: sp.tag ?? '' }}
         aiOn={aiConfigured() || ctx.org.isDemo} credits={ctx.org.searchCreditsMonth} />
     </>

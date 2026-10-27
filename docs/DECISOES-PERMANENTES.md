@@ -1,8 +1,8 @@
-# Decisões do proprietário — Prospectra
+# Decisões do proprietário — Prospectra+
 
 Confirmadas por André em 23/10/2026.
 
-- O nome e a identidade são Prospectra, sem rótulos de versão na interface.
+- O nome do produto é **Prospectra+**, conforme correção expressa de André em 27/10/2026, sem rótulos de versão na interface. O título técnico PROSPECTRA-X v1.1 não renomeia o produto. Preservar a identidade visual aprovada.
 - Atualizações do banco devem migrar conjuntamente todos os usuários ativos, preservando credenciais, papéis, vínculos e dados. A migração não pode depender do próximo login.
 - Contas canceladas, bloqueadas ou removidas por André ou Moisés não podem ser reativadas pela migração.
 - Produção e demonstração permanecem separadas.

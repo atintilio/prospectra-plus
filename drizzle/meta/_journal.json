@@ -36,6 +36,27 @@
       "when": 1793054400000,
       "tag": "0004_whatsapp_commands",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793088000000,
+      "tag": "0005_intelligence_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793088001000,
+      "tag": "0006_voice",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793088002000,
+      "tag": "0007_harvey",
+      "breakpoints": true
     }
   ]
 }

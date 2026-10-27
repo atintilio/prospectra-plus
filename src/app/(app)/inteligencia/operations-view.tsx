@@ -1,0 +1,35 @@
+'use client';
+import {useState,useTransition} from 'react';
+import {saveProfileAction,approveHarveyAction,stopHarveyAction} from './operations-actions';
+import type {CommercialProfile} from '@/lib/harvey-operations';
+type Conversation={id:string;leadName:string;state:string;summary:string;qualification:string;pending:number;unknown:number};
+export function HarveyOperations({profile,leads,conversations,sellerName,enabled}:{profile:CommercialProfile|null;leads:{id:string;fullName:string;company:string}[];conversations:Conversation[];sellerName:string;enabled:boolean}){
+ const [draft,setDraft]=useState<CommercialProfile>(profile??{sellerName,companyName:'',sellerPhone:'',strategy:'',offers:[{name:'',description:''}]});
+ const [saved,setSaved]=useState(Boolean(profile));const [leadId,setLeadId]=useState(leads[0]?.id??'');const [phone,setPhone]=useState('');const [qualification,setQualification]=useState('');const [approved,setApproved]=useState(false);const [message,setMessage]=useState('');const [pending,start]=useTransition();
+ const edit=(key:keyof CommercialProfile,value:CommercialProfile[keyof CommercialProfile])=>{setDraft({...draft,[key]:value});setSaved(false);setApproved(false);};
+ return <section className="space-y-5 mb-8" aria-labelledby="harvey-title">
+ <div><h2 id="harvey-title" className="text-xl font-semibold">Operação comercial</h2><p className="mt-1 text-sm text-muted">Cadastre suas ofertas e aprove o fluxo por lead. As conversas usam sua identidade; interesse, dúvidas técnicas e situações inesperadas passam para uma pessoa.</p></div>
+ <div className="grid gap-5 lg:grid-cols-2">
+ <form className="card p-5 space-y-4" onSubmit={e=>{e.preventDefault();start(async()=>{const r=await saveProfileAction(draft);setMessage(r.error??'Perfil e ofertas salvos.');setSaved(Boolean(r.ok));});}}>
+ <h3 className="font-semibold">Perfil comercial e ofertas manuais</h3>
+ {(['sellerName','companyName','sellerPhone'] as const).map(key=><label className="block text-sm" key={key}>{{sellerName:'Nome do vendedor',companyName:'Empresa apresentada ao lead',sellerPhone:'WhatsApp interno do vendedor (país + DDD + número)'}[key]}<input className="input mt-1 w-full" required value={draft[key]} onChange={e=>edit(key,e.target.value)} maxLength={key==='sellerPhone'?16:100}/></label>)}
+ <label className="block text-sm">Estratégia aprovada<textarea className="input mt-1 w-full" required minLength={5} maxLength={2000} rows={3} value={draft.strategy} onChange={e=>edit('strategy',e.target.value)} placeholder="Público, objetivo, tom, limites e quando você quer assumir."/></label>
+ <p className="text-xs text-muted">A primeira oferta abre o contato. Nas respostas, a IA só escolhe ofertas e perguntas permitidas. O fluxo encerra a qualificação em até três respostas e transfere para o vendedor.</p>
+ {draft.offers.map((offer,i)=><div key={i} className="rounded-xl border border-border p-3 space-y-2"><label className="block text-sm">Oferta {i+1}<input className="input mt-1 w-full" required maxLength={100} value={offer.name} onChange={e=>edit('offers',draft.offers.map((o,n)=>n===i?{...o,name:e.target.value}:o))}/></label><label className="block text-sm">Descrição autorizada<textarea className="input mt-1 w-full" required minLength={5} maxLength={600} value={offer.description} onChange={e=>edit('offers',draft.offers.map((o,n)=>n===i?{...o,description:e.target.value}:o))}/></label>{draft.offers.length>1&&<button type="button" className="text-sm text-danger" onClick={()=>edit('offers',draft.offers.filter((_,n)=>n!==i))}>Remover oferta</button>}</div>)}
+ {draft.offers.length<8&&<button className="btn-outline" type="button" onClick={()=>edit('offers',[...draft.offers,{name:'',description:''}])}>Adicionar oferta</button>}
+ <button className="btn-primary block" disabled={!enabled||pending}>Salvar perfil e ofertas</button>
+ </form>
+ <form className="card p-5 space-y-4" onSubmit={e=>{e.preventDefault();start(async()=>{const r=await approveHarveyAction({leadId,phone,qualification,approved});setMessage(r.error??'Fluxo aprovado e primeiro contato na fila.');if(r.ok)setApproved(false);});}}>
+ <h3 className="font-semibold">Qualificar e aprovar um lead</h3>
+ <label className="block text-sm">Lead<select className="input mt-1 w-full" value={leadId} onChange={e=>{setLeadId(e.target.value);setApproved(false);}} required>{leads.map(l=><option key={l.id} value={l.id}>{l.fullName}{l.company?' · '+l.company:''}</option>)}</select></label>
+ <label className="block text-sm">WhatsApp do lead<input className="input mt-1 w-full" value={phone} onChange={e=>{setPhone(e.target.value);setApproved(false);}} required placeholder="5511999999999" maxLength={16}/></label>
+ <label className="block text-sm">Qualificação CRM<textarea className="input mt-1 w-full" value={qualification} onChange={e=>{setQualification(e.target.value);setApproved(false);}} required minLength={10} maxLength={2000} rows={4} placeholder="Por que este contato corresponde ao público? Registre cargo, necessidade conhecida, fonte e contexto."/></label>
+ {saved&&<div className="rounded-xl bg-surface p-3 text-sm"><strong>Primeira mensagem</strong><p className="mt-2">Olá, {leads.find(l=>l.id===leadId)?.fullName??'lead'}. Sou {draft.sellerName}, da {draft.companyName}. {draft.offers[0]?.description} Faz sentido conversarmos sobre esse tema?</p></div>}
+ <label className="flex gap-2 text-sm"><input type="checkbox" checked={approved} onChange={e=>setApproved(e.target.checked)} required/>Aprovo esta estratégia, identidade, ofertas e telefone para o fluxo automático deste lead. Após a passagem humana, nenhuma resposta automática continuará; os lembretes irão apenas ao vendedor a cada dois dias.</label>
+ <button className="btn-primary" disabled={!enabled||!saved||!approved||!leadId||pending}>Aprovar e colocar na fila</button>
+ <p className="text-xs text-muted">A entrega depende do WhatsApp conectado. Horários sugeridos e interesse em reunião são encaminhados para confirmação humana. Alterações no perfil só afetam novas aprovações.</p>
+ </form></div>
+ {message&&<p className="text-sm" role="status">{message}</p>}
+ <div className="card p-5"><h3 className="font-semibold mb-3">Conversas aprovadas</h3>{!conversations.length?<p className="text-sm text-muted">Nenhum fluxo aprovado ainda.</p>:<ul className="space-y-3">{conversations.map(c=><li key={c.id} className="border border-border rounded-xl p-3 text-sm"><div className="flex justify-between gap-3"><strong>{c.leadName}</strong><span>{{active:'Automático',processing:'Analisando resposta',handoff:'Com vendedor',stopped:'Encerrado'}[c.state]??c.state}</span></div><p className="mt-1">{c.summary||c.qualification}</p><p className="text-muted mt-1">{c.pending} entrega(s) na fila{c.unknown?` · ${c.unknown} envio(s) sem confirmação: confira antes de reenviar`:''}</p>{c.state!=='stopped'&&<button className="btn-outline mt-2" disabled={pending} onClick={()=>start(async()=>{const r=await stopHarveyAction(c.id);setMessage(r.error??'Fluxo e lembretes encerrados.');})}>Encerrar fluxo e lembretes</button>}</li>)}</ul>}</div>
+ </section>;
+}

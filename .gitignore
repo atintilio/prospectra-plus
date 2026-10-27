@@ -19,3 +19,8 @@ CLAUDE.md
 infra/wa-akg/source/
 package-lock.json
 .codebase-memory/
+__pycache__/
+*.pyc
+services/intelligence/data/
+services/intelligence/.venv/
+infra/voice-studio/source/

@@ -3,6 +3,8 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import {handoffCommercialFlow} from '@/lib/harvey-operations';
+import type {DB} from '@/db';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { commercialInputSchema, generateCommercial, type CommercialResult } from '@/lib/harvey';
@@ -32,6 +34,7 @@ export async function generateCommercialAction(raw: unknown): Promise<Intelligen
       const rows = await tx.update(schema.leads).set({ notes: sql`${schema.leads.notes} || ${note}`, ...(result.handoff?.reason === 'opt_out' ? { stage: 'do_not_contact' as const } : {}) }).where(and(where, sql`length(${schema.leads.notes}) < 200000`)).returning({id:schema.leads.id});
       if (!rows.length) throw new Error('COMMERCIAL_SAVE_CONFLICT');
       if (result.handoff) {
+        await handoffCommercialFlow(tx as unknown as DB,{orgId:ctx.org.id,userId:ctx.user.id},lead.id,result.handoff.reason,result.handoff.recipients,result.handoff.summary);
         await tx.update(schema.enrollments).set({state:'stopped'}).where(and(eq(schema.enrollments.orgId,ctx.org.id),eq(schema.enrollments.leadId,lead.id),inArray(schema.enrollments.state,['running','waiting_accept'])));
         await tx.update(schema.actions).set({status:'skipped'}).where(and(eq(schema.actions.orgId,ctx.org.id),eq(schema.actions.leadId,lead.id),eq(schema.actions.status,'pending')));
       }

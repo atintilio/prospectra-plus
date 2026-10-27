@@ -28,7 +28,8 @@ export class AkgGateway {
  }
  private async request(path:string,method='GET',body?:unknown,missing=false):Promise<any>{
   let response:Response;
-  try {response=await this.fetcher(this.base+'/api'+path,{method,headers:{'x-api-key':this.config.apiKey,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8000)});}
+  const multipart=body instanceof FormData;
+  try {response=await this.fetcher(this.base+'/api'+path,{method,headers:multipart?{'x-api-key':this.config.apiKey}:{'x-api-key':this.config.apiKey,'Content-Type':'application/json'},body:multipart?body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8000)});}
   catch {throw Error('WA-AKG indisponível ou sem resposta. Tente consultar o status novamente.');}
   if(missing&&[403,404].includes(response.status))return null;
   if([401,403].includes(response.status))throw Error('Credencial do WA-AKG inválida ou sem permissão.');
@@ -37,6 +38,16 @@ export class AkgGateway {
   return data;
  }
  private path(scope:Scope){return '/sessions/'+encodeURIComponent(sessionIdFor(scope));}
+ async configureWebhook(scope:Scope,callback:string,secret:string):Promise<void>{
+  const url=new URL(callback);
+  if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/api/harvey/inbound'||secret.length<32)throw Error('Configuração do recebimento comercial inválida.');
+  const path='/webhooks/'+encodeURIComponent(sessionIdFor(scope));
+  const list=await this.request(path);
+  if(!Array.isArray(list.data))throw Error('Não foi possível verificar o recebimento de mensagens.');
+  const existing=list.data.find((h:any)=>h.name==='Prospectra commercial'&&h.session?.sessionId===sessionIdFor(scope));
+  const body={name:'Prospectra commercial',url:url.toString(),secret,events:['message.received'],isActive:true};
+  await this.request(existing?path+'/'+encodeURIComponent(existing.id):path,existing?'PUT':'POST',body);
+ }
  async status(scope:Scope):Promise<WhatsAppStatus>{
   const result=await this.request(this.path(scope),'GET',undefined,true);
   const checkedAt=new Date().toISOString();
@@ -85,6 +96,20 @@ export class AkgGateway {
   catch {throw Error('Envio sem confirmação. Confira no WhatsApp antes de tentar novamente.');}
   const id=result.data?.key?.id;
   if(typeof id!=='string'||!id)throw Error('Envio sem confirmação. Confira no WhatsApp antes de tentar novamente.');
+  return {providerMessageId:id};
+ }
+ async sendAudio(scope:Scope,recipient:string,audio:Blob):Promise<{providerMessageId:string}>{
+  const phone=recipient.replace(/[\s()+-]/g,'');z.string().regex(/^[1-9]\d{7,14}$/).parse(phone);
+  if(!audio.size||audio.size>8_000_000||audio.type!=='audio/ogg')throw Error('Use áudio Ogg/Opus de até 8 MB.');
+  const header=new TextDecoder().decode(await audio.slice(0,4096).arrayBuffer());
+  if(!header.startsWith('OggS')||!header.includes('OpusHead'))throw Error('Áudio Opus inválido.');
+  if((await this.status(scope)).state!=='connected')throw Error('Conecte o WhatsApp antes de enviar.');
+  const form=new FormData();form.set('file',audio,'voice.ogg');form.set('type','voice');
+  let result:any;
+  try{result=await this.request('/messages/'+encodeURIComponent(sessionIdFor(scope))+'/'+encodeURIComponent(phone+'@s.whatsapp.net')+'/media','POST',form);}
+  catch{throw Error('Envio de áudio sem confirmação. Confira no WhatsApp antes de tentar novamente.');}
+  const id=result.data?.key?.id;
+  if(typeof id!=='string'||!id)throw Error('Envio de áudio sem confirmação. Confira no WhatsApp antes de tentar novamente.');
   return {providerMessageId:id};
  }
 }

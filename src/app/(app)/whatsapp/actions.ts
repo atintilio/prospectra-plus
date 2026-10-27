@@ -3,6 +3,8 @@ import {requireOrg} from '@/lib/auth';
 import {getDb} from '@/db';
 import {AkgGateway,akgConfig,assertWhatsAppAccess,type WhatsAppStatus} from '@/lib/whatsapp/akg';
 import {sendWhatsAppCommand} from '@/lib/whatsapp/commands';
+import {sessionIdFor} from '@/lib/whatsapp/akg';
+import {sessionWebhookSecret} from '@/lib/whatsapp/webhook-signing';
 
 async function context(){
  const ctx=await requireOrg();const scope=assertWhatsAppAccess(ctx);const config=akgConfig();
@@ -12,7 +14,13 @@ async function context(){
 export async function whatsappAction(action:'status'|'connect'|'disconnect'):Promise<WhatsAppStatus>{
  try {
   const {scope,api}=await context();
-  if(action==='connect')return await api.connect(scope);
+  if(action==='connect'){
+   const result=await api.connect(scope);
+   const master=process.env.HARVEY_WEBHOOK_SECRET,origin=process.env.PUBLIC_APP_URL;
+   if(!master||!origin)return {...result,message:'WhatsApp iniciado. O administrador ainda precisa configurar o recebimento do assistente comercial.'};
+   await api.configureWebhook(scope,new URL('/api/harvey/inbound',origin).toString(),sessionWebhookSecret(master,sessionIdFor(scope)));
+   return result;
+  }
   if(action==='disconnect')return await api.disconnect(scope);
   if(action!=='status')throw Error('Ação inválida.');
   return await api.status(scope);
