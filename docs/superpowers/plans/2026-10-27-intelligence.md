@@ -16,7 +16,7 @@
 
 ## Etapas testáveis
 
-- [x] Fundação Python: pontuação com fatores explicáveis e SafetyGuard com reserva atômica por operação/vendedor/dia, janela local, aquecimento e interrupção. Nove testes Python passaram; nenhuma ação real foi executada.
+- [x] Fundação Python: pontuação com fatores explicáveis e SafetyGuard com reserva atômica por operação/vendedor/dia, janela local, aquecimento e interrupção. Dez testes Python passaram; nenhuma ação real foi executada.
 - [x] Código e testes locais da integração de análise: tabela de trabalhos aditiva, autorização no servidor, análise de dados existentes por worker Python e exibição de resultados no CRM. A instalação/ativação na VPS ainda está bloqueada.
 - [ ] Conectores: verificar contratos oficiais e versões de SpiderFoot e linkedin-api; tratar ausência de credenciais, checkpoints, limites e fontes sem dados. Apollo/Hunter opcionais e desligados por padrão.
 - [ ] Orquestração: filas persistentes, resultados por organização, tentativas limitadas e cache separado por conta. Automação externa só com conta vinculada e fluxo aprovado.
@@ -28,3 +28,9 @@ Para cada etapa: teste que reproduz a falha, implementação mínima, validaçã
 ## Bloqueios observados
 
 Em 27/10/2026 o proxy SSH não respondeu e o painel da VPS retornou Cloudflare 523. Deploy e validação dos processos persistentes dependem do restabelecimento do acesso. GLM 4.7 não é pré-requisito para pontuação determinística e permanece desligado enquanto não houver saldo autorizado.
+
+## Revisão do primeiro incremento
+
+- Revisão independente identificou que todos os perfis lidos do cadastro atual ficariam abaixo do limiar MEDIUM: não há porte, e-mail verificado e evidências OSINT no modelo atual. Correção: manter pesos da fórmula e marcar a análise do worker como parcial, com fatores indisponíveis e prioridade comercial não avaliada, em vez de inflar o score ou classificar todos como LOW. Teste reproduziu ausência dos marcadores e passou após correção.
+- Aquecimento para ação real requer data de ativação conhecida; sem ela, falha antes de reservar orçamento. Simulação permanece padrão. Teste reproduziu a execução permissiva e passou após correção.
+- Nenhuma alteração de banco destrutiva, chamada externa, envio real ou ativação de cobrança ocorreu neste incremento. A migração é apenas aditiva e o executor continua desabilitado na aplicação até validação na VPS.

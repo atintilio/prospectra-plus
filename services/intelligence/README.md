@@ -4,7 +4,7 @@ Incremento integrado ao CRM existente. A marca e os logins são preservados. A e
 
 ## Disponível neste incremento
 
-- Análise heurística explicável dos dados **já cadastrados** no lead. Não confirma intenção de compra nem inventa e-mail, telefone ou dados de funcionários.
+- Análise heurística parcial e explicável dos dados **já cadastrados** no lead. O cadastro atual não contém porte, contato verificado ou evidências OSINT: esses fatores aparecem como indisponíveis e a prioridade comercial não é classificada. A fórmula completa permanece testada para a futura integração de fontes. Não confirma intenção de compra nem inventa e-mail, telefone ou dados de funcionários.
 - Fila Postgres durável, idempotência por solicitação, isolamento por operação/vendedor, limite de 100 análises por vendedor/dia UTC.
 - Worker Python com retomada de análises interrompidas após dez minutos e até três aquisições. Contas revogadas, demo, opt-out e transferência de proprietário cancelam o processamento. Resultado só é salvo se o acesso continuar válido.
 - Interface integrada em Inteligência comercial; permanece desabilitada até a instalação e verificação do executor.

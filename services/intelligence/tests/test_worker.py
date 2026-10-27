@@ -34,6 +34,8 @@ class WorkerTests(unittest.TestCase):
             self.assertTrue(run_once(store, Path(directory) / "STOP"))
             self.assertIn("score", store.results[0])
             self.assertNotIn("sent", store.results[0])
+            self.assertFalse(store.results[0]["priorityAvailable"])
+            self.assertIn('email_validity',store.results[0]["unavailableFactors"])
 
     def test_failure_cannot_become_success_or_automatic_send(self):
         with tempfile.TemporaryDirectory() as directory, patch('prospectra_intelligence.worker.score_profile', side_effect=ValueError('private')):

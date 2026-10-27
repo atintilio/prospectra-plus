@@ -194,7 +194,7 @@ export const intelligenceJobs = pgTable('intelligence_jobs', {
  userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
  leadId:uuid('lead_id').notNull().references(()=>leads.id,{onDelete:'cascade'}),
  state:text('state',{enum:['queued','running','completed','failed','cancelled']}).notNull().default('queued'),
- result:jsonb('result').$type<{score:number;priority:string;factors:Record<string,number>;hot:boolean}>(),
+ result:jsonb('result').$type<{score:number;priority:string;factors:Record<string,number>;hot:boolean;priorityAvailable?:boolean;unavailableFactors?:string[]}>(),
  error:text('error'),
  attempts:integer('attempts').notNull().default(0),
  claimedAt:timestamp('claimed_at',{withTimezone:true}),

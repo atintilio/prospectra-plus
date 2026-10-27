@@ -46,7 +46,7 @@ class SafetyTests(unittest.TestCase):
         self.stop = Path(self.directory.name)/'STOP'
         self.budget = Budget()
         self.now = datetime(2026,10,27,12,tzinfo=timezone.utc) # 09:00 São Paulo
-        self.guard = SafetyGuard('org-a','user-a',self.budget,stop_file=self.stop,dry_run=False)
+        self.guard = SafetyGuard('org-a','user-a',self.budget,stop_file=self.stop,dry_run=False,warmup_mode=False)
     def tearDown(self): self.directory.cleanup()
 
     def test_window_stop_and_atomic_limit(self):
@@ -73,3 +73,8 @@ class SafetyTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.guard.reserve_action('unsupported',self.now)
         with self.assertRaises(ValueError): SafetyGuard('org:a','user',self.budget)
         with self.assertRaises(ValueError): SafetyGuard('org','user',self.budget,min_delay=120,max_delay=45)
+
+    def test_real_execution_requires_known_warmup_start(self):
+        guard=SafetyGuard('org','user',self.budget,stop_file=self.stop,dry_run=False)
+        with self.assertRaises(SafetyError): guard.reserve_action('invite',self.now)
+        self.assertEqual(self.budget.counts,{})

@@ -63,6 +63,8 @@ class SafetyGuard:
         if action not in LIMITS: raise ValueError('Tipo de ação inválido')
         current=self.assert_active_window(now)
         limit=LIMITS[action]
+        if not self.dry_run and self.warmup_mode and self.activated_at is None:
+            raise SafetyError('Informe a data de ativação antes de executar ações reais em aquecimento')
         if self.activated_at is not None:
             age=current.astimezone(timezone.utc)-self.activated_at.astimezone(timezone.utc)
             if age<timedelta(0): raise ValueError('Ativação futura inválida')

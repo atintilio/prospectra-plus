@@ -28,6 +28,10 @@ def run_once(store: Store, stop_file: Path = Path("data/STOP")) -> bool:
         return False
     try:
         result = score_profile(job["profile"])
+        # O cadastro atual não fornece contato verificado, porte ou evidências OSINT.
+        # Não transformar dados ausentes em uma falsa classificação comercial baixa.
+        result["priorityAvailable"] = False
+        result["unavailableFactors"] = ['company_size','digital_presence','osint_risk','email_validity']
         # Não há dados inventados nem status de mensagem enviada neste executor.
         store.finish(job, result)
     except Exception as exc:
