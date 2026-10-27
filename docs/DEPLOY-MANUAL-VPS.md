@@ -2,315 +2,201 @@
 
 Este guia é para você executar na VPS francesa (VPS-905340). Tudo já está validado localmente.
 
+## Duas formas de fazer o deploy
+
+| Opção | Quando usar |
+|-------|-------------|
+| **A. Script automatizado** | Se você tem acesso SSH à VPS e quer tudo em um comando |
+| **B. Passo a passo manual** | Se quer executar cada etapa individualmente |
+
+Ambas incluem a configuração do Cloudflare Tunnel (se você tiver credenciais).
+
+---
+
 ## Pré-requisitos na VPS
 
 - Acesso root (senha: `3Xiuy4oK`)
-- Node.js 22 instalado
-- pnpm 10.25.0 instalado (`npm install -g pnpm@10.25.0`)
-- PM2 instalado (`npm install -g pm2`)
-- Neon Postgres já provisionado (`DATABASE_URL` disponível)
+- Node.js 22, pnpm 10.25.0, PM2
+- Neon Postgres já provisionado (`DATABASE_URL`)
 - nginx já configurado para `crm.argusprime.com.br`
+- Conta Cloudflare com API Token (permissão para editar DNS)
 
 ---
 
-## Passo 1: Conectar na VPS
-
-Como não sei exatamente como você acessa (sem IPv4, proxy SSH inativo), use o meio que você tiver disponível. Quando estiver conectado como root:
+## Opção A — Script automatizado (recomendado)
 
 ```bash
-whoami
-# deve retornar: root
+# Na VPS, como root:
+cd /opt/prospectra-plus
+
+# 1. Transferir o código primeiro (scp, tar.gz, etc.)
+# 2. Executar o script:
+bash scripts/deploy-prospectra-cf.sh
 ```
+
+O script vai:
+1. Instalar Node.js 22, pnpm, PM2, cloudflared
+2. Instalar dependências do projeto e fazer build
+3. Iniciar Next.js com PM2
+4. Autenticar o Cloudflare Tunnel (`cloudflared tunnel login`)
+5. Criar o túnel e configurar o DNS no seu subdomínio
+6. Instalar o cloudflared como serviço systemd
+7. Configurar crontab diário para `/api/cron`
+
+**Você precisará informar durante a execução:**
+- O subdomínio completo (ex: `prospectra.crm.argusprime.com.br`)
+- Autorizar o túnel no navegador (URL que o cloudflared abre)
 
 ---
 
-## Passo 2: Transferir o código para a VPS
+## Opção B — Passo a passo manual
 
-Escolha uma das opções abaixo:
+### Passo 1: Transferir o código
 
-### Opção A — Via scp (se você tiver um terminal no Mac com acesso à VPS)
-
-```bash
-# No seu Mac (outro terminal):
-scp /tmp/prospectra-deploy.tar.gz root@<seu-meio-de-acesso>:/root/
-```
-
-### Opção B — Via curl/wget (se você conseguir hospedar o arquivo em algum lugar)
-
-```bash
-# Na VPS:
-curl -o /root/prospectra-deploy.tar.gz <URL-do-arquivo>
-```
-
-### Opção C — Copiar e colar arquivos individualmente
-
-Se não conseguir transferir o tar.gz, você pode criar os arquivos na VPS copiando o conteúdo de cada um.
-
----
-
-## Passo 3: Preparar o diretório e extrair
-
-Na VPS, como root:
-
+Na VPS:
 ```bash
 mkdir -p /opt/prospectra-plus
 cd /opt/prospectra-plus
-tar -xzf /root/prospectra-deploy.tar.gz
-rm /root/prospectra-deploy.tar.gz
+# Extrair o código aqui (via scp, tar.gz, etc.)
 ls -la
+# Deve mostrar: src/, package.json, pnpm-lock.yaml, etc.
 ```
 
-Você deve ver: `src/`, `tests/`, `docs/`, `drizzle/`, `scripts/`, `package.json`, `pnpm-lock.yaml`, `ecosystem.config.js`, etc.
-
----
-
-## Passo 4: Criar o arquivo de variáveis de ambiente
-
-Crie `/opt/prospectra-plus/.env` com `chmod 600`:
+### Passo 2: Criar .env
 
 ```bash
 cat > /opt/prospectra-plus/.env << 'EOF'
-# Banco (Neon — endpoint -pooler, sslmode=require)
-DATABASE_URL=postgresql://SEU_USUARIO:SEU_SENHA@SEU_ENDPOINT.neon.tech/prospectra_plus?sslmode=require
-
-# Segredo de sessão (gere: openssl rand -hex 32)
+DATABASE_URL=postgresql://SEU_USUARIO:SUA_SENHA@SEU_ENDPOINT.neon.tech/prospectra_plus?sslmode=require
 AUTH_SECRET=SUA_CHAVE_SECRETA_AQUI
-
-# URL pública do app
 PUBLIC_APP_URL=https://crm.argusprime.com.br
-
-# Primeiro administrador master
 MASTER_USER_EMAIL=atintilio@argusprime.com.br
-
-# Office 365 (Microsoft Graph, Mail.Send)
 OFFICE365_TENANT_ID=
 OFFICE365_CLIENT_ID=
 OFFICE365_CLIENT_SECRET=
 OFFICE365_SENDER_EMAIL=
-
-# IA (OpenRouter) — opcional para busca com IA
 OPENROUTER_API_KEY=
 AI_MODEL=qwen/qwen3-30b-a3b:free
-
-# Arquivo de usuários legados (opcional)
 LEGACY_AUTH_FILE=/etc/prospectra/auth.json
-
-# Sistema
 DRY_RUN=true
 TZ=America/Sao_Paulo
 ACTION_WINDOW_START=08:00
 ACTION_WINDOW_END=18:00
-
-# Cron secreto para /api/cron (gere: openssl rand -hex 32)
 CRON_SECRET=SUA_CHAVE_CRON_AQUI
 EOF
-
 chmod 600 /opt/prospectra-plus/.env
 ```
 
-**Importante:** Substitua `DATABASE_URL`, `AUTH_SECRET` e `CRON_SECRET` pelos valores reais. As variáveis do WhatsApp (`WA_AKG_*`) e Voice Studio (`VOICESTUDIO_*`) **não** são necessárias neste escopo — não as adicione.
+**Substitua:** `DATABASE_URL`, `AUTH_SECRET`, `CRON_SECRET` pelos valores reais.
 
----
-
-## Passo 5: Arquivo de usuários legados (opcional)
-
-Se você tem um backup do `auth.json` do v1 (do Vercel Blob), coloque em `/etc/prospectra/auth.json` com `chmod 600`. Isso permite migração silenciosa de senhas do v1. Se não tiver, pule esta etapa — o sistema funciona normalmente sem ele.
-
-```bash
-mkdir -p /etc/prospectra
-# copiar auth.json para cá se existir
-chmod 600 /etc/prospectra/auth.json
-```
-
----
-
-## Passo 6: Instalar dependências e build
+### Passo 3: Instalar dependências e build
 
 ```bash
 cd /opt/prospectra-plus
-
-# Instalar dependências
 pnpm install --frozen-lockfile
-
-# Verificar tipos
 pnpm run typecheck
-
-# Build de produção (executa migrações no Neon + build Next.js)
 pnpm run build
 ```
 
-Se o build pedir `DATABASE_URL` e não encontrar, certifique-se de que o `.env` está correto.
-
----
-
-## Passo 7: Iniciar com PM2
+### Passo 4: Iniciar com PM2
 
 ```bash
-cd /opt/prospectra-plus
-
-# Iniciar a aplicação
 pm2 start ecosystem.config.js
-
-# Salvar a lista de processos
 pm2 save
-
-# Configurar reinício automático no boot
 pm2 startup systemd
 ```
 
-Verifique se está rodando:
-
+Verifique:
 ```bash
 pm2 list
 ```
 
-Você deve ver o processo `prospectra` online.
+### Passo 5: Cloudflare Tunnel
 
----
+```bash
+# Instalar cloudflared
+wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+dpkg -i cloudflared-linux-amd64.deb
+rm -f cloudflared-linux-amd64.deb
 
-## Passo 8: Configurar crontab diário (substitui o Vercel Cron)
+# Autenticar (abre URL no navegador)
+cloudflared tunnel login
 
-O endpoint `/api/cron` roda o scheduler de cadência diariamente. Configure no crontab do root:
+# Criar túnel
+cloudflared tunnel create prospectra
+
+# Configurar DNS (substitua pelo seu subdomínio)
+cloudflared tunnel route dns prospectra prospectra.crm.argusprime.com.br
+
+# Obter o ID do túnel
+cloudflared tunnel list
+```
+
+### Passo 6: Configurar arquivo do túnel
+
+Crie `/etc/cloudflared/config.yml`:
+
+```yaml
+tunnel: <ID-DO-TUNNEL>
+credentials-file: /root/.cloudflared/<ID-DO-TUNNEL>.json
+
+ingress:
+  - hostname: prospectra.crm.argusprime.com.br
+    service: http://localhost:3000
+  - service: http_status:404
+```
+
+### Passo 7: Iniciar o túnel como serviço
+
+```bash
+cloudflared service install prospectra
+systemctl enable cloudflared
+systemctl start cloudflared
+```
+
+### Passo 8: Crontab diário
 
 ```bash
 crontab -e
 ```
 
-Adicione esta linha:
-
+Adicione:
 ```cron
-0 10 * * * curl -sf -H "Authorization: Bearer SUA_CHAVE_CRON_AQUI" https://crm.argusprime.com.br/api/cron >> /var/log/prospectra-cron.log 2>&1
+0 10 * * * curl -sf -H "Authorization: Bearer SUA_CHAVE_CRON" https://prospectra.crm.argusprime.com.br/api/cron >> /var/log/prospectra-cron.log 2>&1
 ```
 
-Substitua `SUA_CHAVE_CRON_AQUI` pelo valor de `CRON_SECRET` que você definiu no `.env`.
-
-Opcional — health check a cada 5 minutos:
-
-```cron
-*/5 * * * * curl -sf https://crm.argusprime.com.br/api/health > /dev/null 2>&1
-```
-
----
-
-## Passo 9: Configurar nginx (se ainda não estiver)
-
-O Next.js roda na porta 3000 (localhost). O nginx da VPS já deve estar fazendo proxy reverso para `crm.argusprime.com.br`. Verifique:
+### Passo 9: Verificar
 
 ```bash
-nginx -t
-systemctl status nginx
-```
-
-Se precisar adicionar o proxy para a porta 3000, adicione ao seu site no nginx:
-
-```
-location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection 'upgrade';
-    proxy_set_header Host $host;
-    proxy_cache_bypass $http_upgrade;
-}
-```
-
-Depois:
-
-```bash
-systemctl reload nginx
-```
-
----
-
-## Passo 10: Verificar se tudo está funcionando
-
-```bash
-# Health check
-curl https://crm.argusprime.com.br/api/health
-
-# Deve retornar algo como:
-# {"status":"ok","version":"2.0.0","database":"ok","office365":"missing","ai":"missing"}
-
-# Ver processos PM2
+curl https://prospectra.crm.argusprime.com.br/api/health
 pm2 list
-
-# Ver logs da aplicação
-pm2 logs prospectra --lines 20
-```
-
----
-
-## Acessar a aplicação
-
-Abra no navegador: `https://crm.argusprime.com.br`
-
-Faça login com o e-mail do `MASTER_USER_EMAIL` (atintilio@argusprime.com.br) usando "Esqueci minha senha" ou crie o primeiro usuário diretamente no banco se necessário.
-
----
-
-## Comandos úteis para gerenciamento
-
-```bash
-# Ver logs
-pm2 logs prospectra
-
-# Reiniciar a aplicação
-pm2 restart prospectra
-
-# Parar a aplicação
-pm2 stop prospectra
-
-# Ver status
-pm2 status
-
-# Ver logs do cron
-tail -f /var/log/prospectra-cron.log
+systemctl status cloudflared
 ```
 
 ---
 
 ## O que NÃO fazer (este escopo)
 
-- Não configurar `WA_AKG_BASE_URL`, `WA_AKG_API_KEY` (WhatsApp excluído)
-- Não configurar `VOICESTUDIO_*`, `VOICE_AUTOMATION_ENABLED` (voz excluída)
+- Não configurar `WA_AKG_*`, `VOICESTUDIO_*`, `VOICE_AUTOMATION_ENABLED` (excluídos)
 - Não iniciar o voice-worker
-- Não tocar no CRM existente (crm.argusprime.com.br já tem Next.js rodando)
+- Não tocar no CRM existente
 
 ---
 
-## Se algo der errado
+## Arquivos no pacote
 
-```bash
-# Ver logs detalhados
-pm2 logs prospectra --err --lines 50
-
-# Verificar se a porta 3000 está ouvindo
-ss -tlnp | grep 3000
-
-# Rebuild se necessário
-cd /opt/prospectra-plus
-pnpm run build
-pm2 restart prospectra
-```
+| Arquivo | Descrição |
+|---------|-----------|
+| `scripts/deploy-prospectra-cf.sh` | Script automatizado com Cloudflare |
+| `docs/DEPLOY-MANUAL-VPS.md` | Este guia |
+| `docs/ESCOPO-LEADS-CAMPANHAS.md` | Escopo focado |
+| `docs/PLANO-EXECUCAO.md` | Plano de execução |
+| `ecosystem.config.js` | Configuração PM2 |
 
 ---
 
-## Estrutura de arquivos na VPS
+## Quando tiver acesso à VPS
 
-```
-/opt/prospectra-plus/
-├── .env                    (chmod 600 — segredos)
-├── ecosystem.config.js     (PM2 config)
-├── package.json
-├── pnpm-lock.yaml
-├── src/                    (código da aplicação)
-├── drizzle/                (migrações do banco)
-├── scripts/                (migração, voice-worker)
-├── tests/                  (testes)
-├── docs/                   (documentação)
-└── .next/                  (build gerado)
-```
-
----
-
-Após o deploy, me avise e eu posso ajudar com qualquer ajuste fino ou próxima etapa.
+1. Transfira o código para `/opt/prospectra-plus/`
+2. Edite o `.env` com seus valores
+3. Execute o script ou siga os passos acima
+4. Me avise quando estiver online para validar
