@@ -1,5 +1,5 @@
 import { getDb } from '@/db';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { PageHeader } from '@/components/ui';
@@ -19,7 +19,8 @@ export default async function SuportePage({ searchParams }: { searchParams: Prom
   const convs = await listInbox(db, scope, status);
   const canAssign = ctx.role === 'owner' || ctx.role === 'manager';
   const members = canAssign ? await db.select({ id: schema.users.id, name: schema.users.name }).from(schema.memberships)
-    .innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId)).where(eq(schema.memberships.orgId, ctx.org.id)) : [];
+    .innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))
+    .where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.users.status, 'active'))) : [];
   const list = convs.map((c) => ({
     id: c.id, subject: c.subject || '(sem assunto)', visitorName: c.visitorName, visitorEmail: c.visitorEmail,
     channel: c.channel, status: c.status, assignedTo: c.assignedTo, lastMessageAt: c.lastMessageAt.toISOString(),

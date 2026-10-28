@@ -78,12 +78,14 @@ test('vendedor acessa só conversas atribuídas; gestor atribui apenas membros d
   ]);
   await addWidgetOrigin(db, a.org.id, 'https://inbox.example');
   const { conversationId } = await intakeWebMessage(db, { orgId: a.org.id, origin: 'https://inbox.example', body: 'Preciso de ajuda' });
+  await openInternalTicket(db, { orgId: a.org.id, userId: a.user.id, name: 'Gestor', email: a.user.email }, { subject: 'Conta', body: 'Dúvida interna' });
   const manager = { orgId: a.org.id, userId: a.user.id, role: 'manager' as const };
   const vendor = { orgId: a.org.id, userId: seller.id, role: 'sdr' as const };
   const otherVendor = { orgId: a.org.id, userId: other.id, role: 'closer' as const };
 
   expect(await listInbox(db, vendor)).toHaveLength(0);
   expect(await listInbox(db, manager)).toHaveLength(1);
+  expect(await listInbox(db, { orgId: b.org.id, userId: b.user.id, role: 'owner' })).toHaveLength(0);
   await expect(assignConversation(db, vendor, conversationId, vendor.userId)).rejects.toThrow('Sem permissão');
   await expect(assignConversation(db, manager, conversationId, b.user.id)).rejects.toThrow('não pertence');
   await assignConversation(db, manager, conversationId, seller.id);
