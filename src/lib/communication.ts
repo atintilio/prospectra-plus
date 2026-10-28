@@ -2,6 +2,7 @@ import 'server-only';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb, schema, type DB } from '@/db';
 import type {CommunicationContext} from './communication-copy';
+import { inferDisc } from './communication-discovery';
 
 import { canAccessLead, estimateDiscType, getCommunicationGuidance, isDiscType, sanitizeCommunicationPreferences } from "./communication-guidance";
 import type { CommunicationGuidance, CommunicationPreferences, CommunicationScope, CommunicationSource, DiscType, EvidenceLabel, ObservationAnswers } from './communication-guidance';
@@ -157,4 +158,36 @@ export async function saveLeadCommunicationProfile(
 
 export async function getCommunicationGuidanceForLead(scope: CommunicationScope, leadId: string): Promise<LeadCommunicationProfile | null> {
   return getLeadCommunicationProfile(await getDb(), scope, leadId);
+}
+
+/**
+ * Descoberta DISC em massa: infere o perfil (estilo "Previsto" do Crystal) dos leads que ainda
+ * não têm perfil de comunicação. Roda em lotes pelo cron — nunca inline no upload, porque a IA
+ * por lead estouraria o tempo da requisição. Lead sem sinal recebe perfil "indisponível", o que
+ * o tira da fila (não é reprocessado). Isola por operação ativa e vendedor dono do lead.
+ */
+export async function discoverPendingDisc(db: DB, opts: { orgId?: string; limit?: number } = {}) {
+  const limit = Math.min(Math.max(1, opts.limit ?? 25), 100);
+  const result = await db.execute(sql`
+    SELECT l.id, l.org_id AS "orgId", l.owner_id AS "ownerId", l.full_name AS "fullName", l.headline, l.company, l.location
+    FROM leads l
+    JOIN orgs o ON o.id = l.org_id
+    JOIN users u ON u.id = l.owner_id
+    LEFT JOIN lead_communication_profiles p ON p.org_id = l.org_id AND p.lead_id = l.id
+    WHERE p.lead_id IS NULL AND l.owner_id IS NOT NULL AND l.stage <> 'do_not_contact'
+      AND o.active AND NOT o.is_demo AND u.status = 'active'
+      ${opts.orgId ? sql`AND l.org_id = ${opts.orgId}` : sql``}
+    ORDER BY l.created_at
+    LIMIT ${limit}
+  `);
+  const rows = resultRows(result) as { id: string; orgId: string; ownerId: string; fullName: string; headline: string; company: string; location: string }[];
+  let inferred = 0;
+  for (const r of rows) {
+    const text = [r.fullName, r.headline, r.company, r.location].filter(Boolean).join(' — ');
+    const { type } = await inferDisc(text);
+    // Salva sempre (type null → "indisponível"), para não reprocessar o mesmo lead a cada rodada.
+    await saveLeadCommunicationProfile(db, { orgId: r.orgId, userId: r.ownerId }, r.id, { source: 'inferred', profileType: type });
+    if (type) inferred++;
+  }
+  return { processed: rows.length, inferred };
 }
