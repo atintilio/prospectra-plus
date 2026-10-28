@@ -4,6 +4,7 @@ import { runScheduler } from '@/lib/cadence';
 import {runHarveyQueue} from '@/lib/harvey-operations';
 import {resumeHarveyInbound} from '@/lib/harvey-webhooks';
 import { flushDeletionReports } from '@/lib/deletion-audit';
+import { discoverPendingDisc } from '@/lib/communication';
 import { runLinkedinQueue, linkedinAutomationEnabled } from '@/lib/linkedin/automation';
 import { linkedinExecutor } from '@/lib/linkedin/http-executor';
 
@@ -21,6 +22,7 @@ export async function GET(req: Request) {
   const harvey=await runHarveyQueue(db);
   // LinkedIn automático só despacha quando ligado e com worker configurado; senão fica assistido.
   const linkedin = linkedinAutomationEnabled() ? await runLinkedinQueue(db, { executor: linkedinExecutor() }) : null;
-  return Response.json({...r,harveyInbound,harvey,linkedin});
+  const disc = await discoverPendingDisc(db);
+  return Response.json({...r,harveyInbound,harvey,linkedin,disc});
 }
 
