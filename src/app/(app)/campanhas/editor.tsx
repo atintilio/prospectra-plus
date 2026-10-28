@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Heart, Image, Mail, MessageCircle, MessageSquare, Mic, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
+import { ArrowDown, ArrowUp, Heart, Image, Mail, MessageCircle, MessageSquare, Mic, Phone, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { CampaignStep, StepType } from '@/db/schema';
@@ -19,6 +19,7 @@ const TYPES: Record<StepType, { label: string; icon: typeof Send }> = {
   email: { label: 'E-mail', icon: Mail }, whatsapp: { label: 'WhatsApp', icon: MessageSquare },
   voice: { label: 'WhatsApp · voz', icon: Mic },
   image: { label: 'WhatsApp · imagem/informativo', icon: Image },
+  call: { label: 'WhatsApp · ligação (assistida)', icon: Phone },
 };
 
 type Initial = { name: string; aiBrief: string; assignedTo: string | null; steps: CampaignStep[] };
@@ -83,7 +84,7 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
                       placeholder="URL pública da imagem ou PDF (https://…)" onChange={(e) => setStep(i, { mediaUrl: e.target.value })} />
                   )}
                   <textarea rows={3} className="input mt-3 leading-relaxed" value={s.template} maxLength={s.type === 'invite' ? 300 : 1500}
-                    placeholder={s.type === 'invite' ? 'Nota do convite (até 300 caracteres)' : s.type === 'email' ? 'Corpo do e-mail' : s.type === 'whatsapp' ? 'Mensagem de WhatsApp' : s.type === 'voice' ? 'Roteiro da mensagem de voz (vira áudio na sua voz)' : s.type === 'image' ? 'Legenda da imagem/informativo (opcional)' : 'Texto base'} onChange={(e) => setStep(i, { template: e.target.value })} />
+                    placeholder={s.type === 'invite' ? 'Nota do convite (até 300 caracteres)' : s.type === 'email' ? 'Corpo do e-mail' : s.type === 'whatsapp' ? 'Mensagem de WhatsApp' : s.type === 'voice' ? 'Roteiro da mensagem de voz (vira áudio na sua voz)' : s.type === 'image' ? 'Legenda da imagem/informativo (opcional)' : s.type === 'call' ? 'Roteiro da ligação (abertura, pergunta, próximo passo)' : 'Texto base'} onChange={(e) => setStep(i, { template: e.target.value })} />
                   <label className="mt-2 flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={s.useAi} onChange={(e) => setStep(i, { useAi: e.target.checked })} />
                     <Sparkles className="h-4 w-4 text-violet" /> Personalizar com IA para cada lead {!aiOn && <span className="text-xs text-muted">(IA não configurada: usa o texto base)</span>}
