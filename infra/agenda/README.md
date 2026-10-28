@@ -28,7 +28,7 @@ Copie esta pasta para `/opt/agenda` e extraia o ZIP de `cal.diy` em `/opt/agenda
 O ZIP fornecido nesta implantação tem SHA-256 `284f651cf407b2407c7e31827cb17c60a5778078aa561cb5669cddc4bdf26758`.
 
 ```bash
-scp -P 9229 -r infra/agenda root@vps-905340.ssh.vps1euro.fr:/opt/agenda
+rsync -a -e 'ssh -p 9229' infra/agenda/ root@vps-905340.ssh.vps1euro.fr:/opt/agenda/
 ```
 
 ## 3. Configurar os segredos e banco
