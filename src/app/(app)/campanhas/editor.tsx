@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Heart, Mail, MessageCircle, MessageSquare, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
+import { ArrowDown, ArrowUp, GripVertical, Heart, Mail, MessageCircle, MessageSquare, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { CampaignStep, StepType } from '@/db/schema';
@@ -26,10 +26,12 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string>();
   const [saved, setSaved] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [pending, start] = useTransition();
 
   const setStep = (i: number, patch: Partial<CampaignStep>) => { setSaved(false); setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) })); };
   const move = (i: number, d: -1 | 1) => setForm((f) => { const s = [...f.steps]; [s[i], s[i + d]] = [s[i + d], s[i]]; return { ...f, steps: s }; });
+  const reorder = (from: number, to: number) => { setSaved(false); setForm((f) => { if (from === to || from < 0 || from >= f.steps.length) return f; const s = [...f.steps]; const [m] = s.splice(from, 1); s.splice(to, 0, m); return { ...f, steps: s }; }); };
   const add = (type: StepType) => setForm((f) => ({ ...f, steps: [...f.steps, { id: `s${Date.now()}`, type, delayDays: 2, condition: f.steps.some((s) => s.type === 'invite') && type === 'message' ? 'accepted' : 'always', template: '', useAi: type !== 'react' }] }));
   const save = () => start(async () => {
     setError(undefined);
@@ -47,8 +49,11 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
           day += s.delayDays;
           const T = TYPES[s.type];
           return (
-            <div key={s.id} className="card p-4">
+            <div key={s.id} className={`card p-4 ${dragIndex === i ? 'opacity-50' : ''}`}
+              onDragOver={(e) => { if (dragIndex !== null && dragIndex !== i) e.preventDefault(); }}
+              onDrop={() => { if (dragIndex !== null) { reorder(dragIndex, i); setDragIndex(null); } }}>
               <div className="flex flex-wrap items-center gap-2">
+                <span className="cursor-grab text-muted" draggable onDragStart={() => setDragIndex(i)} onDragEnd={() => setDragIndex(null)} aria-label="Arrastar para reordenar"><GripVertical className="h-4 w-4" /></span>
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-accent text-sm font-semibold text-accent">{i + 1}</span>
                 <select className="input w-auto font-medium" value={s.type} onChange={(e) => setStep(i, { type: e.target.value as StepType })} aria-label="Tipo do passo">
                   {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
