@@ -152,7 +152,7 @@ export async function runScheduler(db: DB, opts: {
   return { processed: due.length, created };
 }
 
-const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent', voice: 'voice_sent', image: 'image_sent' };
+const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent', voice: 'voice_sent', image: 'image_sent', call: 'call_made' };
 
 // Busca a imagem/informativo da URL pública do passo. https apenas; tamanho limitado; tipo pela resposta.
 // shortcut: aceita URL pública (sem upload/armazenamento próprio); evoluir para upload quando necessário.

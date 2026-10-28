@@ -1,13 +1,13 @@
 'use client';
 
-import { CalendarClock, Check, Clipboard, ExternalLink, Heart, Image, Mail, MessageCircle, MessageSquare, Mic, PartyPopper, RefreshCw, Send, SkipForward, UserPlus, X } from 'lucide-react';
+import { CalendarClock, Check, Clipboard, ExternalLink, Heart, Image, Mail, MessageCircle, MessageSquare, Mic, PartyPopper, Phone, RefreshCw, Send, SkipForward, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useOptimistic, useState, useTransition } from 'react';
 import { cancelMeetingAction, completeActionAction, confirmMeetingAction, refreshQueueAction, updateLeadStageAction } from '../actions';
 import { Avatar, Empty } from '@/components/ui';
 
-type Lead = { id: string; fullName: string; headline: string; company: string; linkedinUrl: string };
-type Item = { id: string; type: 'react' | 'comment' | 'invite' | 'message' | 'email' | 'whatsapp' | 'voice' | 'image'; body: string; campaign: string; overdue: boolean; lead: Lead };
+type Lead = { id: string; fullName: string; headline: string; company: string; linkedinUrl: string; phone?: string };
+type Item = { id: string; type: 'react' | 'comment' | 'invite' | 'message' | 'email' | 'whatsapp' | 'voice' | 'image' | 'call'; body: string; campaign: string; overdue: boolean; lead: Lead };
 type Meeting = { id: string; leadName: string; status: 'requested' | 'confirmed'; schedulerUrl: string | null; scheduledAt: string | null };
 
 const TYPE = {
@@ -19,9 +19,13 @@ const TYPE = {
   whatsapp: { label: 'WhatsApp', icon: MessageSquare, how: 'Canal automático não configurado: copie e envie esta mensagem no WhatsApp do lead.' },
   voice: { label: 'WhatsApp · voz', icon: Mic, how: 'Voz automática indisponível: grave o áudio deste roteiro e envie no WhatsApp do lead.' },
   image: { label: 'WhatsApp · imagem/informativo', icon: Image, how: 'Envio automático indisponível: envie a imagem/informativo no WhatsApp do lead, com esta legenda.' },
+  call: { label: 'WhatsApp · ligação', icon: Phone, how: 'Abra o WhatsApp do lead e ligue, seguindo este roteiro. Marque como feito depois da ligação.' },
 } as const;
 
 function openUrl(item: Item) {
+  // Passos de WhatsApp (mensagem/voz/imagem/ligação) abrem a conversa do lead; os de LinkedIn, o perfil.
+  const phone = (item.lead.phone ?? '').replace(/\D/g, '');
+  if ((item.type === 'whatsapp' || item.type === 'voice' || item.type === 'image' || item.type === 'call') && phone) return `https://wa.me/${phone}`;
   return item.type === 'react' || item.type === 'comment' ? `${item.lead.linkedinUrl}/recent-activity/all/` : item.lead.linkedinUrl;
 }
 
