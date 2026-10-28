@@ -1,0 +1,27 @@
+# Heartbeat da automação. O cron da Vercel (Hobby) roda 1x/dia; isto chama /api/cron
+# a cada ~5 min para a cadência, Harvey, descoberta DISC, voz e LinkedIn girarem sozinhos.
+# Requer: secret CRON_SECRET (igual ao da Vercel). Opcional: variable APP_URL (default abaixo).
+name: tick
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar /api/cron
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then echo "Defina o secret CRON_SECRET (igual ao da Vercel)."; exit 1; fi
+          url="${APP_URL:-https://prospectra.argusprime.com.br}"
+          curl -fsS -m 60 -H "Authorization: Bearer ${CRON_SECRET}" "${url%/}/api/cron"
