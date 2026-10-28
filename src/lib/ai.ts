@@ -28,8 +28,16 @@ async function chat(system: string, user: string, maxTokens = 400): Promise<stri
       const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'Prospectra' },
-        body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.6, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
-        signal: AbortSignal.timeout(25_000),
+        body: JSON.stringify({
+          model,
+          // modelos com raciocínio forçado (ex.: GLM-4.7) gastam tokens pensando;
+          // dá folga para a resposta não ser truncada e reduz a profundidade do raciocínio
+          max_tokens: IS_OPENROUTER ? maxTokens : Math.max(maxTokens, 2048),
+          temperature: 0.6,
+          messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          ...(IS_OPENROUTER ? {} : { reasoning_effort: 'low' }),
+        }),
+        signal: AbortSignal.timeout(IS_OPENROUTER ? 25_000 : 45_000),
       });
       const data = (await res.json().catch(() => ({}))) as { choices?: { message?: { content?: string } }[] };
       const text = data.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
