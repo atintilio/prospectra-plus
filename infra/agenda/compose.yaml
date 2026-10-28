@@ -1,0 +1,39 @@
+# Cal.diy (agendamento) self-hosted — agenda.argusprime.com.br
+# Usa a imagem pré-pronta (sem build pesado na VPS). O proxy reverso do host
+# (nginx/caddy/traefik) termina o TLS e encaminha para 127.0.0.1:3102.
+services:
+  calcom:
+    image: calcom.docker.scarf.sh/calcom/cal.diy:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://calcom:${CALCOM_DB_PASSWORD:?required}@database:5432/calcom
+      DATABASE_DIRECT_URL: postgresql://calcom:${CALCOM_DB_PASSWORD:?required}@database:5432/calcom
+      # A URL pública precisa bater com o domínio; o start.sh reescreve os
+      # valores estáticos do build para esta URL no boot.
+      NEXT_PUBLIC_WEBAPP_URL: ${NEXT_PUBLIC_WEBAPP_URL:?required}
+      NEXTAUTH_URL: ${NEXT_PUBLIC_WEBAPP_URL:?required}
+      CALCOM_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_LICENSE_CONSENT: 'agree'
+    ports:
+      - '127.0.0.1:3102:3000'
+    depends_on:
+      database:
+        condition: service_healthy
+  database:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: calcom
+      POSTGRES_PASSWORD: ${CALCOM_DB_PASSWORD:?required}
+      POSTGRES_DB: calcom
+    volumes:
+      - calcom_database:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U calcom -d calcom']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+volumes:
+  calcom_database:
