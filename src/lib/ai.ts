@@ -17,6 +17,11 @@ export function aiConfigured(): boolean {
   return Boolean(aiKey());
 }
 
+/** Chamada genérica à IA configurada (usada pela descoberta de perfil DISC). */
+export async function aiComplete(system: string, user: string, maxTokens = 400): Promise<string> {
+  return chat(system, user, maxTokens);
+}
+
 async function chat(system: string, user: string, maxTokens = 400): Promise<string> {
   const key = aiKey();
   if (!key) throw new Error('AI_NOT_CONFIGURED');

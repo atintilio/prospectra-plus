@@ -5,7 +5,7 @@ import { useActionState, useState } from 'react';
 import { FormMessage, Submit } from '@/components/form';
 import { DISC_TYPES, getCommunicationGuidance, type CommunicationPreferences } from '@/lib/communication-guidance';
 import type { LeadCommunicationProfile } from '@/lib/communication';
-import { saveDeclaredProfileAction, saveObservedProfileAction } from './actions';
+import { discoverProfilesAction, saveDeclaredProfileAction, saveObservedProfileAction } from './actions';
 
 type Lead = {
   id: string;
@@ -58,6 +58,7 @@ export function CommunicationView({ leads }: { leads: Lead[] }) {
   const [leadId, setLeadId] = useState(leads[0]?.id ?? '');
   const [manualState, manualAction] = useActionState(saveDeclaredProfileAction, undefined);
   const [quizState, quizAction] = useActionState(saveObservedProfileAction, undefined);
+  const [discState, discAction] = useActionState(discoverProfilesAction, undefined);
   const lead = leads.find((item) => item.id === leadId);
   const profile = lead?.profile;
   const guidance = profile?.guidance ?? getCommunicationGuidance(profile?.profileType ?? null);
@@ -68,6 +69,19 @@ export function CommunicationView({ leads }: { leads: Lead[] }) {
   </section>;
 
   return <div className="space-y-5">
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-accent text-accent"><Sparkles className="h-5 w-5" /></span>
+        <div><h2 className="font-semibold">Descoberta automática por planilha</h2><p className="text-sm text-muted">Cole um CSV dos seus leads (colunas como linkedin, nome, cargo, sobre). A IA estima o perfil DISC de cada um e liga ao lead da sua carteira. Até 10 por envio; tudo como estimativa.</p></div>
+      </div>
+      <form action={discAction} className="space-y-2">
+        <textarea name="csv" rows={5} className="input resize-y font-mono text-xs" placeholder="linkedin,nome,cargo,sobre&#10;https://www.linkedin.com/in/fulana,Fulana Silva,Head de Vendas,Lidero o time comercial e cuido de metas agressivas" />
+        {discState?.error && <p className="text-sm text-warning">{discState.error}</p>}
+        {discState?.ok && <p className="text-sm text-accent">{discState.ok}</p>}
+        <Submit>Descobrir perfis</Submit>
+      </form>
+    </section>
+
     <section className="card space-y-4 p-5">
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-accent text-accent"><MessageCircle className="h-5 w-5" /></span>
@@ -83,11 +97,11 @@ export function CommunicationView({ leads }: { leads: Lead[] }) {
           <div className="flex flex-wrap items-center gap-2">
             <strong>{profile.profileType ? TYPE_LABELS[profile.profileType] : 'Tipo indisponível'}</strong>
             <span className={`pill ${profile.evidenceLabel === 'estimate' ? 'bg-warning-soft text-warning' : 'bg-surface-accent text-accent'}`}>
-              {profile.evidenceLabel === 'estimate' ? 'Estimativa do questionário' : profile.evidenceLabel === 'declared' ? 'Informado manualmente' : 'Sem evidência suficiente'}
+              {profile.source === 'inferred' ? 'Estimativa automática (IA)' : profile.evidenceLabel === 'estimate' ? 'Estimativa do questionário' : profile.evidenceLabel === 'declared' ? 'Informado manualmente' : 'Sem evidência suficiente'}
             </span>
           </div>
-          <p className="mt-2 text-xs text-muted">Atualizado em {new Date(profile.assessedAt).toLocaleDateString('pt-BR')} · {profile.source === 'observational_quiz' ? 'respostas de observação' : 'informação registrada pelo vendedor'}</p>
-          {profile.evidenceLabel === 'estimate' && <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-sm">Esta é uma estimativa baseada em respostas sobre comportamentos observados. Não é um fato sobre a personalidade. Revise com respeito e prefira perguntar diretamente sobre as preferências.</p>}
+          <p className="mt-2 text-xs text-muted">Atualizado em {new Date(profile.assessedAt).toLocaleDateString('pt-BR')} · {profile.source === 'observational_quiz' ? 'respostas de observação' : profile.source === 'inferred' ? 'descoberta automática pela IA' : 'informação registrada pelo vendedor'}</p>
+          {profile.evidenceLabel === 'estimate' && <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-sm">Esta é uma estimativa (por questionário ou pela IA, a partir do texto do perfil). Não é um fato sobre a personalidade. Revise com respeito e prefira perguntar diretamente sobre as preferências.</p>}
           {profile.preferences.preferredChannel !== 'unknown' || profile.preferences.preferredFormat !== 'unknown' || profile.preferences.notes ? <p className="mt-3 text-sm text-muted">Preferências informadas: {[profile.preferences.preferredChannel !== 'unknown' ? profile.preferences.preferredChannel : '', profile.preferences.preferredFormat !== 'unknown' ? profile.preferences.preferredFormat : '', profile.preferences.notes].filter(Boolean).join(' · ')}</p> : null}
           {guidance ? <div className="mt-4 grid gap-4 border-t border-border pt-4 md:grid-cols-2">
             <div><p className="text-sm font-medium">Tom e formato sugeridos</p><p className="mt-1 text-sm text-muted">{guidance.tone} {guidance.format}</p><p className="mt-2 text-sm text-muted">{guidance.channel}</p><blockquote className="mt-3 rounded-lg bg-surface p-3 text-sm">“{guidance.opening}”</blockquote></div>
