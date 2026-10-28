@@ -5,6 +5,7 @@ import { aiGenerator } from '@/lib/ai';
 import { dayString, runScheduler } from '@/lib/cadence';
 import { PageHeader } from '@/components/ui';
 import { Queue } from './queue';
+import { nextBusinessSlots } from '@/lib/scheduling';
 
 export const metadata = { title: 'Fila do dia' };
 
@@ -38,6 +39,7 @@ export default async function FilaPage() {
     .where(and(eq(schema.meetings.orgId, ctx.org.id), eq(schema.meetings.userId, ctx.user.id), inArray(schema.meetings.status, ['requested', 'confirmed'])))
     .orderBy(asc(schema.meetings.createdAt)).limit(40);
   const meetings = meetingRows.map(({ m, leadName }) => ({ id: m.id, leadName, status: m.status as 'requested' | 'confirmed', schedulerUrl: m.schedulerUrl, scheduledAt: m.scheduledAt ? m.scheduledAt.toISOString() : null }));
+  const suggestedMeetingSlots = nextBusinessSlots(new Date()).map((slot) => slot.toISOString());
 
   const items = rows.map(({ a, lead, camp }) => ({
     id: a.id, type: a.type, body: a.body, campaign: camp.name, overdue: a.dueDate < today,
@@ -49,7 +51,7 @@ export default async function FilaPage() {
     <>
       <PageHeader eyebrow="Modo assistido" title="Fila do dia"
         subtitle={`O texto já vem pronto. Abra no LinkedIn, cole e marque como feito. Hoje ainda cabem ${invitesLeft} convites e ${messagesLeft} mensagens.`} />
-      <Queue items={items} waiting={waiting.map(slim)} connected={connected.map(slim)} meetings={meetings} limits={{ invitesLeft, messagesLeft }} />
+      <Queue items={items} waiting={waiting.map(slim)} connected={connected.map(slim)} meetings={meetings} suggestedMeetingSlots={suggestedMeetingSlots} limits={{ invitesLeft, messagesLeft }} />
     </>
   );
 }

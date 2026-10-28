@@ -4,7 +4,7 @@ import { testDb, seedOrg } from './helpers';
 import { schema, type DB } from '@/db';
 import {
   buildIcs, nextBusinessSlots, meetingSchedulerLink, meetingHandoffNote,
-  requestMeeting, confirmMeeting, cancelMeeting,
+  requestMeeting, confirmMeeting, confirmMeetingAndInvite, cancelMeeting,
 } from '@/lib/scheduling';
 import { handoffCommercialFlow } from '@/lib/harvey-operations';
 
@@ -82,6 +82,9 @@ test('confirmMeeting avança o lead para "meeting" e registra o evento; cancelMe
   const confirmed = await confirmMeeting(db, scope, m!.id, when);
   expect(confirmed.status).toBe('confirmed');
   expect(confirmed.scheduledAt?.toISOString()).toBe(when.toISOString());
+  expect(confirmed.newlyConfirmed).toBe(true);
+  const repeated = await confirmMeeting(db, scope, m!.id, when);
+  expect(repeated.newlyConfirmed).toBe(false);
   const [leadAfter] = await db.select().from(schema.leads).where(eq(schema.leads.id, lead.id));
   expect(leadAfter.stage).toBe('meeting');
   const ev = await db.select().from(schema.events).where(and(eq(schema.events.leadId, lead.id), eq(schema.events.type, 'meeting_booked')));
@@ -90,6 +93,29 @@ test('confirmMeeting avança o lead para "meeting" e registra o evento; cancelMe
   await cancelMeeting(db, scope, m!.id);
   const again = await requestMeeting(db, { ...scope, leadId: lead.id });
   expect(again!.id).not.toBe(m!.id);
+});
+
+test('confirmMeetingAndInvite envia o .ics uma única vez ao lead e vendedor', async () => {
+  const db = await testDb();
+  const a = await seedOrg(db, 'Agenda convite');
+  const lead = await seedLead(db, a.org.id, a.user.id);
+  await db.update(schema.leads).set({ email: 'lead@example.com' }).where(eq(schema.leads.id, lead.id));
+  const meeting = await requestMeeting(db, { orgId: a.org.id, userId: a.user.id, leadId: lead.id });
+  const sent: Array<{ to: string[]; ics: string }> = [];
+  const sender = async (to: string[], _subject: string, _text: string, ics: string) => { sent.push({ to, ics }); };
+  const scope = { orgId: a.org.id, userId: a.user.id };
+  const when = new Date('2026-11-03T14:00:00Z');
+
+  const first = await confirmMeetingAndInvite(db, scope, meeting!.id, when, 'seller@example.com', sender);
+  const second = await confirmMeetingAndInvite(db, scope, meeting!.id, when, 'seller@example.com', sender);
+
+  expect(first.inviteState).toBe('sent');
+  expect(second.inviteState).toBe('already_confirmed');
+  expect(sent).toHaveLength(1);
+  expect(sent[0].to).toEqual(['lead@example.com', 'seller@example.com']);
+  expect(sent[0].ics).toContain('UID:' + meeting!.id);
+  expect(sent[0].ics).toContain('DTSTART:20261103T140000Z');
+  expect(sent[0].ics).toContain('ATTENDEE;CN=Lead Reunião;RSVP=TRUE:mailto:lead@example.com');
 });
 
 test('handoff por interesse registra a reunião (source harvey) e anexa o link ao e-mail', async () => {

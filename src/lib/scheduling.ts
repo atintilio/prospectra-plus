@@ -2,6 +2,7 @@ import 'server-only';
 import { and, eq, sql } from 'drizzle-orm';
 import { schema, type DB } from '@/db';
 import type { Scope } from '@/lib/whatsapp/akg';
+import { sendCalendarInvite } from '@/lib/mailer';
 
 // Agendamento de reuniões — fase assistida.
 // O disparo/calendário real é configurado MANUALMENTE pelo proprietário:
@@ -117,7 +118,7 @@ export async function requestMeeting(
 const CONFIRMABLE_STAGES = ['new', 'invited', 'connected', 'replied'] as const;
 
 /** Confirma a reunião: grava horário, avança o lead para "meeting" e registra o evento. */
-export async function confirmMeeting(db: DB, scope: Scope, meetingId: string, scheduledAt: Date): Promise<Meeting> {
+export async function confirmMeeting(db: DB, scope: Scope, meetingId: string, scheduledAt: Date): Promise<Meeting & { newlyConfirmed: boolean }> {
   return db.transaction(async (tx) => {
     const [m] = await tx
       .select()
@@ -125,14 +126,41 @@ export async function confirmMeeting(db: DB, scope: Scope, meetingId: string, sc
       .where(and(eq(schema.meetings.id, meetingId), eq(schema.meetings.orgId, scope.orgId), eq(schema.meetings.userId, scope.userId)))
       .for('update');
     if (!m || m.status === 'cancelled') throw new Error('Reunião indisponível.');
+    if (m.status === 'confirmed') {
+      if (m.scheduledAt?.getTime() !== scheduledAt.getTime()) throw new Error('Reunião já confirmada para outro horário.');
+      return { ...m, newlyConfirmed: false };
+    }
     const [updated] = await tx.update(schema.meetings).set({ status: 'confirmed', scheduledAt }).where(eq(schema.meetings.id, m.id)).returning();
     const [lead] = await tx.select().from(schema.leads).where(and(eq(schema.leads.id, m.leadId), eq(schema.leads.orgId, scope.orgId)));
     if (lead && (CONFIRMABLE_STAGES as readonly string[]).includes(lead.stage)) {
       await tx.update(schema.leads).set({ stage: 'meeting', lastActivityAt: new Date() }).where(eq(schema.leads.id, m.leadId));
     }
     await tx.insert(schema.events).values({ orgId: scope.orgId, userId: scope.userId, leadId: m.leadId, type: 'meeting_booked' });
-    return updated;
+    return { ...updated, newlyConfirmed: true };
   });
+}
+
+/** Envia o convite somente na primeira confirmação; resultados incertos exigem conferência manual. */
+export async function confirmMeetingAndInvite(
+  db: DB, scope: Scope, meetingId: string, scheduledAt: Date, sellerEmail: string,
+  sendInvite: typeof sendCalendarInvite = sendCalendarInvite,
+): Promise<{ meeting: Meeting; inviteState: 'sent' | 'missing_email' | 'unknown' | 'already_confirmed' }> {
+  const meeting = await confirmMeeting(db, scope, meetingId, scheduledAt);
+  if (!meeting.newlyConfirmed) return { meeting, inviteState: 'already_confirmed' };
+  const [lead] = await db.select({ name: schema.leads.fullName, email: schema.leads.email })
+    .from(schema.leads).where(and(eq(schema.leads.id, meeting.leadId), eq(schema.leads.orgId, scope.orgId)));
+  const leadEmail = lead?.email?.trim();
+  const organizerEmail = sellerEmail.trim();
+  if (!leadEmail || !organizerEmail) return { meeting, inviteState: 'missing_email' };
+  const title = `Reunião Prospectra com ${lead.name}`;
+  const ics = buildIcs({ uid: meeting.id, title, start: scheduledAt, organizerEmail, attendeeName: lead.name, attendeeEmail: leadEmail });
+  const when = scheduledAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+  try {
+    await sendInvite([leadEmail, organizerEmail], title, `Reunião confirmada para ${when} (horário de Brasília). O convite está em anexo.`, ics);
+    return { meeting, inviteState: 'sent' };
+  } catch {
+    return { meeting, inviteState: 'unknown' };
+  }
 }
 
 /** Cancela uma reunião em aberto, liberando o índice de "uma reunião aberta por lead". */
