@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, eq, gte } from 'drizzle-orm';
+import { and, eq, gte, inArray } from 'drizzle-orm';
 import { schema, type DB } from '@/db';
 import { completeAction } from '@/lib/cadence';
 
@@ -25,6 +25,9 @@ export type LinkedInExecutor = {
 export function linkedinAutomationEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.LINKEDIN_AUTOMATION_ENABLED === 'true';
 }
+
+// Só canais do LinkedIn são despachados aqui; e-mail e WhatsApp são enviados pelo scheduler.
+const LINKEDIN_TYPES = ['react', 'comment', 'invite', 'message'] as const;
 
 // Quais tipos consomem limite diário, e contra qual contador do usuário.
 const LIMITED: Record<string, 'invite' | 'message' | null> = { invite: 'invite', message: 'message', react: null, comment: null };
@@ -60,7 +63,7 @@ export async function runLinkedinQueue(
   const since = startOfUtcDay(now);
   const limit = Math.min(Math.max(1, deps.maxActions ?? 20), 50);
 
-  const conds = [eq(schema.actions.status, 'pending')];
+  const conds = [eq(schema.actions.status, 'pending'), inArray(schema.actions.type, LINKEDIN_TYPES)];
   if (deps.orgId) conds.push(eq(schema.actions.orgId, deps.orgId));
   const pending = await db
     .select({ action: schema.actions, lead: schema.leads, user: schema.users })
@@ -94,14 +97,14 @@ export async function runLinkedinQueue(
     // Recibo de despacho: claim idempotente. Se outro processo já pegou, não duplica.
     const [claim] = await db
       .insert(schema.linkedinDispatches)
-      .values({ orgId: action.orgId, userId: user.id, actionId: action.id, type: action.type })
+      .values({ orgId: action.orgId, userId: user.id, actionId: action.id, type: action.type as (typeof LINKEDIN_TYPES)[number] })
       .onConflictDoNothing()
       .returning({ id: schema.linkedinDispatches.id });
     if (!claim) { result.skipped++; continue; }
 
     let outcome: { state: 'sent' | 'unknown'; providerId?: string };
     try {
-      outcome = await deps.executor.dispatch({ id: action.id, type: action.type, leadLinkedinUrl: lead.linkedinUrl, leadName: lead.fullName, body: action.body });
+      outcome = await deps.executor.dispatch({ id: action.id, type: action.type as (typeof LINKEDIN_TYPES)[number], leadLinkedinUrl: lead.linkedinUrl, leadName: lead.fullName, body: action.body });
     } catch {
       outcome = { state: 'unknown' };
     }

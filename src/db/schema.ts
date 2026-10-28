@@ -83,7 +83,7 @@ export const leads = pgTable('leads', {
   index('leads_org_phone_idx').on(t.orgId, t.phone),
 ]);
 
-export type StepType = 'react' | 'comment' | 'invite' | 'message';
+export type StepType = 'react' | 'comment' | 'invite' | 'message' | 'email' | 'whatsapp';
 export type CampaignStep = {
   id: string;
   type: StepType;
@@ -91,6 +91,7 @@ export type CampaignStep = {
   condition: 'always' | 'accepted';
   template: string;
   useAi: boolean;
+  subject?: string; // assunto (apenas passos de e-mail)
 };
 
 export const campaigns = pgTable('campaigns', {
@@ -128,7 +129,7 @@ export const actions = pgTable('actions', {
   leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   stepIndex: integer('step_index').notNull(),
-  type: text('type', { enum: ['react', 'comment', 'invite', 'message'] }).notNull(),
+  type: text('type', { enum: ['react', 'comment', 'invite', 'message', 'email', 'whatsapp'] }).notNull(),
   body: text('body').notNull().default(''),
   dueDate: date('due_date').notNull(),
   status: text('status', { enum: ['pending', 'done', 'skipped'] }).notNull().default('pending'),
@@ -141,7 +142,7 @@ export const actions = pgTable('actions', {
 
 export const EVENT_TYPES = [
   'invite_sent', 'invite_accepted', 'message_sent', 'reply_received', 'reaction_sent', 'comment_sent',
-  'meeting_booked', 'deal_won', 'deal_lost', 'ai_search',
+  'email_sent', 'whatsapp_sent', 'meeting_booked', 'deal_won', 'deal_lost', 'ai_search',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

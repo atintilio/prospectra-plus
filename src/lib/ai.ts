@@ -60,6 +60,8 @@ const STEP_GOAL: Record<CampaignStep['type'], string> = {
   message: 'mensagem direta no LinkedIn após a conexão, 2 a 4 frases, uma pergunta aberta no final, sem parecer template',
   comment: 'comentário curto e relevante para um post recente do lead, 1 a 2 frases, sem pitch',
   react: '',
+  email: 'e-mail de prospecção B2B curto e pessoal, 3 a 5 frases, uma pergunta ou CTA leve no final, sem parecer template',
+  whatsapp: 'mensagem de WhatsApp curta e cordial, 2 a 3 frases, tom próximo e direto, uma pergunta no final',
 };
 
 export const aiGenerator: Generator = async ({ step, lead, brief }) => {
