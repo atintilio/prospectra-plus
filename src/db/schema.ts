@@ -253,3 +253,26 @@ export const harveyInboundJobs=pgTable('harvey_inbound_jobs',{
  state:text('state',{enum:['queued','processing','completed','review']}).notNull().default('queued'),error:text('error'),
  claimedAt:timestamp('claimed_at',{withTimezone:true}),createdAt:createdAt(),
 },t=>[uniqueIndex('harvey_inbound_receipt_uq').on(t.orgId,t.userId,t.providerId),index('harvey_inbound_queue_idx').on(t.state,t.createdAt)]);
+
+// Agendamento de reuniões (fase assistida): registro durável do interesse em reunião.
+// O disparo/calendário real é configurado manualmente pelo proprietário (MEETING_SCHEDULER_URL
+// e/ou Office365 já existente); sem isso, a reunião fica registrada como "requested" para o vendedor.
+export const MEETING_STATUSES=['requested','confirmed','cancelled'] as const;
+export type MeetingStatus=(typeof MEETING_STATUSES)[number];
+export const meetings=pgTable('meetings',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ leadId:uuid('lead_id').notNull().references(()=>leads.id,{onDelete:'cascade'}),
+ conversationId:uuid('conversation_id').references(()=>harveyConversations.id,{onDelete:'set null'}),
+ status:text('status',{enum:MEETING_STATUSES}).notNull().default('requested'),
+ source:text('source',{enum:['harvey','manual']}).notNull().default('manual'),
+ schedulerUrl:text('scheduler_url'),
+ scheduledAt:timestamp('scheduled_at',{withTimezone:true}),
+ note:text('note').notNull().default(''),
+ createdAt:createdAt(),
+},t=>[
+ uniqueIndex('meetings_one_open_per_lead').on(t.orgId,t.leadId).where(sql`status in ('requested','confirmed')`),
+ index('meetings_org_status_idx').on(t.orgId,t.status),
+ index('meetings_user_idx').on(t.userId,t.createdAt),
+]);

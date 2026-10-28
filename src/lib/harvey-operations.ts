@@ -9,6 +9,7 @@ import {AkgGateway,akgConfig,type Scope} from '@/lib/whatsapp/akg';
 import {sendCommercialNotification,mailerConfigured} from '@/lib/mailer';
 import {getLeadCommunicationProfile,communicationContext} from '@/lib/communication';
 import {commercialMessage,communicationQuestion} from '@/lib/communication-copy';
+import {requestMeeting,meetingHandoffNote,meetingSchedulerLink} from '@/lib/scheduling';
 
 const phoneSchema=z.string().trim().regex(/^\+?[1-9]\d{7,14}$/).transform(v=>v.replace(/^\+/,''));
 export const commercialProfileSchema=commercialInputSchema.pick({sellerName:true,strategy:true,offers:true}).extend({companyName:z.string().trim().min(1).max(200),sellerPhone:phoneSchema}).strict();
@@ -60,7 +61,16 @@ async function handoff(db:DB,conversation:Conversation,reason:string,topic:'comm
  await db.update(schema.leads).set({...(blocked?{stage:'do_not_contact' as const}:{stage:'replied' as const}),notes:sql`${schema.leads.notes} || ${'\n[Assistente comercial · passagem humana] '+summary}`,lastActivityAt:new Date()}).where(and(eq(schema.leads.id,conversation.leadId),eq(schema.leads.orgId,conversation.orgId)));
  const [lead]=await db.select().from(schema.leads).where(eq(schema.leads.id,conversation.leadId));
  const body=`${lead?.fullName??'Lead'} · ${lead?.company??''}\n${summary}\nQualificação: ${conversation.qualification}\nEstratégia aprovada: ${conversation.profile.strategy}\nTelefone: ${conversation.phone}\nResponsáveis: ${recipients.join(', ')}\n${blocked?'Nenhum novo contato autorizado.':'Assuma a conversa. O assistente interrompeu as respostas automáticas. Reuniões e condições comerciais dependem da sua confirmação.'}`;
- await db.insert(schema.harveyOutbox).values({conversationId:conversation.id,kind:'email',recipient:recipients.join(','),body});
+ let emailBody=body;
+ if(reason==='interested'){
+  // Interesse em reunião: registra o agendamento de forma durável e oferece o caminho de marcação.
+  // Complementar: qualquer falha aqui nunca interrompe a passagem humana.
+  try{
+   await requestMeeting(db,{orgId:conversation.orgId,userId:conversation.userId,leadId:conversation.leadId,conversationId:conversation.id,source:'harvey',note:text});
+   emailBody=`${body}\n${meetingHandoffNote(meetingSchedulerLink())}`;
+  }catch{/* agendamento é complementar */}
+ }
+ await db.insert(schema.harveyOutbox).values({conversationId:conversation.id,kind:'email',recipient:recipients.join(','),body:emailBody});
 }
 export async function handoffCommercialFlow(db:DB,scope:Scope,leadId:string,reason:string,recipients:string[],summary:string){
  const [row]=await db.select().from(schema.harveyConversations).where(and(conversationWhere(scope),eq(schema.harveyConversations.leadId,leadId))).for('update');
