@@ -1,9 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getDb } from '@/db';
+import { and, eq, or } from 'drizzle-orm';
+import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { getLeadCommunicationProfile, isDiscType, saveLeadCommunicationProfile } from '@/lib/communication';
+import { inferDisc } from '@/lib/communication-discovery';
+import { normalizeLinkedinUrl, parseCsv } from '@/lib/leads-import';
 
 export type CommunicationActionState = { error?: string; ok?: string } | undefined;
 
@@ -64,4 +67,61 @@ export async function saveObservedProfileAction(_: CommunicationActionState, for
   } catch {
     return { error: 'Responda às quatro perguntas e confirme que o contato está na sua carteira.' };
   }
+}
+
+// Descoberta automática de DISC por planilha (CSV colado). Até 10 contatos por envio
+// (a IA GLM raciocina por chamada; lotes maiores devem ser divididos).
+const MAX_DISCOVERY_ROWS = 10;
+
+function findCol(headers: string[], keys: string[]): number {
+  const h = headers.map((x) => x.trim().toLowerCase());
+  for (const k of keys) { const i = h.indexOf(k); if (i >= 0) return i; }
+  for (const k of keys) { const i = h.findIndex((x) => x.includes(k)); if (i >= 0) return i; }
+  return -1;
+}
+
+export async function discoverProfilesAction(_: CommunicationActionState, form: FormData): Promise<CommunicationActionState> {
+  const ctx = await requireOrg();
+  const csv = formText(form, 'csv');
+  if (!csv) return { error: 'Cole o conteúdo da planilha (CSV) com os contatos.' };
+  const rows = parseCsv(csv.replace(/^﻿/, ''));
+  if (rows.length < 2) return { error: 'A planilha precisa de um cabeçalho e ao menos uma linha.' };
+
+  const header = rows[0];
+  const col = {
+    url: findCol(header, ['linkedin', 'url', 'perfil', 'link']),
+    name: findCol(header, ['nome', 'name', 'full name', 'fullname', 'nome completo']),
+    title: findCol(header, ['cargo', 'title', 'headline', 'position', 'título']),
+    about: findCol(header, ['sobre', 'about', 'bio', 'resumo', 'summary', 'descrição', 'descricao']),
+    notes: findCol(header, ['notas', 'notes', 'observações', 'observacoes', 'texto', 'amostra']),
+  };
+  const cell = (r: string[], i: number) => (i >= 0 && i < r.length ? r[i].trim() : '');
+
+  const db = await getDb();
+  const scope = { orgId: ctx.org.id, userId: ctx.user.id };
+  let matched = 0, inferred = 0, byAi = 0, notFound = 0;
+  const data = rows.slice(1).filter((r) => r.some((v) => v.trim()));
+  const processed = data.slice(0, MAX_DISCOVERY_ROWS);
+
+  for (const r of processed) {
+    const url = normalizeLinkedinUrl(cell(r, col.url));
+    const name = cell(r, col.name);
+    const matchers = [url ? eq(schema.leads.linkedinUrl, url) : undefined, name ? eq(schema.leads.fullName, name) : undefined]
+      .filter((m): m is NonNullable<typeof m> => Boolean(m));
+    if (!matchers.length) { notFound++; continue; }
+    const [lead] = await db.select().from(schema.leads)
+      .where(and(eq(schema.leads.orgId, ctx.org.id), eq(schema.leads.ownerId, ctx.user.id), or(...matchers)))
+      .limit(1);
+    if (!lead) { notFound++; continue; }
+    matched++;
+    const text = [cell(r, col.title) || lead.headline, lead.company, cell(r, col.about), cell(r, col.notes)].filter(Boolean).join('. ');
+    const result = await inferDisc(text);
+    await saveLeadCommunicationProfile(db, scope, lead.id, { source: 'inferred', profileType: result.type });
+    if (result.type) { inferred++; if (result.source === 'ai') byAi++; }
+  }
+
+  revalidatePath('/comunicacao');
+  revalidatePath('/inteligencia');
+  const extra = data.length > processed.length ? ` (processados ${processed.length} de ${data.length}; envie o restante em outro lote)` : '';
+  return { ok: `${matched} contato(s) vinculado(s), ${inferred} com perfil estimado (${byAi} pela IA)${notFound ? `, ${notFound} não encontrado(s) na sua carteira` : ''}${extra}. Toda classificação é uma estimativa.` };
 }

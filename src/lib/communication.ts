@@ -124,6 +124,11 @@ export async function saveLeadCommunicationProfile(
     answers = input.answers as ObservationAnswers;
     profileType = estimate.status === 'estimate' ? estimate.type : null;
     evidenceLabel = estimate.status === 'estimate' ? 'estimate' : 'unavailable';
+  } else if (source === 'inferred') {
+    // Descoberta automática (IA/léxico): sempre estimativa, nunca "declarado".
+    if (input.profileType && !isDiscType(input.profileType)) throw new Error('Tipo inferido inválido.');
+    profileType = isDiscType(input.profileType) ? input.profileType : null;
+    evidenceLabel = profileType ? 'estimate' : 'unavailable';
   } else {
     throw new Error('Origem do perfil inválida.');
   }

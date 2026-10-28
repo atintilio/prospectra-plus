@@ -8,7 +8,7 @@ export type CommunicationPreferences = {
   preferredFormat: 'unknown' | 'text' | 'bullets' | 'meeting' | 'audio';
   notes: string;
 };
-export type CommunicationSource = 'manual' | 'observational_quiz';
+export type CommunicationSource = 'manual' | 'observational_quiz' | 'inferred';
 export type EvidenceLabel = 'declared' | 'estimate' | 'unavailable';
 export type CommunicationScope = { orgId: string; userId: string };
 export type CommunicationGuidance = {
