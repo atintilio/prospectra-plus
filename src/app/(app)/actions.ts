@@ -13,6 +13,8 @@ import { adminReplyProduct, adminSetProductStatus, openInternalTicket, replyToCo
 import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
+import { assignTask, createTask, deleteDoc, deleteTask, setTaskStatus, upsertDoc } from '@/lib/workspace';
+import type { TaskStatus } from '@/db/schema';
 
 const ARGUS_SUPPORT = [process.env.MASTER_USER_EMAIL || 'atintilio@argusprime.com.br', 'mloro@argusprime.com.br'];
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
@@ -451,6 +453,56 @@ export async function argusStatusAction(conversationId: string, status: 'open' |
   await requireAdmin();
   await adminSetProductStatus(await getDb(), conversationId, status);
   revalidatePath('/argus');
+}
+
+// ---------- Workspace: Docs ----------
+
+export async function saveDocAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  const id = String(form.get('id') ?? '').trim() || undefined;
+  const title = String(form.get('title') ?? '').trim();
+  const body = String(form.get('body') ?? '');
+  if (!title) return { error: 'Dê um título ao documento.' };
+  try { await upsertDoc(await getDb(), ctx.org.id, ctx.user.id, { id, title, body }); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar.' }; }
+  revalidatePath('/docs');
+  return { ok: 'Documento salvo.' };
+}
+
+export async function deleteDocAction(id: string) {
+  const ctx = await requireOrg();
+  await deleteDoc(await getDb(), ctx.org.id, id);
+  revalidatePath('/docs');
+}
+
+// ---------- Workspace: Projetos ----------
+
+export async function createTaskAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  const title = String(form.get('title') ?? '').trim();
+  if (!title) return { error: 'Descreva a tarefa.' };
+  const assignedTo = String(form.get('assignedTo') ?? '').trim() || null;
+  await createTask(await getDb(), ctx.org.id, { title, assignedTo });
+  revalidatePath('/projetos');
+  return { ok: 'Tarefa criada.' };
+}
+
+export async function setTaskStatusAction(id: string, status: TaskStatus) {
+  const ctx = await requireOrg();
+  await setTaskStatus(await getDb(), ctx.org.id, id, status);
+  revalidatePath('/projetos');
+}
+
+export async function assignTaskAction(id: string, userId: string | null) {
+  const ctx = await requireOrg();
+  await assignTask(await getDb(), ctx.org.id, id, userId || null);
+  revalidatePath('/projetos');
+}
+
+export async function deleteTaskAction(id: string) {
+  const ctx = await requireOrg();
+  await deleteTask(await getDb(), ctx.org.id, id);
+  revalidatePath('/projetos');
 }
 
 export async function deleteArticleAction(id: string) {

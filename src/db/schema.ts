@@ -345,3 +345,27 @@ export const helpArticles=pgTable('help_articles',{
  createdAt:createdAt(),
  updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
 },t=>[uniqueIndex('help_articles_slug_uq').on(t.orgId,t.slug),index('help_articles_org_status_idx').on(t.orgId,t.status,t.updatedAt)]);
+
+// Workspace (Helpin fase 5): documentos internos e projetos (tarefas estilo Linear), por operação.
+export const docs=pgTable('docs',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ authorId:uuid('author_id').references(()=>users.id,{onDelete:'set null'}),
+ title:text('title').notNull(),
+ body:text('body').notNull().default(''),
+ createdAt:createdAt(),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[index('docs_org_updated_idx').on(t.orgId,t.updatedAt)]);
+
+export const TASK_STATUSES=['todo','doing','done'] as const;
+export type TaskStatus=(typeof TASK_STATUSES)[number];
+export const tasks=pgTable('tasks',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ title:text('title').notNull(),
+ status:text('status',{enum:TASK_STATUSES}).notNull().default('todo'),
+ assignedTo:uuid('assigned_to').references(()=>users.id,{onDelete:'set null'}),
+ leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'set null'}),
+ createdAt:createdAt(),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[index('tasks_org_status_idx').on(t.orgId,t.status,t.updatedAt)]);
