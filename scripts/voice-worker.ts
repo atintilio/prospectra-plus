@@ -4,6 +4,7 @@ import {getDb,schema} from '../src/db';
 import {VoiceStudioGateway,voiceConfig} from '../src/lib/voice/voicestudio';
 import {AkgGateway,akgConfig} from '../src/lib/whatsapp/akg';
 import {executeVoiceDelivery} from '../src/lib/voice/delivery';
+import {completeVoiceAction} from '../src/lib/voice/campaign';
 
 async function main(){
  const config=voiceConfig(),gateway=akgConfig();
@@ -20,7 +21,10 @@ async function main(){
     await tx.update(schema.voiceJobs).set({state:'running',startedAt:new Date()}).where(eq(schema.voiceJobs.id,row.id));return row;
    });
    if(job){
-    try{await executeVoiceDelivery(db,job.id,{orgId:job.orgId,userId:job.userId},voice,(scope,phone,audio)=>wa.sendAudio(scope,phone,audio));}
+    try{
+     const state=await executeVoiceDelivery(db,job.id,{orgId:job.orgId,userId:job.userId},voice,(scope,phone,audio)=>wa.sendAudio(scope,phone,audio));
+     if(state==='sent')await completeVoiceAction(db,job); // avança a cadência quando o job é de campanha
+    }
     catch{await db.update(schema.voiceJobs).set({state:'failed'}).where(eq(schema.voiceJobs.id,job.id));console.error('Trabalho de voz não concluído.');}
    }
   }catch{console.error('Executor de voz temporariamente indisponível.');}
