@@ -14,7 +14,7 @@ import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
 import { assignTask, createTask, deleteDoc, deleteTask, setTaskStatus, upsertDoc } from '@/lib/workspace';
-import { confirmMeeting, cancelMeeting } from '@/lib/scheduling';
+import { confirmMeetingAndInvite, cancelMeeting } from '@/lib/scheduling';
 import type { TaskStatus } from '@/db/schema';
 
 const ARGUS_SUPPORT = [process.env.MASTER_USER_EMAIL || 'atintilio@argusprime.com.br', 'mloro@argusprime.com.br'];
@@ -222,9 +222,11 @@ export async function confirmMeetingAction(meetingId: string, whenIso: string): 
   const ctx = await requireOrg();
   const when = new Date(whenIso);
   if (Number.isNaN(when.getTime())) return { error: 'Data da reunião inválida.' };
-  await confirmMeeting(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, meetingId, when);
+  const result = await confirmMeetingAndInvite(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, meetingId, when, ctx.user.email);
   revalidatePath('/fila'); revalidatePath('/painel');
-  return { ok: 'Reunião confirmada.' };
+  if (result.inviteState === 'missing_email') return { ok: 'Reunião confirmada. Cadastre o e-mail do lead para enviar o convite manualmente.' };
+  if (result.inviteState === 'unknown') return { ok: 'Reunião confirmada. O envio do convite ficou incerto; confira no Office 365 antes de enviar manualmente.' };
+  return { ok: result.inviteState === 'sent' ? 'Reunião confirmada e convite enviado.' : 'Reunião já confirmada.' };
 }
 
 export async function cancelMeetingAction(meetingId: string) {

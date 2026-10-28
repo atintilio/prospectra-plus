@@ -23,7 +23,7 @@ function openUrl(item: Item) {
   return item.type === 'react' || item.type === 'comment' ? `${item.lead.linkedinUrl}/recent-activity/all/` : item.lead.linkedinUrl;
 }
 
-export function Queue({ items, waiting, connected, meetings, limits }: { items: Item[]; waiting: Lead[]; connected: Lead[]; meetings: Meeting[]; limits: { invitesLeft: number; messagesLeft: number } }) {
+export function Queue({ items, waiting, connected, meetings, suggestedMeetingSlots, limits }: { items: Item[]; waiting: Lead[]; connected: Lead[]; meetings: Meeting[]; suggestedMeetingSlots: string[]; limits: { invitesLeft: number; messagesLeft: number } }) {
   const [list, removeItem] = useOptimistic(items, (state, id: string) => state.filter((i) => i.id !== id));
   const [pending, start] = useTransition();
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -115,7 +115,7 @@ export function Queue({ items, waiting, connected, meetings, limits }: { items: 
       </div>
 
       <aside className="space-y-6">
-        <MeetingList meetings={meetings} />
+        <MeetingList meetings={meetings} suggestedSlots={suggestedMeetingSlots} />
         <LeadList title="Aguardando aceite" hint="Marque quando a pessoa aceitar seu convite: a cadência continua sozinha." leads={waiting}
           buttons={[{ label: 'Aceitou', outcome: 'accepted' as const }]} />
         <LeadList title="Conectados" hint="Respondeu? Marque aqui para encerrar a cadência e contar no painel." leads={connected}
@@ -153,18 +153,24 @@ function LeadList({ title, hint, leads, buttons }: { title: string; hint: string
   );
 }
 
-function MeetingList({ meetings }: { meetings: Meeting[] }) {
-  const [, start] = useTransition();
+function MeetingList({ meetings, suggestedSlots }: { meetings: Meeting[]; suggestedSlots: string[] }) {
+  const [pending, start] = useTransition();
   const [hidden, setHidden] = useState<string[]>([]);
   const [when, setWhen] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState('');
   const visible = meetings.filter((m) => !hidden.includes(m.id));
   if (visible.length === 0) return null;
   const fmt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  const localInput = (iso: string) => {
+    const date = new Date(iso);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
   return (
     <section className="card">
       <header className="border-b border-border px-5 py-4">
         <h2 className="text-base font-semibold">Reuniões <span className="text-sm font-normal text-muted">({visible.length})</span></h2>
         <p className="mt-0.5 text-xs text-muted">Interesse em reunião registrado pelo Harvey. Combine o horário com o lead e confirme aqui.</p>
+        {notice && <p className="mt-2 text-sm" role="status">{notice}</p>}
       </header>
       <ul className="divide-y divide-border">
         {visible.map((m) => (
@@ -181,10 +187,18 @@ function MeetingList({ meetings }: { meetings: Meeting[] }) {
             )}
             {m.status === 'requested' && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 text-xs text-muted">
+                  <span>Horários sugeridos:</span>
+                  {suggestedSlots.map((slot) => <button key={slot} className="rounded-md border border-border px-2 py-1 hover:border-accent hover:text-accent"
+                    onClick={() => setWhen({ ...when, [m.id]: localInput(slot) })}>{fmt(slot)}</button>)}
+                </div>
                 <input type="datetime-local" className="input h-9 py-1 text-sm" value={when[m.id] ?? ''} onChange={(e) => setWhen({ ...when, [m.id]: e.target.value })} />
                 <button className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
-                  disabled={!when[m.id]}
-                  onClick={() => { const iso = new Date(when[m.id]).toISOString(); setHidden((h) => [...h, m.id]); start(() => { void confirmMeetingAction(m.id, iso); }); }}>
+                  disabled={!when[m.id] || pending}
+                  onClick={() => { const iso = new Date(when[m.id]).toISOString(); start(async () => {
+                    try { const result = await confirmMeetingAction(m.id, iso); setNotice(result?.ok ?? result?.error ?? 'Confira o resultado da reunião.'); }
+                    catch { setNotice('Não foi possível confirmar a reunião. Tente novamente.'); }
+                  }); }}>
                   <Check className="mr-1 inline h-3 w-3" />Confirmar
                 </button>
                 <button className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted hover:border-accent hover:text-accent"

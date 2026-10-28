@@ -90,6 +90,23 @@ export async function sendSupportMail(to: string[], subject: string, text: strin
   if (!res.ok) throw new Error(`OFFICE365_SEND_FAILED_${res.status}`);
 }
 
+export async function sendCalendarInvite(to: string[], subject: string, text: string, ics: string): Promise<void> {
+  const recipients = [...new Set(to.map((address) => address.trim()).filter(Boolean))];
+  if (!recipients.length) throw new Error('MEETING_RECIPIENT_MISSING');
+  const sender = env('OFFICE365_SENDER_EMAIL', 'MS_GRAPH_USER_ID', 'MAIL_FROM');
+  if (!sender) throw new Error('OFFICE365_NOT_CONFIGURED');
+  const token = await accessToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000),
+    body: JSON.stringify({ message: {
+      subject: subject.slice(0, 200), body: { contentType: 'Text', content: text },
+      toRecipients: recipients.map((address) => ({ emailAddress: { address } })),
+      attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'convite.ics', contentType: 'text/calendar', contentBytes: Buffer.from(ics, 'utf8').toString('base64') }],
+    }, saveToSentItems: true }),
+  });
+  if (!res.ok) throw new Error(`OFFICE365_SEND_FAILED_${res.status}`);
+}
+
 export async function sendCommercialNotification(recipients:string[],body:string):Promise<void>{
   const allowed=new Set(['atintilio@argusprime.com.br','mloro@argusprime.com.br']);
   if(!recipients.length||recipients.some(to=>!allowed.has(to)))throw Error('COMMERCIAL_RECIPIENT_INVALID');
