@@ -113,10 +113,32 @@ export async function assignConversation(db: DB, scope: InboxScope, conversation
     .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
 }
 
-export async function listInbox(db: DB, scope: InboxScope, status: 'open' | 'closed' = 'open') {
+export async function listInbox(db: DB, scope: InboxScope, status: 'open' | 'closed' = 'open', label?: string) {
+  const l = (label ?? '').trim();
   return db.select().from(schema.supportConversations)
-    .where(and(inboxAccess(scope), eq(schema.supportConversations.status, status)))
+    .where(and(inboxAccess(scope), eq(schema.supportConversations.status, status),
+      ...(l ? [sql`${schema.supportConversations.labels} @> ARRAY[${l}]::text[]`] : [])))
     .orderBy(desc(schema.supportConversations.lastMessageAt)).limit(100);
+}
+
+const labelsSchema = z.array(z.string().trim().min(1).max(30)).max(10)
+  .transform((a) => Array.from(new Set(a)));
+
+/** Define as etiquetas de uma conversa (até 10, cada uma ≤30 chars). Respeita o acesso à inbox. */
+export async function setConversationLabels(db: DB, scope: InboxScope, conversationId: string, labels: unknown): Promise<string[]> {
+  const clean = labelsSchema.parse(labels);
+  const [row] = await db.update(schema.supportConversations).set({ labels: clean })
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)))
+    .returning({ labels: schema.supportConversations.labels });
+  if (!row) throw new Error('Conversa indisponível para este usuário.');
+  return row.labels;
+}
+
+/** Catálogo de etiquetas já usadas na operação (para sugestões e filtro). */
+export async function listOrgLabels(db: DB, scope: InboxScope): Promise<string[]> {
+  const rows = await db.select({ label: sql<string>`distinct unnest(${schema.supportConversations.labels})` })
+    .from(schema.supportConversations).where(inboxAccess(scope));
+  return rows.map((r) => r.label).filter(Boolean).sort();
 }
 
 export async function conversationThread(db: DB, scope: InboxScope, conversationId: string) {

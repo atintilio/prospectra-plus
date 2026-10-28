@@ -316,6 +316,7 @@ export const supportConversations=pgTable('support_conversations',{
  visitorName:text('visitor_name').notNull().default(''),
  visitorEmail:text('visitor_email').notNull().default(''),
  visitorPhone:text('visitor_phone').notNull().default(''),
+ labels:text('labels').array().notNull().default(sql`'{}'::text[]`), // etiquetas para classificar/filtrar
  lastMessageAt:timestamp('last_message_at',{withTimezone:true}).notNull().defaultNow(),
  createdAt:createdAt(),
 },t=>[index('support_conversations_inbox_idx').on(t.orgId,t.status,t.lastMessageAt),index('support_conversations_lead_idx').on(t.orgId,t.leadId),index('support_conversations_phone_idx').on(t.orgId,t.visitorPhone)]);

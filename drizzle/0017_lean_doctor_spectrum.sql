@@ -1,0 +1,1 @@
+ALTER TABLE "support_conversations" ADD COLUMN "labels" text[] DEFAULT '{}'::text[] NOT NULL;

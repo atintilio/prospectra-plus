@@ -9,7 +9,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
-import { adminReplyProduct, adminSetProductStatus, assignConversation, openInternalTicket, replyToConversation, setConversationStatus } from '@/lib/support';
+import { adminReplyProduct, adminSetProductStatus, assignConversation, openInternalTicket, replyToConversation, setConversationLabels, setConversationStatus } from '@/lib/support';
 import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
@@ -419,6 +419,15 @@ export async function setSupportStatusAction(conversationId: string, status: 'op
   const ctx = await requireOrg();
   await setConversationStatus(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, status);
   revalidatePath('/suporte');
+}
+
+export async function setSupportLabelsAction(conversationId: string, labels: string[]): Promise<State> {
+  const ctx = await requireOrg();
+  try {
+    await setConversationLabels(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, labels);
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar as etiquetas.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Etiquetas atualizadas.' };
 }
 
 export async function assignSupportAction(conversationId: string, assigneeId: string | null): Promise<State> {
