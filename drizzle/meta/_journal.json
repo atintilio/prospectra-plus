@@ -141,6 +141,13 @@
       "when": 1793230744714,
       "tag": "0019_whole_gorilla_man",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793230920560,
+      "tag": "0020_powerful_betty_brant",
+      "breakpoints": true
     }
   ]
 }

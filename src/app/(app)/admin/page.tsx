@@ -32,7 +32,7 @@ export default async function AdminPage() {
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
         <span className={`pill ${mailerConfigured() ? 'bg-success-soft text-success' : 'bg-red-50 text-danger'}`}>Office 365 {mailerConfigured() ? 'configurado' : 'não configurado'}</span>
       </div>
-      <AdminView orgs={orgs.map(({ o, ...rest }) => ({ id: o.id, name: o.name, seats: o.seats, credits: o.searchCreditsMonth, active: o.active, aiEnabled: o.aiEnabled, ...rest }))}
+      <AdminView orgs={orgs.map(({ o, ...rest }) => ({ id: o.id, name: o.name, seats: o.seats, credits: o.searchCreditsMonth, active: o.active, aiEnabled: o.aiEnabled, imageEnabled: o.imageEnabled, callEnabled: o.callEnabled, ...rest }))}
         users={users} />
       <UsersView orgs={orgs.map(({o}) => ({id:o.id,name:o.name}))} users={users.map(u => ({...u, protected:!canChangeUser(ctx.user,u), memberships:memberships.filter(m => m.userId===u.id).map(m=>({orgId:m.orgId,role:m.role}))}))}/>
 

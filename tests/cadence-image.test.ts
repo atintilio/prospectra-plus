@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import * as schema from '@/db/schema';
 import { enrollLeads, runScheduler } from '@/lib/cadence';
 import { seedOrg, testDb } from './helpers';
@@ -8,6 +9,8 @@ const day = (n: number) => new Date(Date.UTC(2026, 9, 15 + n, 13));
 async function setup(mediaUrl?: string) {
   const db = await testDb();
   const { org, user } = await seedOrg(db);
+  // Recurso por operação: o envio de imagem só existe depois de ativado dentro do Prospectra.
+  await db.update(schema.orgs).set({ imageEnabled: true }).where(eq(schema.orgs.id, org.id));
   const steps: schema.CampaignStep[] = [
     { id: 'i1', type: 'image', delayDays: 0, condition: 'always', template: 'Veja, {nome}', useAi: false, mediaUrl },
   ];

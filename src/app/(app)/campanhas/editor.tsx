@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, GripVertical, Heart, Image, Mail, MessageCircle, Me
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { CampaignStep, StepType } from '@/db/schema';
+import { stepTypeEnabled, type CampaignFeatures } from '@/lib/campaign-features';
 import { saveCampaignAction } from '../actions';
 
 export const DEFAULT_STEPS: CampaignStep[] = [
@@ -24,7 +25,7 @@ const TYPES: Record<StepType, { label: string; icon: typeof Send }> = {
 
 type Initial = { name: string; aiBrief: string; assignedTo: string | null; steps: CampaignStep[] };
 
-export function CampaignEditor({ id, initial, members, aiOn }: { id: string | null; initial: Initial; members: { id: string; name: string; email: string }[]; aiOn: boolean }) {
+export function CampaignEditor({ id, initial, members, aiOn, features }: { id: string | null; initial: Initial; members: { id: string; name: string; email: string }[]; aiOn: boolean; features: CampaignFeatures }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string>();
@@ -59,7 +60,7 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
                 <span className="cursor-grab text-muted" draggable onDragStart={() => setDragIndex(i)} onDragEnd={() => setDragIndex(null)} aria-label="Arrastar para reordenar"><GripVertical className="h-4 w-4" /></span>
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-accent text-sm font-semibold text-accent">{i + 1}</span>
                 <select className="input w-auto font-medium" value={s.type} onChange={(e) => setStep(i, { type: e.target.value as StepType })} aria-label="Tipo do passo">
-                  {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  {Object.entries(TYPES).filter(([k]) => stepTypeEnabled(features, k) || k === s.type).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
                 <T.icon className="h-4 w-4 text-muted" />
                 <span className="text-xs text-muted">dia {day}</span>
@@ -96,14 +97,20 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
                   </label>
                 </>
               )}
+              {!stepTypeEnabled(features, s.type) && (
+                <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-xs text-muted">Este recurso está desligado nesta operação: o passo não age na cadência até o administrador liberá-lo.</p>
+              )}
             </div>
           );
         })}
         <div className="flex flex-wrap gap-2 rounded-2xl border border-dashed border-border p-3">
-          {Object.entries(TYPES).map(([k, v]) => (
+          {Object.entries(TYPES).filter(([k]) => stepTypeEnabled(features, k)).map(([k, v]) => (
             <button key={k} className="btn-outline py-1.5" onClick={() => add(k as StepType)}><Plus className="h-4 w-4" />{v.label}</button>
           ))}
         </div>
+        {(!stepTypeEnabled(features, 'image') || !stepTypeEnabled(features, 'call')) && (
+          <p className="text-xs text-muted">Imagem/informativo e ligação são recursos activados por operação: só aparecem aqui quando o administrador os liberar.</p>
+        )}
       </div>
 
       <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">

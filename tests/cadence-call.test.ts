@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import * as schema from '@/db/schema';
 import { completeAction, enrollLeads, runScheduler } from '@/lib/cadence';
 import { seedOrg, testDb } from './helpers';
@@ -12,6 +13,8 @@ describe('passo de ligação (assistida) na campanha', () => {
   it('cria a ação com roteiro e fica pendente (nunca liga sozinho); concluir registra call_made', async () => {
     const db = await testDb();
     const { org, user } = await seedOrg(db);
+    // Recurso por operação: o passo de ligação só existe depois de ativado dentro do Prospectra.
+    await db.update(schema.orgs).set({ callEnabled: true }).where(eq(schema.orgs.id, org.id));
     const [camp] = await db.insert(schema.campaigns).values({ orgId: org.id, ownerId: user.id, name: 'Lig', status: 'active', steps }).returning();
     const [lead] = await db.insert(schema.leads).values({ orgId: org.id, ownerId: user.id, linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Ana', phone: '+5511999998888' }).returning();
     await enrollLeads(db, org.id, camp.id, [lead.id], day(0));

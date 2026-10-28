@@ -26,6 +26,10 @@ export const orgs = pgTable('orgs', {
   driver: text('driver', { enum: ['assisted', 'unipile'] }).notNull().default('assisted'),
   active: boolean('active').notNull().default(true),
   aiEnabled: boolean('ai_enabled').notNull().default(true),
+  // Recursos de campanha que a operação ativa dentro do Prospectra. Desligados por padrão:
+  // o passo de imagem/informativo e o de ligação só existem para quem os ativou.
+  imageEnabled: boolean('image_enabled').notNull().default(false),
+  callEnabled: boolean('call_enabled').notNull().default(false),
   isDemo: boolean('is_demo').notNull().default(false),
   createdAt: createdAt(),
 });

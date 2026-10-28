@@ -351,10 +351,10 @@ export async function createPartnerAction(_: State, form: FormData): Promise<Sta
   return { ok: `Parceiro ${name} criado e convite enviado para ${ownerEmail}.` };
 }
 
-export async function updatePartnerAction(orgId: string, patch: { seats?: number; searchCreditsMonth?: number; active?: boolean; aiEnabled?: boolean }) {
+export async function updatePartnerAction(orgId: string, patch: { seats?: number; searchCreditsMonth?: number; active?: boolean; aiEnabled?: boolean; imageEnabled?: boolean; callEnabled?: boolean }) {
   await requireAdmin();
   const db = await getDb();
-  const validated = z.object({ seats: z.number().int().min(1).max(200).optional(), searchCreditsMonth: z.number().int().min(0).max(100000).optional(), active: z.boolean().optional(), aiEnabled: z.boolean().optional() }).strict().parse(patch);
+  const validated = z.object({ seats: z.number().int().min(1).max(200).optional(), searchCreditsMonth: z.number().int().min(0).max(100000).optional(), active: z.boolean().optional(), aiEnabled: z.boolean().optional(), imageEnabled: z.boolean().optional(), callEnabled: z.boolean().optional() }).strict().parse(patch);
   await db.update(schema.orgs).set(validated).where(eq(schema.orgs.id, orgId));
   revalidatePath('/admin');
 }

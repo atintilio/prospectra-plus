@@ -7,6 +7,7 @@ import { sendWhatsAppCommand } from '@/lib/whatsapp/commands';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { sendSupportMail, mailerConfigured } from '@/lib/mailer';
 import { queueVoiceDelivery } from '@/lib/voice/delivery';
+import { campaignFeatures, stepTypeEnabled } from '@/lib/campaign-features';
 
 // Motor da cadência (modo assistido).
 // - O scheduler transforma inscrições vencidas em "ações" na Fila do dia de quem executa a campanha.
@@ -56,6 +57,18 @@ export async function enrollLeads(db: DB, orgId: string, campaignId: string, lea
   return { added, skipped: leadIds.length - added };
 }
 
+/** Passo com recurso desligado na operação: não age e a cadência avança para o próximo passo. */
+async function skipStep(db: DB, enr: typeof schema.enrollments.$inferSelect, camp: typeof schema.campaigns.$inferSelect, now: Date) {
+  const nextIndex = enr.stepIndex + 1;
+  const next = camp.steps[nextIndex];
+  if (!next) {
+    await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'done' }).where(eq(schema.enrollments.id, enr.id));
+  } else {
+    await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'running', nextRunAt: addDays(now, next.delayDays) })
+      .where(eq(schema.enrollments.id, enr.id));
+  }
+}
+
 /** Gera as ações vencidas. Idempotente: rodar duas vezes não duplica ações. */
 export async function runScheduler(db: DB, opts: {
   orgId?: string; now?: Date; generate?: Generator;
@@ -68,7 +81,8 @@ export async function runScheduler(db: DB, opts: {
   const conds = [eq(schema.enrollments.state, 'running'), lte(schema.enrollments.nextRunAt, now), eq(schema.campaigns.status, 'active')];
   if (opts.orgId) conds.push(eq(schema.enrollments.orgId, opts.orgId));
   const due = await db
-    .select({ enr: schema.enrollments, camp: schema.campaigns, lead: schema.leads, aiEnabled: schema.orgs.aiEnabled })
+    .select({ enr: schema.enrollments, camp: schema.campaigns, lead: schema.leads, aiEnabled: schema.orgs.aiEnabled,
+      orgActive: schema.orgs.active, orgDemo: schema.orgs.isDemo, imageEnabled: schema.orgs.imageEnabled, callEnabled: schema.orgs.callEnabled })
     .from(schema.enrollments)
     .innerJoin(schema.orgs, eq(schema.orgs.id, schema.enrollments.orgId))
     .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.enrollments.campaignId))
@@ -77,14 +91,21 @@ export async function runScheduler(db: DB, opts: {
     .limit(500);
 
   let created = 0;
-  for (const { enr, camp, lead, aiEnabled } of due) {
+  for (const { enr, camp, lead, aiEnabled, orgActive, orgDemo, imageEnabled, callEnabled } of due) {
     const step = camp.steps[enr.stepIndex];
     if (!step) {
       await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
       continue;
     }
+    // Recursos de campanha dependem de activação da operação: sem activação, o passo não age.
+    const features = campaignFeatures({ active: orgActive, isDemo: orgDemo, imageEnabled, callEnabled });
     if (lead.stage === 'replied' || lead.stage === 'meeting' || lead.stage === 'won' || lead.stage === 'lost' || lead.stage === 'do_not_contact') {
       await db.update(schema.enrollments).set({ state: 'stopped' }).where(eq(schema.enrollments.id, enr.id));
+      continue;
+    }
+    if (!stepTypeEnabled(features, step.type)) {
+      // Passo ainda não alcançado com o recurso desligado: não age e não vira tarefa na Fila.
+      await skipStep(db, enr, camp, now);
       continue;
     }
     if (step.condition === 'accepted' && lead.stage !== 'connected') {
@@ -133,7 +154,7 @@ export async function runScheduler(db: DB, opts: {
         try { await queueVoiceDelivery(db, { orgId: enr.orgId, userId }, { id: action.id, recipient: phone, text: body, kind: 'audio' }); }
         catch { /* voz indisponível nesta operação */ }
       }
-    } else if (action && step.type === 'image') {
+    } else if (action && step.type === 'image' && features.image) {
       const phone = (lead.phone ?? '').replace(/\D/g, '');
       const url = (step.mediaUrl ?? '').trim();
       const cfg = akgConfig();
