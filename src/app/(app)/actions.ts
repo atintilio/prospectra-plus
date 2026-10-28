@@ -9,6 +9,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
+import { confirmMeeting, cancelMeeting } from '@/lib/scheduling';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
@@ -206,6 +207,21 @@ export async function refreshQueueAction() {
   const ctx = await requireOrg();
   const db = await getDb();
   await runScheduler(db, { orgId: ctx.org.id, generate: aiGenerator });
+  revalidatePath('/fila');
+}
+
+export async function confirmMeetingAction(meetingId: string, whenIso: string): Promise<State> {
+  const ctx = await requireOrg();
+  const when = new Date(whenIso);
+  if (Number.isNaN(when.getTime())) return { error: 'Data da reunião inválida.' };
+  await confirmMeeting(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, meetingId, when);
+  revalidatePath('/fila'); revalidatePath('/painel');
+  return { ok: 'Reunião confirmada.' };
+}
+
+export async function cancelMeetingAction(meetingId: string) {
+  const ctx = await requireOrg();
+  await cancelMeeting(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, meetingId);
   revalidatePath('/fila');
 }
 

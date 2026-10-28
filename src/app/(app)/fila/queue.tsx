@@ -1,13 +1,14 @@
 'use client';
 
-import { Check, Clipboard, ExternalLink, Heart, MessageCircle, PartyPopper, RefreshCw, Send, SkipForward, UserPlus } from 'lucide-react';
+import { CalendarClock, Check, Clipboard, ExternalLink, Heart, MessageCircle, PartyPopper, RefreshCw, Send, SkipForward, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useOptimistic, useState, useTransition } from 'react';
-import { completeActionAction, refreshQueueAction, updateLeadStageAction } from '../actions';
+import { cancelMeetingAction, completeActionAction, confirmMeetingAction, refreshQueueAction, updateLeadStageAction } from '../actions';
 import { Avatar, Empty } from '@/components/ui';
 
 type Lead = { id: string; fullName: string; headline: string; company: string; linkedinUrl: string };
 type Item = { id: string; type: 'react' | 'comment' | 'invite' | 'message'; body: string; campaign: string; overdue: boolean; lead: Lead };
+type Meeting = { id: string; leadName: string; status: 'requested' | 'confirmed'; schedulerUrl: string | null; scheduledAt: string | null };
 
 const TYPE = {
   invite: { label: 'Convite de conexão', icon: UserPlus, how: 'Abra o perfil → Conectar → Adicionar nota → cole o texto.' },
@@ -20,7 +21,7 @@ function openUrl(item: Item) {
   return item.type === 'react' || item.type === 'comment' ? `${item.lead.linkedinUrl}/recent-activity/all/` : item.lead.linkedinUrl;
 }
 
-export function Queue({ items, waiting, connected, limits }: { items: Item[]; waiting: Lead[]; connected: Lead[]; limits: { invitesLeft: number; messagesLeft: number } }) {
+export function Queue({ items, waiting, connected, meetings, limits }: { items: Item[]; waiting: Lead[]; connected: Lead[]; meetings: Meeting[]; limits: { invitesLeft: number; messagesLeft: number } }) {
   const [list, removeItem] = useOptimistic(items, (state, id: string) => state.filter((i) => i.id !== id));
   const [pending, start] = useTransition();
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -112,6 +113,7 @@ export function Queue({ items, waiting, connected, limits }: { items: Item[]; wa
       </div>
 
       <aside className="space-y-6">
+        <MeetingList meetings={meetings} />
         <LeadList title="Aguardando aceite" hint="Marque quando a pessoa aceitar seu convite: a cadência continua sozinha." leads={waiting}
           buttons={[{ label: 'Aceitou', outcome: 'accepted' as const }]} />
         <LeadList title="Conectados" hint="Respondeu? Marque aqui para encerrar a cadência e contar no painel." leads={connected}
@@ -145,6 +147,53 @@ function LeadList({ title, hint, leads, buttons }: { title: string; hint: string
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+function MeetingList({ meetings }: { meetings: Meeting[] }) {
+  const [, start] = useTransition();
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [when, setWhen] = useState<Record<string, string>>({});
+  const visible = meetings.filter((m) => !hidden.includes(m.id));
+  if (visible.length === 0) return null;
+  const fmt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  return (
+    <section className="card">
+      <header className="border-b border-border px-5 py-4">
+        <h2 className="text-base font-semibold">Reuniões <span className="text-sm font-normal text-muted">({visible.length})</span></h2>
+        <p className="mt-0.5 text-xs text-muted">Interesse em reunião registrado pelo Harvey. Combine o horário com o lead e confirme aqui.</p>
+      </header>
+      <ul className="divide-y divide-border">
+        {visible.map((m) => (
+          <li key={m.id} className="px-5 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <CalendarClock className="h-4 w-4 text-accent" />
+              <span className="min-w-0 flex-1 truncate font-medium">{m.leadName}</span>
+              {m.status === 'confirmed' && m.scheduledAt && <span className="pill bg-surface-accent text-accent">{fmt(m.scheduledAt)}</span>}
+            </div>
+            {m.schedulerUrl && (
+              <a href={m.schedulerUrl} target="_blank" rel="noopener" className="mt-1 inline-flex items-center gap-1 text-xs text-accent hover:underline">
+                <ExternalLink className="h-3 w-3" /> Link de marcação
+              </a>
+            )}
+            {m.status === 'requested' && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input type="datetime-local" className="input h-9 py-1 text-sm" value={when[m.id] ?? ''} onChange={(e) => setWhen({ ...when, [m.id]: e.target.value })} />
+                <button className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+                  disabled={!when[m.id]}
+                  onClick={() => { const iso = new Date(when[m.id]).toISOString(); setHidden((h) => [...h, m.id]); start(() => { void confirmMeetingAction(m.id, iso); }); }}>
+                  <Check className="mr-1 inline h-3 w-3" />Confirmar
+                </button>
+                <button className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted hover:border-accent hover:text-accent"
+                  onClick={() => { setHidden((h) => [...h, m.id]); start(() => cancelMeetingAction(m.id)); }}>
+                  <X className="mr-1 inline h-3 w-3" />Cancelar
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
