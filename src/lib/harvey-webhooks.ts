@@ -50,3 +50,14 @@ export async function processHarveyInbound(db:DB,jobId?:string){
  catch{await db.update(schema.harveyInboundJobs).set({state:'review',error:'Não foi possível analisar a resposta; confira o acesso e a conversa.'}).where(eq(schema.harveyInboundJobs.id,job.id));}
  return {processed:1};
 }
+
+/** Resume a bounded number of persisted callbacks when the immediate worker was interrupted. */
+export async function resumeHarveyInbound(db:DB,maxJobs=10){
+ let processed=0;
+ for(let i=0;i<maxJobs;i++){
+  const result=await processHarveyInbound(db);
+  if(!result.processed)break;
+  processed+=result.processed;
+ }
+ return {processed};
+}
