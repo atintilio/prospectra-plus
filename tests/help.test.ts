@@ -39,7 +39,7 @@ test('leitura pública do widget devolve campos seguros e respeita a operação'
   const b = await seedOrg(db, 'KB C');
   await addWidgetOrigin(db, a.org.id, 'https://site.com');
   const { conversationId } = await intakeWebMessage(db, { orgId: a.org.id, origin: 'https://site.com', body: 'dúvida' });
-  await replyToConversation(db, { orgId: a.org.id, userId: a.user.id }, conversationId, 'resposta do agente');
+  await replyToConversation(db, { orgId: a.org.id, userId: a.user.id, role: 'owner' }, conversationId, 'resposta do agente');
   const msgs = await publicConversationMessages(db, a.org.id, conversationId);
   expect(msgs).toHaveLength(2);
   expect(msgs![0]).toEqual({ author: 'visitor', body: 'dúvida', at: expect.any(String) });
