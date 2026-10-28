@@ -6,6 +6,7 @@ import { fillTemplate } from './template';
 import { sendWhatsAppCommand } from '@/lib/whatsapp/commands';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { sendSupportMail, mailerConfigured } from '@/lib/mailer';
+import { queueVoiceDelivery } from '@/lib/voice/delivery';
 
 // Motor da cadência (modo assistido).
 // - O scheduler transforma inscrições vencidas em "ações" na Fila do dia de quem executa a campanha.
@@ -122,6 +123,15 @@ export async function runScheduler(db: DB, opts: {
           if (r.state === 'sent') { await completeAction(db, enr.orgId, userId, action.id, 'done', body, now); continue; }
         } catch { /* incerto: pendente, sem reenvio */ }
       }
+    } else if (action && step.type === 'voice') {
+      const phone = (lead.phone ?? '').replace(/\D/g, '');
+      if (phone) {
+        // Só enfileira a mensagem de voz (idempotente por action.id). A geração no Voice Studio pode
+        // levar minutos, então roda no worker de voz, que conclui a ação ao enviar. Aqui nunca geramos
+        // áudio nem concluímos; sem voz disponível, fica assistida na Fila.
+        try { await queueVoiceDelivery(db, { orgId: enr.orgId, userId }, { id: action.id, recipient: phone, text: body, kind: 'audio' }); }
+        catch { /* voz indisponível nesta operação */ }
+      }
     }
     // aguardando execução (assistida ou canal não configurado): próximo passo só após concluir a ação
     await db.update(schema.enrollments).set({ nextRunAt: addDays(now, 3650) }).where(eq(schema.enrollments.id, enr.id));
@@ -129,7 +139,7 @@ export async function runScheduler(db: DB, opts: {
   return { processed: due.length, created };
 }
 
-const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent' };
+const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent', voice: 'voice_sent' };
 
 /** Conclui (ou pula) uma ação da fila e agenda o próximo passo da cadência. */
 export async function completeAction(db: DB, orgId: string, userId: string, actionId: string, outcome: 'done' | 'skipped', body?: string, now = new Date()) {
