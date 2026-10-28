@@ -127,6 +127,13 @@
       "when": 1793229554104,
       "tag": "0017_lean_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793230339538,
+      "tag": "0018_sticky_bloodstorm",
+      "breakpoints": true
     }
   ]
 }

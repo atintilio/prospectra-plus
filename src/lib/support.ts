@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, desc, eq, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { schema, type DB } from '@/db';
 import type { Scope } from '@/lib/whatsapp/akg';
@@ -150,13 +150,33 @@ export async function conversationThread(db: DB, scope: InboxScope, conversation
   return { conversation, messages };
 }
 
+/** Nota interna na conversa: só a equipe vê (nunca entregue ao cliente). Menciona membros ativos. */
+export async function addPrivateNote(db: DB, scope: InboxScope, conversationId: string, body: unknown, mentions: unknown): Promise<{ id: string; mentioned: { id: string; name: string; email: string }[] }> {
+  const text = bodySchema.parse(body);
+  const ids = z.array(z.string().uuid()).max(20).parse(mentions ?? []);
+  const [conv] = await db.select({ id: schema.supportConversations.id }).from(schema.supportConversations)
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
+  if (!conv) throw new Error('Conversa indisponível para este usuário.');
+  // só menciona quem é membro ativo da operação (fronteira de confiança)
+  const mentioned = ids.length ? await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+    .from(schema.memberships).innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))
+    .where(and(eq(schema.memberships.orgId, scope.orgId), eq(schema.users.status, 'active'), inArray(schema.users.id, ids))) : [];
+  const [note] = await db.insert(schema.supportMessages)
+    .values({ conversationId, author: 'agent', authorUserId: scope.userId, body: text, private: true, mentions: mentioned.map((m) => m.id) })
+    .returning({ id: schema.supportMessages.id });
+  await db.update(schema.supportConversations).set({ lastMessageAt: new Date() }).where(eq(schema.supportConversations.id, conversationId));
+  return { id: note.id, mentioned };
+}
+
 /** Leitura pública para o widget: só os campos seguros das mensagens da conversa. */
 export async function publicConversationMessages(db: DB, orgId: string, conversationId: string): Promise<{ author: string; body: string; at: string }[] | null> {
   const [c] = await db.select({ id: schema.supportConversations.id }).from(schema.supportConversations)
     .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, orgId)));
   if (!c) return null;
   const msgs = await db.select({ author: schema.supportMessages.author, body: schema.supportMessages.body, at: schema.supportMessages.createdAt })
-    .from(schema.supportMessages).where(eq(schema.supportMessages.conversationId, conversationId)).orderBy(schema.supportMessages.createdAt);
+    .from(schema.supportMessages)
+    .where(and(eq(schema.supportMessages.conversationId, conversationId), eq(schema.supportMessages.private, false))) // nunca expõe nota interna
+    .orderBy(schema.supportMessages.createdAt);
   return msgs.map((m) => ({ author: m.author, body: m.body, at: m.at.toISOString() }));
 }
 

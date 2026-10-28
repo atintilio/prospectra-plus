@@ -326,6 +326,8 @@ export const supportMessages=pgTable('support_messages',{
  author:text('author',{enum:['visitor','agent','system']}).notNull(),
  authorUserId:uuid('author_user_id').references(()=>users.id,{onDelete:'set null'}),
  body:text('body').notNull(),
+ private:boolean('private').notNull().default(false), // nota interna: nunca vai pro cliente (widget/WhatsApp)
+ mentions:text('mentions').array().notNull().default(sql`'{}'::text[]`), // ids de membros mencionados na nota
  providerId:text('provider_id'),
  createdAt:createdAt(),
 },t=>[index('support_messages_conversation_idx').on(t.conversationId,t.createdAt),uniqueIndex('support_messages_provider_uq').on(t.providerId).where(sql`provider_id is not null`)]);

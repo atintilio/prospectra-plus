@@ -20,9 +20,9 @@ export default async function SuportePage({ searchParams }: { searchParams: Prom
   const convs = await listInbox(db, scope, status, activeLabel);
   const allLabels = await listOrgLabels(db, scope);
   const canAssign = ctx.role === 'owner' || ctx.role === 'manager';
-  const members = canAssign ? await db.select({ id: schema.users.id, name: schema.users.name }).from(schema.memberships)
+  const members = await db.select({ id: schema.users.id, name: schema.users.name }).from(schema.memberships)
     .innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))
-    .where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.users.status, 'active'))) : [];
+    .where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.users.status, 'active')));
   const list = convs.map((c) => ({
     id: c.id, subject: c.subject || '(sem assunto)', visitorName: c.visitorName, visitorEmail: c.visitorEmail,
     channel: c.channel, status: c.status, assignedTo: c.assignedTo, labels: c.labels, lastMessageAt: c.lastMessageAt.toISOString(),
@@ -33,7 +33,7 @@ export default async function SuportePage({ searchParams }: { searchParams: Prom
     id: thread.conversation.id, subject: thread.conversation.subject, visitorName: thread.conversation.visitorName,
     visitorEmail: thread.conversation.visitorEmail, status: thread.conversation.status, assignedTo: thread.conversation.assignedTo,
     labels: thread.conversation.labels,
-    messages: thread.messages.map((m) => ({ id: m.id, author: m.author, body: m.body, at: m.createdAt.toISOString() })),
+    messages: thread.messages.map((m) => ({ id: m.id, author: m.author, body: m.body, at: m.createdAt.toISOString(), private: m.private, mentions: m.mentions })),
   } : null;
 
   return (

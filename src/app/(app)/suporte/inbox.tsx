@@ -1,12 +1,12 @@
 'use client';
 
-import { Check, Inbox, RotateCcw, Send, Tag, X } from 'lucide-react';
+import { Check, Inbox, Lock, RotateCcw, Send, Tag, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import { assignSupportAction, replySupportAction, setSupportLabelsAction, setSupportStatusAction } from '../actions';
+import { addSupportNoteAction, assignSupportAction, replySupportAction, setSupportLabelsAction, setSupportStatusAction } from '../actions';
 import { Avatar, Empty } from '@/components/ui';
 
-type Msg = { id: string; author: 'visitor' | 'agent' | 'system'; body: string; at: string };
+type Msg = { id: string; author: 'visitor' | 'agent' | 'system'; body: string; at: string; private?: boolean; mentions?: string[] };
 type Selected = { id: string; subject: string; visitorName: string; visitorEmail: string; status: 'open' | 'closed'; assignedTo: string | null; labels: string[]; messages: Msg[] };
 type ListItem = { id: string; subject: string; visitorName: string; visitorEmail: string; channel: string; status: 'open' | 'closed'; assignedTo: string | null; labels: string[]; lastMessageAt: string };
 
@@ -19,6 +19,9 @@ export function SupportInbox({ list, selected, status, members, canAssign, allLa
   const [labels, setLabels] = useState<string[]>(selected?.labels ?? []);
   const [labelKey, setLabelKey] = useState(selected?.id);
   const [newLabel, setNewLabel] = useState('');
+  const [noteMode, setNoteMode] = useState(false);
+  const [mentionIds, setMentionIds] = useState<string[]>([]);
+  const memberName = (id: string) => members.find((m) => m.id === id)?.name ?? 'alguém';
   if (labelKey !== selected?.id) { setLabelKey(selected?.id); setLabels(selected?.labels ?? []); } // ressincroniza ao trocar de conversa
   const saveLabels = (next: string[]) => { setLabels(next); start(async () => { const r = await setSupportLabelsAction(selected!.id, next); setNotice(r?.error ?? r?.ok ?? ''); }); };
   const qs = (l: string) => `/suporte?status=${status}${l ? `&label=${encodeURIComponent(l)}` : ''}${selected ? `&c=${selected.id}` : ''}`;
@@ -98,7 +101,13 @@ export function SupportInbox({ list, selected, status, members, canAssign, allLa
             </div>
             {notice && <p className="px-5 pt-2 text-xs text-muted" role="status">{notice}</p>}
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
-              {selected.messages.map((m) => (
+              {selected.messages.map((m) => m.private ? (
+                <div key={m.id} className="mx-auto w-full max-w-[90%] rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+                  <p className="mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide"><Lock className="h-3 w-3" /> Nota interna {m.mentions?.length ? `· ${m.mentions.map(memberName).map((n) => `@${n}`).join(' ')}` : ''}</p>
+                  <p className="whitespace-pre-wrap">{m.body}</p>
+                  <p className="mt-1 text-[10px] text-amber-700">{fmt(m.at)}</p>
+                </div>
+              ) : (
                 <div key={m.id} className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${m.author === 'agent' ? 'ml-auto bg-accent text-white' : 'bg-surface'}`}>
                   <p className="whitespace-pre-wrap">{m.body}</p>
                   <p className={`mt-1 text-[10px] ${m.author === 'agent' ? 'text-white/70' : 'text-muted'}`}>{m.author === 'agent' ? 'Você' : 'Cliente'} · {fmt(m.at)}</p>
@@ -106,10 +115,30 @@ export function SupportInbox({ list, selected, status, members, canAssign, allLa
               ))}
             </div>
             <form className="border-t border-border p-3"
-              onSubmit={(e) => { e.preventDefault(); const text = draft.trim(); if (!text) return; setDraft(''); start(() => { void replySupportAction(selected.id, text); }); }}>
+              onSubmit={(e) => {
+                e.preventDefault(); const text = draft.trim(); if (!text) return; setDraft('');
+                if (noteMode) { const ids = mentionIds; setMentionIds([]); start(async () => { const r = await addSupportNoteAction(selected.id, text, ids); setNotice(r?.error ?? r?.ok ?? ''); }); }
+                else start(() => { void replySupportAction(selected.id, text); });
+              }}>
+              <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
+                <label className="flex items-center gap-1.5"><input type="checkbox" checked={noteMode} onChange={(e) => setNoteMode(e.target.checked)} /> <Lock className="h-3 w-3" /> Nota interna (só a equipe vê)</label>
+                {noteMode && members.length > 0 && (
+                  <label className="flex items-center gap-1 text-muted">Avisar
+                    <select className="input h-7 w-36 py-0.5 text-xs" value="" onChange={(e) => { const id = e.target.value; if (id && !mentionIds.includes(id)) setMentionIds([...mentionIds, id]); }}>
+                      <option value="">+ membro</option>
+                      {members.filter((m) => !mentionIds.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </label>
+                )}
+                {noteMode && mentionIds.map((id) => (
+                  <span key={id} className="inline-flex items-center gap-1 rounded-full bg-surface-accent px-2 py-0.5 text-accent">@{memberName(id)}
+                    <button type="button" aria-label="Remover menção" onClick={() => setMentionIds(mentionIds.filter((x) => x !== id))}><X className="h-3 w-3" /></button>
+                  </span>
+                ))}
+              </div>
               <div className="flex gap-2">
-                <textarea className="input resize-none" rows={2} placeholder="Escreva sua resposta…" value={draft} onChange={(e) => setDraft(e.target.value)} />
-                <button type="submit" className="btn-primary self-end" disabled={!draft.trim()}><Send className="h-4 w-4" /> Enviar</button>
+                <textarea className="input resize-none" rows={2} placeholder={noteMode ? 'Escreva uma nota interna…' : 'Escreva sua resposta…'} value={draft} onChange={(e) => setDraft(e.target.value)} />
+                <button type="submit" className={`self-end ${noteMode ? 'btn-outline' : 'btn-primary'}`} disabled={!draft.trim()}>{noteMode ? <><Lock className="h-4 w-4" /> Salvar nota</> : <><Send className="h-4 w-4" /> Enviar</>}</button>
               </div>
             </form>
           </div>

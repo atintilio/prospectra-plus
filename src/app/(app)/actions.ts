@@ -9,7 +9,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
-import { adminReplyProduct, adminSetProductStatus, assignConversation, openInternalTicket, replyToConversation, setConversationLabels, setConversationStatus } from '@/lib/support';
+import { addPrivateNote, adminReplyProduct, adminSetProductStatus, assignConversation, openInternalTicket, replyToConversation, setConversationLabels, setConversationStatus } from '@/lib/support';
 import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
@@ -419,6 +419,19 @@ export async function setSupportStatusAction(conversationId: string, status: 'op
   const ctx = await requireOrg();
   await setConversationStatus(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, status);
   revalidatePath('/suporte');
+}
+
+export async function addSupportNoteAction(conversationId: string, body: string, mentions: string[] = []): Promise<State> {
+  const ctx = await requireOrg();
+  if (!body?.trim()) return { error: 'Escreva a nota.' };
+  try {
+    const { mentioned } = await addPrivateNote(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, body, mentions);
+    // avisa os mencionados por e-mail (best-effort; a nota já ficou registrada)
+    const to = mentioned.map((m) => m.email).filter(Boolean);
+    if (to.length) sendSupportMail(to, `${ctx.user.name} mencionou você numa nota de suporte`, body.slice(0, 2000)).catch(() => {});
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar a nota.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Nota interna adicionada.' };
 }
 
 export async function setSupportLabelsAction(conversationId: string, labels: string[]): Promise<State> {
