@@ -1,9 +1,17 @@
 # Cal.diy (agendamento) self-hosted — agenda.argusprime.com.br
-# Usa a imagem pré-pronta (sem build pesado na VPS). O proxy reverso do host
+# Compila o código cal.diy fornecido em ./source. O proxy reverso do host
 # (nginx/caddy/traefik) termina o TLS e encaminha para 127.0.0.1:3102.
 services:
   calcom:
-    image: calcom.docker.scarf.sh/calcom/cal.diy:latest
+    image: prospectra/cal-diy:local
+    build:
+      context: ./source
+      args:
+        NEXT_PUBLIC_WEBAPP_URL: ${NEXT_PUBLIC_WEBAPP_URL:?required}
+        NEXT_PUBLIC_LICENSE_CONSENT: agree
+        CALCOM_TELEMETRY_DISABLED: '1'
+        DATABASE_URL: postgresql://calcom:build-only@database:5432/calcom
+        MAX_OLD_SPACE_SIZE: '4096'
     restart: unless-stopped
     env_file: .env
     environment:

@@ -1,7 +1,7 @@
 # Agendamento (Cal.diy self-hosted) — `agenda.argusprime.com.br`
 
-Deploy do [cal.diy](https://github.com/calcom/cal.diy) na VPS, usando a **imagem Docker pré-pronta**
-(sem build pesado). O Prospectra continua dono do fluxo de reunião (registro + convite `.ics` pelo
+Deploy do [cal.diy](https://github.com/calcom/cal.diy) na VPS, compilado a partir do ZIP fornecido pelo dono.
+A imagem `calcom.docker.scarf.sh/calcom/cal.diy:latest` não está publicada. O Prospectra continua dono do fluxo de reunião (registro + convite `.ics` pelo
 Office 365); o cal.diy fornece apenas a **página pública de marcação**, cujo link vai em
 `MEETING_SCHEDULER_URL` na Vercel.
 
@@ -9,34 +9,35 @@ Office 365); o cal.diy fornece apenas a **página pública de marcação**, cujo
 > (link de marcação de um time pequeno) atende bem. Reavalie se precisar de SLA/escala.
 
 ## Pré-requisitos
-- VPS com **Docker + Docker Compose** e **≥ 2 GB de RAM** (sem build → não precisa dos 6 GB).
+- VPS com **Docker + Docker Compose**, espaço livre e memória suficientes para compilar o monorepo.
 - Acesso **SSH funcionando** à VPS (root ou sudo).
-- **IPv4 público** da VPS (o cal.diy fica atrás do proxy reverso do host, como o `wa-akg`).
+- Um endereço público roteado à VPS. O serviço fica atrás do proxy reverso, como o `wa-akg`.
 - Um **SMTP** para enviar e-mails (ver seção E-mail).
 
 ## 1. DNS
-Crie um registro **A** apontando o subdomínio para o IPv4 da VPS:
+O domínio usa nameservers Cloudflare. Crie o registro para `agenda` somente após confirmar o endereço roteado à VPS. Na instalação atual, o endereço da interface é `2a0c:b641:1a0:800::256` (registro AAAA). O IP `103.102.135.126` é o proxy de SSH do provedor e não deve ser presumido como endereço do site.
 
 ```
-agenda.argusprime.com.br.  A  <IPV4_DA_VPS>
+agenda.argusprime.com.br.  AAAA  2a0c:b641:1a0:800::256
 ```
 
-Confirme a propagação: `dig +short agenda.argusprime.com.br` deve retornar o IPv4.
+Confirme a propagação e o acesso HTTP antes de ativar o proxy Cloudflare.
 
 ## 2. Subir os arquivos para a VPS
-Copie esta pasta para a VPS (ex.: `/opt/agenda`):
+Copie esta pasta para `/opt/agenda` e extraia o ZIP de `cal.diy` em `/opt/agenda/source`, de modo que `/opt/agenda/source/Dockerfile` exista. Registre o SHA-256 do ZIP utilizado para reproduzir a compilação.
+O ZIP fornecido nesta implantação tem SHA-256 `284f651cf407b2407c7e31827cb17c60a5778078aa561cb5669cddc4bdf26758`.
 
 ```bash
-scp -r infra/agenda <usuario>@<ipv4>:/opt/agenda
+scp -P 9229 -r infra/agenda root@vps-905340.ssh.vps1euro.fr:/opt/agenda
 ```
 
 ## 3. Configurar os segredos
 Na VPS, dentro de `/opt/agenda`:
 
 ```bash
-cp .env.example .env
+test -e .env || cp .env.example .env
 # Gere e cole os valores:
-openssl rand -base64 32   # CALCOM_DB_PASSWORD
+openssl rand -hex 32      # CALCOM_DB_PASSWORD (seguro dentro da URL do Postgres)
 openssl rand -base64 32   # NEXTAUTH_SECRET
 openssl rand -base64 24   # CALENDSO_ENCRYPTION_KEY (32 bytes)
 openssl rand -base64 24   # CALCOM_APP_CREDENTIAL_ENCRYPTION_KEY
@@ -45,8 +46,9 @@ chmod 600 .env            # nunca commite este arquivo
 
 Preencha também o bloco de e-mail (`EMAIL_SERVER_*`, `EMAIL_FROM`).
 
-## 4. Subir os containers
+## 4. Compilar e subir os containers
 ```bash
+docker compose build calcom
 docker compose up -d
 docker compose logs -f calcom   # acompanhe até "ready"
 ```
@@ -60,16 +62,9 @@ docker compose exec calcom npx prisma migrate deploy --schema=packages/prisma/sc
 O app fica em `127.0.0.1:3102` na VPS (ainda sem TLS; é o proxy reverso que expõe publicamente).
 
 ## 5. Proxy reverso + TLS
-Use o mesmo proxy que já serve os outros serviços da VPS. Exemplos:
+Use o nginx existente e configure TLS entre a Cloudflare e a VPS antes de publicar a página. Exemplo de upstream:
 
-**Caddy** (TLS automático) — adicione ao `Caddyfile`:
-```
-agenda.argusprime.com.br {
-    reverse_proxy 127.0.0.1:3102
-}
-```
-
-**nginx** (com certbot para o TLS):
+**nginx** (com certificado de origem válido):
 ```nginx
 server {
     server_name agenda.argusprime.com.br;
@@ -83,7 +78,7 @@ server {
         proxy_set_header Connection "upgrade";
     }
 }
-# depois: certbot --nginx -d agenda.argusprime.com.br
+# depois: nginx -t && systemctl reload nginx
 ```
 
 Abra `https://agenda.argusprime.com.br` — deve carregar a tela inicial do cal.diy.
@@ -116,6 +111,6 @@ O cal.diy envia por **SMTP**, não pela API Graph. O `OFFICE365_*` do Prospectra
 - Se o SMTP AUTH não puder ser habilitado, use qualquer outro SMTP (SendGrid, Gmail app password, etc.).
 
 ## Manutenção
-- Atualizar: `docker compose pull && docker compose up -d`
+- Atualizar: substituir o ZIP de origem, conferir o hash e executar `docker compose build calcom && docker compose up -d`
 - Backup do banco: `docker compose exec database pg_dump -U calcom calcom > backup-$(date +%F).sql`
 - Logs: `docker compose logs -f calcom`
