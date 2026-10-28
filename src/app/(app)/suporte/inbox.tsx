@@ -3,18 +3,19 @@
 import { Check, Inbox, RotateCcw, Send } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import { replySupportAction, setSupportStatusAction } from '../actions';
+import { assignSupportAction, replySupportAction, setSupportStatusAction } from '../actions';
 import { Avatar, Empty } from '@/components/ui';
 
 type Msg = { id: string; author: 'visitor' | 'agent' | 'system'; body: string; at: string };
-type Selected = { id: string; subject: string; visitorName: string; visitorEmail: string; status: 'open' | 'closed'; messages: Msg[] };
-type ListItem = { id: string; subject: string; visitorName: string; visitorEmail: string; channel: string; status: 'open' | 'closed'; lastMessageAt: string };
+type Selected = { id: string; subject: string; visitorName: string; visitorEmail: string; status: 'open' | 'closed'; assignedTo: string | null; messages: Msg[] };
+type ListItem = { id: string; subject: string; visitorName: string; visitorEmail: string; channel: string; status: 'open' | 'closed'; assignedTo: string | null; lastMessageAt: string };
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
-export function SupportInbox({ list, selected, status }: { list: ListItem[]; selected: Selected | null; status: 'open' | 'closed' }) {
+export function SupportInbox({ list, selected, status, members, canAssign }: { list: ListItem[]; selected: Selected | null; status: 'open' | 'closed'; members: { id: string; name: string }[]; canAssign: boolean }) {
   const [, start] = useTransition();
   const [draft, setDraft] = useState('');
+  const [notice, setNotice] = useState('');
 
   return (
     <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
@@ -36,6 +37,7 @@ export function SupportInbox({ list, selected, status }: { list: ListItem[]; sel
                     <span className="shrink-0 text-[11px] text-muted">{fmt(c.lastMessageAt)}</span>
                   </div>
                   <p className="mt-1 truncate text-xs text-muted">{c.subject}</p>
+                  {canAssign && <p className="mt-1 text-xs text-muted">Responsável: {members.find((m) => m.id === c.assignedTo)?.name ?? 'Ninguém'}</p>}
                 </Link>
               </li>
             ))}
@@ -53,10 +55,21 @@ export function SupportInbox({ list, selected, status }: { list: ListItem[]; sel
                 <p className="truncate font-semibold">{selected.visitorName || 'Visitante'}</p>
                 <p className="truncate text-xs text-muted">{selected.visitorEmail || selected.subject}</p>
               </div>
+              {canAssign && <label className="ml-auto text-xs text-muted">Responsável
+                <select className="input ml-2 h-9 w-40 py-1 text-xs" value={selected.assignedTo ?? ''}
+                  onChange={(e) => start(async () => {
+                    const result = await assignSupportAction(selected.id, e.target.value || null);
+                    setNotice(result?.error ?? result?.ok ?? 'Confira a atribuição.');
+                  })}>
+                  <option value="">Ninguém</option>
+                  {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </label>}
               <button className="btn-outline ml-auto" onClick={() => start(() => { void setSupportStatusAction(selected.id, selected.status === 'open' ? 'closed' : 'open'); })}>
                 {selected.status === 'open' ? <><Check className="h-4 w-4" /> Fechar</> : <><RotateCcw className="h-4 w-4" /> Reabrir</>}
               </button>
             </header>
+            {notice && <p className="px-5 pt-2 text-xs text-muted" role="status">{notice}</p>}
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
               {selected.messages.map((m) => (
                 <div key={m.id} className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${m.author === 'agent' ? 'ml-auto bg-accent text-white' : 'bg-surface'}`}>

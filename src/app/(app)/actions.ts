@@ -9,7 +9,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
-import { adminReplyProduct, adminSetProductStatus, openInternalTicket, replyToConversation, setConversationStatus } from '@/lib/support';
+import { adminReplyProduct, adminSetProductStatus, assignConversation, openInternalTicket, replyToConversation, setConversationStatus } from '@/lib/support';
 import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
@@ -403,7 +403,7 @@ export async function replySupportAction(conversationId: string, body: string): 
   if (!body?.trim()) return { error: 'Escreva uma resposta.' };
   const db = await getDb();
   try {
-    await replyToConversation(db, { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, body);
+    await replyToConversation(db, { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, body);
   } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível responder.' }; }
   // Conversa de WhatsApp: entrega a resposta pelo gateway quando configurado (best-effort; já ficou registrada).
   try {
@@ -417,8 +417,17 @@ export async function replySupportAction(conversationId: string, body: string): 
 
 export async function setSupportStatusAction(conversationId: string, status: 'open' | 'closed') {
   const ctx = await requireOrg();
-  await setConversationStatus(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, status);
+  await setConversationStatus(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, status);
   revalidatePath('/suporte');
+}
+
+export async function assignSupportAction(conversationId: string, assigneeId: string | null): Promise<State> {
+  const ctx = await requireOrg();
+  try {
+    await assignConversation(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, assigneeId);
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível atribuir a conversa.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Responsável atualizado.' };
 }
 
 // ---------- Central de ajuda ----------

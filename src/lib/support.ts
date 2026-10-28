@@ -1,8 +1,16 @@
 import 'server-only';
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { schema, type DB } from '@/db';
 import type { Scope } from '@/lib/whatsapp/akg';
+import type { Role } from '@/lib/auth';
+
+type InboxScope = Scope & { role: Role };
+const inboxAccess = (scope: InboxScope) => and(
+  eq(schema.supportConversations.orgId, scope.orgId),
+  eq(schema.supportConversations.audience, 'customer'),
+  ...(scope.role === 'owner' || scope.role === 'manager' ? [] : [eq(schema.supportConversations.assignedTo, scope.userId)]),
+);
 
 // Suporte nativo (Helpin fase 1). Fronteira de confiança: toda entrada é validada aqui.
 const bodySchema = z.string().trim().min(1).max(4000);
@@ -77,31 +85,43 @@ export async function openInternalTicket(
   });
 }
 
-export async function replyToConversation(db: DB, scope: Scope, conversationId: string, body: string): Promise<void> {
+export async function replyToConversation(db: DB, scope: InboxScope, conversationId: string, body: string): Promise<void> {
   const text = bodySchema.parse(body);
   await db.transaction(async (tx) => {
     const [c] = await tx.select().from(schema.supportConversations)
-      .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, scope.orgId))).for('update');
+      .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope))).for('update');
     if (!c) throw new Error('Conversa não encontrada.');
     await tx.insert(schema.supportMessages).values({ conversationId, author: 'agent', authorUserId: scope.userId, body: text });
     await tx.update(schema.supportConversations).set({ status: 'open', lastMessageAt: new Date(), assignedTo: c.assignedTo ?? scope.userId }).where(eq(schema.supportConversations.id, conversationId));
   });
 }
 
-export async function setConversationStatus(db: DB, scope: Scope, conversationId: string, status: 'open' | 'closed'): Promise<void> {
+export async function setConversationStatus(db: DB, scope: InboxScope, conversationId: string, status: 'open' | 'closed'): Promise<void> {
   await db.update(schema.supportConversations).set({ status })
-    .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, scope.orgId)));
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
 }
 
-export async function listInbox(db: DB, orgId: string, status: 'open' | 'closed' = 'open') {
+export async function assignConversation(db: DB, scope: InboxScope, conversationId: string, assigneeId: string | null): Promise<void> {
+  if (scope.role !== 'owner' && scope.role !== 'manager') throw new Error('Sem permissão para atribuir conversas.');
+  if (assigneeId) {
+    const [member] = await db.select({ id: schema.memberships.userId }).from(schema.memberships)
+      .innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))
+      .where(and(eq(schema.memberships.orgId, scope.orgId), eq(schema.memberships.userId, assigneeId), eq(schema.users.status, 'active')));
+    if (!member) throw new Error('Responsável não pertence a esta operação.');
+  }
+  await db.update(schema.supportConversations).set({ assignedTo: assigneeId })
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
+}
+
+export async function listInbox(db: DB, scope: InboxScope, status: 'open' | 'closed' = 'open') {
   return db.select().from(schema.supportConversations)
-    .where(and(eq(schema.supportConversations.orgId, orgId), eq(schema.supportConversations.status, status)))
+    .where(and(inboxAccess(scope), eq(schema.supportConversations.status, status)))
     .orderBy(desc(schema.supportConversations.lastMessageAt)).limit(100);
 }
 
-export async function conversationThread(db: DB, scope: Scope, conversationId: string) {
+export async function conversationThread(db: DB, scope: InboxScope, conversationId: string) {
   const [conversation] = await db.select().from(schema.supportConversations)
-    .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, scope.orgId)));
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
   if (!conversation) return null;
   const messages = await db.select().from(schema.supportMessages)
     .where(eq(schema.supportMessages.conversationId, conversationId)).orderBy(schema.supportMessages.createdAt);
@@ -130,7 +150,8 @@ export async function linkConversationToLead(db: DB, orgId: string, conversation
   if (!matchers.length) return null;
   const [lead] = await db.select().from(schema.leads).where(and(eq(schema.leads.orgId, orgId), or(...matchers))).limit(1);
   if (!lead) return null;
-  await db.update(schema.supportConversations).set({ leadId: lead.id }).where(eq(schema.supportConversations.id, conversationId));
+  await db.update(schema.supportConversations).set({ leadId: lead.id, assignedTo: sql`coalesce(${schema.supportConversations.assignedTo}, ${lead.ownerId}::uuid)` })
+    .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, orgId), eq(schema.supportConversations.audience, 'customer')));
   // preenche contato ausente no lead a partir do que o suporte trouxe
   const fill: Record<string, string> = {};
   if (email && !lead.email) fill.email = email;
