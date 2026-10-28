@@ -112,4 +112,18 @@ export class AkgGateway {
   if(typeof id!=='string'||!id)throw Error('Envio de áudio sem confirmação. Confira no WhatsApp antes de tentar novamente.');
   return {providerMessageId:id};
  }
+ async sendMedia(scope:Scope,recipient:string,file:Blob,caption:string,kind:'image'|'document'):Promise<{providerMessageId:string}>{
+  const phone=recipient.replace(/[\s()+-]/g,'');z.string().regex(/^[1-9]\d{7,14}$/).parse(phone);
+  const allowed=kind==='image'?['image/jpeg','image/png','image/webp']:['application/pdf'];
+  if(!file.size||file.size>16_000_000||!allowed.includes(file.type.split(';')[0]))throw Error(kind==='image'?'Use imagem JPEG/PNG/WebP de até 16 MB.':'Use PDF de até 16 MB.');
+  if((await this.status(scope)).state!=='connected')throw Error('Conecte o WhatsApp antes de enviar.');
+  const ext=kind==='image'?({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type.split(';')[0]]??'jpg'):'pdf';
+  const form=new FormData();form.set('file',file,(kind==='image'?'imagem.':'informativo.')+ext);form.set('type',kind);if(caption.trim())form.set('caption',caption.trim().slice(0,1024));
+  let result:any;
+  try{result=await this.request('/messages/'+encodeURIComponent(sessionIdFor(scope))+'/'+encodeURIComponent(phone+'@s.whatsapp.net')+'/media','POST',form);}
+  catch{throw Error('Envio de mídia sem confirmação. Confira no WhatsApp antes de tentar novamente.');}
+  const id=result.data?.key?.id;
+  if(typeof id!=='string'||!id)throw Error('Envio de mídia sem confirmação. Confira no WhatsApp antes de tentar novamente.');
+  return {providerMessageId:id};
+ }
 }

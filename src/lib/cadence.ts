@@ -61,6 +61,7 @@ export async function runScheduler(db: DB, opts: {
   orgId?: string; now?: Date; generate?: Generator;
   sendEmail?: (to: string, subject: string, body: string) => Promise<void>;
   sendWhatsapp?: (scope: { orgId: string; userId: string }, phone: string, text: string) => Promise<{ providerMessageId: string }>;
+  sendMedia?: (scope: { orgId: string; userId: string }, phone: string, file: Blob, caption: string, kind: 'image' | 'document') => Promise<{ providerMessageId: string }>;
 } = {}) {
   const now = opts.now ?? new Date();
   const generate = opts.generate ?? defaultGenerator;
@@ -132,6 +133,18 @@ export async function runScheduler(db: DB, opts: {
         try { await queueVoiceDelivery(db, { orgId: enr.orgId, userId }, { id: action.id, recipient: phone, text: body, kind: 'audio' }); }
         catch { /* voz indisponível nesta operação */ }
       }
+    } else if (action && step.type === 'image') {
+      const phone = (lead.phone ?? '').replace(/\D/g, '');
+      const url = (step.mediaUrl ?? '').trim();
+      const cfg = akgConfig();
+      const send = opts.sendMedia ?? (cfg ? (scope: { orgId: string; userId: string }, p: string, f: Blob, c: string, k: 'image' | 'document') => new AkgGateway(cfg).sendMedia(scope, p, f, c, k) : null);
+      if (phone && url && send) {
+        try {
+          const media = await fetchMedia(url); // https, tamanho limitado; body é a legenda
+          await send({ orgId: enr.orgId, userId }, phone, media.file, body, media.kind);
+          await completeAction(db, enr.orgId, userId, action.id, 'done', body, now); continue;
+        } catch { /* incerto/sem mídia: fica pendente, sem reenvio automático */ }
+      }
     }
     // aguardando execução (assistida ou canal não configurado): próximo passo só após concluir a ação
     await db.update(schema.enrollments).set({ nextRunAt: addDays(now, 3650) }).where(eq(schema.enrollments.id, enr.id));
@@ -139,7 +152,22 @@ export async function runScheduler(db: DB, opts: {
   return { processed: due.length, created };
 }
 
-const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent', voice: 'voice_sent' };
+const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent', voice: 'voice_sent', image: 'image_sent' };
+
+// Busca a imagem/informativo da URL pública do passo. https apenas; tamanho limitado; tipo pela resposta.
+// shortcut: aceita URL pública (sem upload/armazenamento próprio); evoluir para upload quando necessário.
+async function fetchMedia(url: string): Promise<{ file: Blob; kind: 'image' | 'document' }> {
+  const u = new URL(url);
+  if (u.protocol !== 'https:') throw new Error('A URL da mídia precisa ser https.');
+  const res = await fetch(u, { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error('Mídia indisponível na URL.');
+  const type = (res.headers.get('content-type') ?? '').split(';')[0].trim();
+  const kind = type === 'application/pdf' ? 'document' : type.startsWith('image/') ? 'image' : null;
+  if (!kind) throw new Error('Tipo de mídia não suportado (use imagem ou PDF).');
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > 16_000_000) throw new Error('Mídia acima de 16 MB.');
+  return { file: new Blob([buf], { type }), kind };
+}
 
 /** Conclui (ou pula) uma ação da fila e agenda o próximo passo da cadência. */
 export async function completeAction(db: DB, orgId: string, userId: string, actionId: string, outcome: 'done' | 'skipped', body?: string, now = new Date()) {
