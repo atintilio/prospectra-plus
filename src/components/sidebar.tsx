@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpen, Bot, Building2, LayoutDashboard, LifeBuoy, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
+import { BookOpen, Bot, Building2, Headset, LayoutDashboard, LifeBuoy, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { logoutAction } from '@/app/(auth)/actions';
@@ -21,6 +21,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
     ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
     { href: '/conta', label: 'Minha conta', icon: Settings },
+    ...(isAdmin ? [{ href: '/argus', label: 'Suporte interno', icon: Headset }] : []),
     ...(isAdmin ? [{ href: '/admin', label: 'Administração de parceiros', icon: Building2 }] : []),
   ];
   const active = (href: string) => path === href || path.startsWith(`${href}/`);

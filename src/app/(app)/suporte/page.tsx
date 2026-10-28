@@ -3,6 +3,7 @@ import { requireOrg } from '@/lib/auth';
 import { PageHeader } from '@/components/ui';
 import { conversationThread, listInbox } from '@/lib/support';
 import { SupportInbox } from './inbox';
+import { OpenTicket } from './ticket';
 
 export const metadata = { title: 'Suporte' };
 
@@ -30,6 +31,7 @@ export default async function SuportePage({ searchParams }: { searchParams: Prom
     <>
       <PageHeader eyebrow="Suporte" title="Inbox de suporte" subtitle="Conversas dos clientes chegam aqui. Responda e feche quando resolver." />
       <SupportInbox list={list} selected={selected} status={status} />
+      <OpenTicket />
     </>
   );
 }

@@ -71,12 +71,16 @@ export const leads = pgTable('leads', {
   stage: text('stage', { enum: LEAD_STAGES }).notNull().default('new'),
   notes: text('notes').notNull().default(''),
   qualification: text('qualification').notNull().default(''),
+  email: text('email').notNull().default(''),   // merge de CRM: contato completo, não só LinkedIn
+  phone: text('phone').notNull().default(''),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex('leads_org_url_uq').on(t.orgId, t.linkedinUrl),
   index('leads_org_stage_idx').on(t.orgId, t.stage),
   index('leads_org_owner_idx').on(t.orgId, t.ownerId),
+  index('leads_org_email_idx').on(t.orgId, t.email),
+  index('leads_org_phone_idx').on(t.orgId, t.phone),
 ]);
 
 export type StepType = 'react' | 'comment' | 'invite' | 'message';

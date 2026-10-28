@@ -9,9 +9,12 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
-import { replyToConversation, setConversationStatus } from '@/lib/support';
+import { adminReplyProduct, adminSetProductStatus, openInternalTicket, replyToConversation, setConversationStatus } from '@/lib/support';
+import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
+
+const ARGUS_SUPPORT = [process.env.MASTER_USER_EMAIL || 'atintilio@argusprime.com.br', 'mloro@argusprime.com.br'];
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
@@ -416,6 +419,38 @@ export async function setArticleStatusAction(id: string, status: 'draft' | 'publ
   const ctx = await requireOrg();
   await setArticleStatus(await getDb(), ctx.org.id, id, status);
   revalidatePath('/ajuda');
+}
+
+// ---------- Suporte interno → Argus ----------
+
+export async function openSupportTicketAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  const subject = String(form.get('subject') ?? '').trim();
+  const body = String(form.get('body') ?? '').trim();
+  if (!subject || !body) return { error: 'Preencha assunto e mensagem.' };
+  try { await openInternalTicket(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, email: ctx.user.email, name: ctx.user.name }, { subject, body }); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível abrir o chamado.' }; }
+  // Roteia para o Argus por e-mail (best-effort; o chamado já ficou registrado).
+  sendSupportMail(ARGUS_SUPPORT, `Chamado do Prospectra+: ${subject}`, `${ctx.user.name} (${ctx.user.email}) — equipe ${ctx.org.name}\n\n${body}`).catch(() => {});
+  revalidatePath('/suporte');
+  return { ok: 'Chamado aberto. O suporte da Argus responde por aqui e por e-mail.' };
+}
+
+export async function argusReplyAction(conversationId: string, body: string): Promise<State> {
+  const ctx = await requireAdmin();
+  if (!body?.trim()) return { error: 'Escreva uma resposta.' };
+  let to = '';
+  try { ({ to } = await adminReplyProduct(await getDb(), ctx.user.id, conversationId, body)); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível responder.' }; }
+  if (to) sendSupportMail([to], 'Resposta do suporte Argus', body).catch(() => {});
+  revalidatePath('/argus');
+  return { ok: 'Resposta enviada.' };
+}
+
+export async function argusStatusAction(conversationId: string, status: 'open' | 'closed') {
+  await requireAdmin();
+  await adminSetProductStatus(await getDb(), conversationId, status);
+  revalidatePath('/argus');
 }
 
 export async function deleteArticleAction(id: string) {

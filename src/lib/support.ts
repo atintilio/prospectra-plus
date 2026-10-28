@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { schema, type DB } from '@/db';
 import type { Scope } from '@/lib/whatsapp/akg';
@@ -38,7 +38,7 @@ export async function intakeWebMessage(
   const body = bodySchema.parse(input.body);
   const name = input.visitorName ? nameSchema.parse(input.visitorName) : '';
   const email = input.visitorEmail ? emailSchema.parse(input.visitorEmail) : '';
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     let convId = input.conversationId;
     if (convId) {
       const [c] = await tx.select({ id: schema.supportConversations.id }).from(schema.supportConversations)
@@ -56,6 +56,8 @@ export async function intakeWebMessage(
     await tx.insert(schema.supportMessages).values({ conversationId: convId, author: 'visitor', body });
     return { conversationId: convId };
   });
+  if (email) await linkConversationToLead(db, input.orgId, result.conversationId, { email }).catch(() => null);
+  return result;
 }
 
 /** Chamado interno: usuário do Prospectra+ ↔ suporte Argus. */
@@ -118,6 +120,25 @@ export async function publicConversationMessages(db: DB, orgId: string, conversa
 
 const phoneSchema = z.string().trim().regex(/^\+?[1-9]\d{7,14}$/).transform((v) => v.replace(/^\+/, ''));
 
+/** Merge de CRM: liga a conversa ao lead que casa por email/telefone e preenche o contato do lead. */
+export async function linkConversationToLead(db: DB, orgId: string, conversationId: string, contact: { email?: string; phone?: string }): Promise<string | null> {
+  const email = (contact.email ?? '').trim().toLowerCase();
+  const phone = (contact.phone ?? '').replace(/\D/g, '');
+  const matchers = [];
+  if (email) matchers.push(eq(schema.leads.email, email));
+  if (phone) matchers.push(eq(schema.leads.phone, phone));
+  if (!matchers.length) return null;
+  const [lead] = await db.select().from(schema.leads).where(and(eq(schema.leads.orgId, orgId), or(...matchers))).limit(1);
+  if (!lead) return null;
+  await db.update(schema.supportConversations).set({ leadId: lead.id }).where(eq(schema.supportConversations.id, conversationId));
+  // preenche contato ausente no lead a partir do que o suporte trouxe
+  const fill: Record<string, string> = {};
+  if (email && !lead.email) fill.email = email;
+  if (phone && !lead.phone) fill.phone = phone;
+  if (Object.keys(fill).length) await db.update(schema.leads).set(fill).where(eq(schema.leads.id, lead.id));
+  return lead.id;
+}
+
 /** Entrada por WhatsApp (via WA-AKG). Agrupa por telefone na conversa aberta e deduplica por providerId. */
 export async function intakeWhatsappMessage(
   db: DB,
@@ -127,7 +148,7 @@ export async function intakeWhatsappMessage(
   const phone = phoneSchema.parse(input.phone);
   const name = input.name ? nameSchema.parse(input.name) : '';
   const providerId = z.string().trim().min(1).max(200).parse(input.providerId);
-  return db.transaction(async (tx) => {
+  const r = await db.transaction(async (tx) => {
     const [dup] = await tx.select({ conversationId: schema.supportMessages.conversationId }).from(schema.supportMessages)
       .where(eq(schema.supportMessages.providerId, providerId));
     if (dup) return { conversationId: dup.conversationId, deduped: true }; // retry do gateway
@@ -146,4 +167,42 @@ export async function intakeWhatsappMessage(
     await tx.update(schema.supportConversations).set({ status: 'open', lastMessageAt: new Date() }).where(eq(schema.supportConversations.id, conv.id));
     return { conversationId: conv.id, deduped: false };
   });
+  if (!r.deduped) await linkConversationToLead(db, input.orgId, r.conversationId, { phone }).catch(() => null);
+  return r;
+}
+
+// ---- Suporte interno (audience 'product') roteado ao Argus: acesso de admin, cross-org ----
+
+export async function listProductTickets(db: DB, status: 'open' | 'closed' = 'open') {
+  return db.select({ c: schema.supportConversations, orgName: schema.orgs.name })
+    .from(schema.supportConversations).innerJoin(schema.orgs, eq(schema.orgs.id, schema.supportConversations.orgId))
+    .where(and(eq(schema.supportConversations.audience, 'product'), eq(schema.supportConversations.status, status)))
+    .orderBy(desc(schema.supportConversations.lastMessageAt)).limit(100);
+}
+
+export async function adminProductThread(db: DB, conversationId: string) {
+  const [conversation] = await db.select().from(schema.supportConversations)
+    .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.audience, 'product')));
+  if (!conversation) return null;
+  const messages = await db.select().from(schema.supportMessages)
+    .where(eq(schema.supportMessages.conversationId, conversationId)).orderBy(schema.supportMessages.createdAt);
+  return { conversation, messages };
+}
+
+/** Resposta do Argus a um chamado interno. Só para admin de plataforma (sem escopo de operação). */
+export async function adminReplyProduct(db: DB, adminUserId: string, conversationId: string, body: string): Promise<{ to: string }> {
+  const text = bodySchema.parse(body);
+  return db.transaction(async (tx) => {
+    const [c] = await tx.select().from(schema.supportConversations)
+      .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.audience, 'product'))).for('update');
+    if (!c) throw new Error('Chamado não encontrado.');
+    await tx.insert(schema.supportMessages).values({ conversationId, author: 'agent', authorUserId: adminUserId, body: text });
+    await tx.update(schema.supportConversations).set({ status: 'open', lastMessageAt: new Date(), assignedTo: c.assignedTo ?? adminUserId }).where(eq(schema.supportConversations.id, conversationId));
+    return { to: c.visitorEmail };
+  });
+}
+
+export async function adminSetProductStatus(db: DB, conversationId: string, status: 'open' | 'closed'): Promise<void> {
+  await db.update(schema.supportConversations).set({ status })
+    .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.audience, 'product')));
 }
