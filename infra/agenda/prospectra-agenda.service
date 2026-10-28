@@ -1,0 +1,27 @@
+[Unit]
+Description=Prospectra Cal.diy scheduling page
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=prospectra-agenda
+Group=prospectra-agenda
+WorkingDirectory=/opt/agenda/source
+EnvironmentFile=/opt/agenda/.env
+Environment=NEXT_PUBLIC_LICENSE_CONSENT=agree
+Environment=CALCOM_TELEMETRY_DISABLED=1
+Environment=NODE_OPTIONS=--max-old-space-size=4096
+ExecStart=/usr/bin/corepack yarn workspace @calcom/web start -H 127.0.0.1 -p 3102
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
