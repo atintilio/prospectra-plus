@@ -9,6 +9,14 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
+import { adminReplyProduct, adminSetProductStatus, openInternalTicket, replyToConversation, setConversationStatus } from '@/lib/support';
+import { sendSupportMail } from '@/lib/mailer';
+import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
+import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
+import { assignTask, createTask, deleteDoc, deleteTask, setTaskStatus, upsertDoc } from '@/lib/workspace';
+import type { TaskStatus } from '@/db/schema';
+
+const ARGUS_SUPPORT = [process.env.MASTER_USER_EMAIL || 'atintilio@argusprime.com.br', 'mloro@argusprime.com.br'];
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
@@ -368,5 +376,138 @@ async function seedFeedIfEmpty(orgId: string) {
   const db = await getDb();
   const [row] = await db.select({ id: schema.simFeed.id }).from(schema.simFeed).where(eq(schema.simFeed.orgId, orgId)).limit(1);
   if (!row) await seedFeed(db, orgId);
+}
+
+// ---------- Suporte ----------
+
+export async function replySupportAction(conversationId: string, body: string): Promise<State> {
+  const ctx = await requireOrg();
+  if (!body?.trim()) return { error: 'Escreva uma resposta.' };
+  const db = await getDb();
+  try {
+    await replyToConversation(db, { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, body);
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível responder.' }; }
+  // Conversa de WhatsApp: entrega a resposta pelo gateway quando configurado (best-effort; já ficou registrada).
+  try {
+    const [c] = await db.select().from(schema.supportConversations).where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, ctx.org.id)));
+    const cfg = akgConfig();
+    if (c?.channel === 'whatsapp' && c.visitorPhone && cfg) await new AkgGateway(cfg).sendText({ orgId: ctx.org.id, userId: ctx.user.id }, c.visitorPhone, body);
+  } catch { /* entrega pelo WhatsApp é best-effort */ }
+  revalidatePath('/suporte');
+  return { ok: 'Resposta enviada.' };
+}
+
+export async function setSupportStatusAction(conversationId: string, status: 'open' | 'closed') {
+  const ctx = await requireOrg();
+  await setConversationStatus(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, status);
+  revalidatePath('/suporte');
+}
+
+// ---------- Central de ajuda ----------
+
+export async function saveArticleAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  const id = String(form.get('id') ?? '').trim() || undefined;
+  const title = String(form.get('title') ?? '').trim();
+  const body = String(form.get('body') ?? '');
+  if (!title) return { error: 'Dê um título ao artigo.' };
+  try { await upsertArticle(await getDb(), ctx.org.id, { id, title, body }); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar.' }; }
+  revalidatePath('/ajuda');
+  return { ok: 'Artigo salvo.' };
+}
+
+export async function setArticleStatusAction(id: string, status: 'draft' | 'published') {
+  const ctx = await requireOrg();
+  await setArticleStatus(await getDb(), ctx.org.id, id, status);
+  revalidatePath('/ajuda');
+}
+
+// ---------- Suporte interno → Argus ----------
+
+export async function openSupportTicketAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  const subject = String(form.get('subject') ?? '').trim();
+  const body = String(form.get('body') ?? '').trim();
+  if (!subject || !body) return { error: 'Preencha assunto e mensagem.' };
+  try { await openInternalTicket(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, email: ctx.user.email, name: ctx.user.name }, { subject, body }); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível abrir o chamado.' }; }
+  // Roteia para o Argus por e-mail (best-effort; o chamado já ficou registrado).
+  sendSupportMail(ARGUS_SUPPORT, `Chamado do Prospectra+: ${subject}`, `${ctx.user.name} (${ctx.user.email}) — equipe ${ctx.org.name}\n\n${body}`).catch(() => {});
+  revalidatePath('/suporte');
+  return { ok: 'Chamado aberto. O suporte da Argus responde por aqui e por e-mail.' };
+}
+
+export async function argusReplyAction(conversationId: string, body: string): Promise<State> {
+  const ctx = await requireAdmin();
+  if (!body?.trim()) return { error: 'Escreva uma resposta.' };
+  let to = '';
+  try { ({ to } = await adminReplyProduct(await getDb(), ctx.user.id, conversationId, body)); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível responder.' }; }
+  if (to) sendSupportMail([to], 'Resposta do suporte Argus', body).catch(() => {});
+  revalidatePath('/argus');
+  return { ok: 'Resposta enviada.' };
+}
+
+export async function argusStatusAction(conversationId: string, status: 'open' | 'closed') {
+  await requireAdmin();
+  await adminSetProductStatus(await getDb(), conversationId, status);
+  revalidatePath('/argus');
+}
+
+// ---------- Workspace: Docs ----------
+
+export async function saveDocAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  const id = String(form.get('id') ?? '').trim() || undefined;
+  const title = String(form.get('title') ?? '').trim();
+  const body = String(form.get('body') ?? '');
+  if (!title) return { error: 'Dê um título ao documento.' };
+  try { await upsertDoc(await getDb(), ctx.org.id, ctx.user.id, { id, title, body }); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar.' }; }
+  revalidatePath('/docs');
+  return { ok: 'Documento salvo.' };
+}
+
+export async function deleteDocAction(id: string) {
+  const ctx = await requireOrg();
+  await deleteDoc(await getDb(), ctx.org.id, id);
+  revalidatePath('/docs');
+}
+
+// ---------- Workspace: Projetos ----------
+
+export async function createTaskAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  const title = String(form.get('title') ?? '').trim();
+  if (!title) return { error: 'Descreva a tarefa.' };
+  const assignedTo = String(form.get('assignedTo') ?? '').trim() || null;
+  await createTask(await getDb(), ctx.org.id, { title, assignedTo });
+  revalidatePath('/projetos');
+  return { ok: 'Tarefa criada.' };
+}
+
+export async function setTaskStatusAction(id: string, status: TaskStatus) {
+  const ctx = await requireOrg();
+  await setTaskStatus(await getDb(), ctx.org.id, id, status);
+  revalidatePath('/projetos');
+}
+
+export async function assignTaskAction(id: string, userId: string | null) {
+  const ctx = await requireOrg();
+  await assignTask(await getDb(), ctx.org.id, id, userId || null);
+  revalidatePath('/projetos');
+}
+
+export async function deleteTaskAction(id: string) {
+  const ctx = await requireOrg();
+  await deleteTask(await getDb(), ctx.org.id, id);
+  revalidatePath('/projetos');
+}
+
+export async function deleteArticleAction(id: string) {
+  const ctx = await requireOrg();
+  await deleteArticle(await getDb(), ctx.org.id, id);
+  revalidatePath('/ajuda');
 }
 

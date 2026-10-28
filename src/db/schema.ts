@@ -71,12 +71,16 @@ export const leads = pgTable('leads', {
   stage: text('stage', { enum: LEAD_STAGES }).notNull().default('new'),
   notes: text('notes').notNull().default(''),
   qualification: text('qualification').notNull().default(''),
+  email: text('email').notNull().default(''),   // merge de CRM: contato completo, não só LinkedIn
+  phone: text('phone').notNull().default(''),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex('leads_org_url_uq').on(t.orgId, t.linkedinUrl),
   index('leads_org_stage_idx').on(t.orgId, t.stage),
   index('leads_org_owner_idx').on(t.orgId, t.ownerId),
+  index('leads_org_email_idx').on(t.orgId, t.email),
+  index('leads_org_phone_idx').on(t.orgId, t.phone),
 ]);
 
 export type StepType = 'react' | 'comment' | 'invite' | 'message';
@@ -253,3 +257,115 @@ export const harveyInboundJobs=pgTable('harvey_inbound_jobs',{
  state:text('state',{enum:['queued','processing','completed','review']}).notNull().default('queued'),error:text('error'),
  claimedAt:timestamp('claimed_at',{withTimezone:true}),createdAt:createdAt(),
 },t=>[uniqueIndex('harvey_inbound_receipt_uq').on(t.orgId,t.userId,t.providerId),index('harvey_inbound_queue_idx').on(t.state,t.createdAt)]);
+
+// Agendamento de reuniões (fase assistida): registro durável do interesse em reunião.
+// O disparo/calendário real é configurado manualmente pelo proprietário (MEETING_SCHEDULER_URL
+// e/ou Office365 já existente); sem isso, a reunião fica registrada como "requested" para o vendedor.
+export const MEETING_STATUSES=['requested','confirmed','cancelled'] as const;
+export type MeetingStatus=(typeof MEETING_STATUSES)[number];
+export const meetings=pgTable('meetings',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ leadId:uuid('lead_id').notNull().references(()=>leads.id,{onDelete:'cascade'}),
+ conversationId:uuid('conversation_id').references(()=>harveyConversations.id,{onDelete:'set null'}),
+ status:text('status',{enum:MEETING_STATUSES}).notNull().default('requested'),
+ source:text('source',{enum:['harvey','manual']}).notNull().default('manual'),
+ schedulerUrl:text('scheduler_url'),
+ scheduledAt:timestamp('scheduled_at',{withTimezone:true}),
+ note:text('note').notNull().default(''),
+ createdAt:createdAt(),
+},t=>[
+ uniqueIndex('meetings_one_open_per_lead').on(t.orgId,t.leadId).where(sql`status in ('requested','confirmed')`),
+ index('meetings_org_status_idx').on(t.orgId,t.status),
+ index('meetings_user_idx').on(t.userId,t.createdAt),
+]);
+
+// Execução automática de LinkedIn (desligada por padrão: LINKEDIN_AUTOMATION_ENABLED).
+// Recibo durável por ação, como em whatsapp_commands: um resultado incerto NUNCA é
+// reenviado automaticamente. O canal real de execução (agente do usuário na VM /
+// gateway próprio) é plugado via executor; nenhum serviço pago é ativado aqui.
+export const linkedinDispatches=pgTable('linkedin_dispatches',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ actionId:uuid('action_id').notNull().references(()=>actions.id,{onDelete:'cascade'}),
+ type:text('type',{enum:['react','comment','invite','message']}).notNull(),
+ state:text('state',{enum:['pending','sent','unknown']}).notNull().default('pending'),
+ providerId:text('provider_id'),
+ createdAt:createdAt(),
+},t=>[uniqueIndex('linkedin_dispatches_action_uq').on(t.actionId),index('linkedin_dispatches_scope_idx').on(t.orgId,t.userId,t.createdAt)]);
+
+// Suporte (Helpin nativo, fase 1): inbox compartilhada de conversas, nativa no Prospectra+.
+// `audience` cobre os dois casos decididos: 'customer' (cliente do parceiro ↔ equipe) e
+// 'product' (usuário do Prospectra+ ↔ suporte Argus). `channel` já prevê web e whatsapp.
+// Origens do widget são allowlisted por operação: sem origem liberada, o widget recusa.
+export const SUPPORT_STATUSES=['open','closed'] as const;
+export type SupportStatus=(typeof SUPPORT_STATUSES)[number];
+export const supportConversations=pgTable('support_conversations',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'set null'}),
+ assignedTo:uuid('assigned_to').references(()=>users.id,{onDelete:'set null'}),
+ audience:text('audience',{enum:['customer','product']}).notNull().default('customer'),
+ channel:text('channel',{enum:['web','whatsapp','internal']}).notNull().default('web'),
+ status:text('status',{enum:SUPPORT_STATUSES}).notNull().default('open'),
+ subject:text('subject').notNull().default(''),
+ visitorName:text('visitor_name').notNull().default(''),
+ visitorEmail:text('visitor_email').notNull().default(''),
+ visitorPhone:text('visitor_phone').notNull().default(''),
+ lastMessageAt:timestamp('last_message_at',{withTimezone:true}).notNull().defaultNow(),
+ createdAt:createdAt(),
+},t=>[index('support_conversations_inbox_idx').on(t.orgId,t.status,t.lastMessageAt),index('support_conversations_lead_idx').on(t.orgId,t.leadId),index('support_conversations_phone_idx').on(t.orgId,t.visitorPhone)]);
+export const supportMessages=pgTable('support_messages',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ conversationId:uuid('conversation_id').notNull().references(()=>supportConversations.id,{onDelete:'cascade'}),
+ author:text('author',{enum:['visitor','agent','system']}).notNull(),
+ authorUserId:uuid('author_user_id').references(()=>users.id,{onDelete:'set null'}),
+ body:text('body').notNull(),
+ providerId:text('provider_id'),
+ createdAt:createdAt(),
+},t=>[index('support_messages_conversation_idx').on(t.conversationId,t.createdAt),uniqueIndex('support_messages_provider_uq').on(t.providerId).where(sql`provider_id is not null`)]);
+export const supportWidgetOrigins=pgTable('support_widget_origins',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ origin:text('origin').notNull(),
+ createdAt:createdAt(),
+},t=>[uniqueIndex('support_widget_origins_uq').on(t.orgId,t.origin)]);
+
+// Central de ajuda (Helpin fase 3): artigos de autoatendimento por operação.
+// Busca por texto (ILIKE); busca semântica (pgvector) fica como upgrade futuro.
+export const helpArticles=pgTable('help_articles',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ slug:text('slug').notNull(),
+ title:text('title').notNull(),
+ body:text('body').notNull().default(''),
+ status:text('status',{enum:['draft','published']}).notNull().default('draft'),
+ createdAt:createdAt(),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[uniqueIndex('help_articles_slug_uq').on(t.orgId,t.slug),index('help_articles_org_status_idx').on(t.orgId,t.status,t.updatedAt)]);
+
+// Workspace (Helpin fase 5): documentos internos e projetos (tarefas estilo Linear), por operação.
+export const docs=pgTable('docs',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ authorId:uuid('author_id').references(()=>users.id,{onDelete:'set null'}),
+ title:text('title').notNull(),
+ body:text('body').notNull().default(''),
+ createdAt:createdAt(),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[index('docs_org_updated_idx').on(t.orgId,t.updatedAt)]);
+
+export const TASK_STATUSES=['todo','doing','done'] as const;
+export type TaskStatus=(typeof TASK_STATUSES)[number];
+export const tasks=pgTable('tasks',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ title:text('title').notNull(),
+ status:text('status',{enum:TASK_STATUSES}).notNull().default('todo'),
+ assignedTo:uuid('assigned_to').references(()=>users.id,{onDelete:'set null'}),
+ leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'set null'}),
+ createdAt:createdAt(),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[index('tasks_org_status_idx').on(t.orgId,t.status,t.updatedAt)]);
