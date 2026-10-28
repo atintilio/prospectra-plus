@@ -276,3 +276,18 @@ export const meetings=pgTable('meetings',{
  index('meetings_org_status_idx').on(t.orgId,t.status),
  index('meetings_user_idx').on(t.userId,t.createdAt),
 ]);
+
+// Execução automática de LinkedIn (desligada por padrão: LINKEDIN_AUTOMATION_ENABLED).
+// Recibo durável por ação, como em whatsapp_commands: um resultado incerto NUNCA é
+// reenviado automaticamente. O canal real de execução (agente do usuário na VM /
+// gateway próprio) é plugado via executor; nenhum serviço pago é ativado aqui.
+export const linkedinDispatches=pgTable('linkedin_dispatches',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ actionId:uuid('action_id').notNull().references(()=>actions.id,{onDelete:'cascade'}),
+ type:text('type',{enum:['react','comment','invite','message']}).notNull(),
+ state:text('state',{enum:['pending','sent','unknown']}).notNull().default('pending'),
+ providerId:text('provider_id'),
+ createdAt:createdAt(),
+},t=>[uniqueIndex('linkedin_dispatches_action_uq').on(t.actionId),index('linkedin_dispatches_scope_idx').on(t.orgId,t.userId,t.createdAt)]);

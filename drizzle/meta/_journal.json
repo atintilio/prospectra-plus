@@ -71,6 +71,13 @@
       "when": 1793146383722,
       "tag": "0009_wonderful_morg",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793146777766,
+      "tag": "0010_abnormal_toad_men",
+      "breakpoints": true
     }
   ]
 }
