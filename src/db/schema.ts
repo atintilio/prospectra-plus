@@ -328,3 +328,16 @@ export const supportWidgetOrigins=pgTable('support_widget_origins',{
  origin:text('origin').notNull(),
  createdAt:createdAt(),
 },t=>[uniqueIndex('support_widget_origins_uq').on(t.orgId,t.origin)]);
+
+// Central de ajuda (Helpin fase 3): artigos de autoatendimento por operação.
+// Busca por texto (ILIKE); busca semântica (pgvector) fica como upgrade futuro.
+export const helpArticles=pgTable('help_articles',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ slug:text('slug').notNull(),
+ title:text('title').notNull(),
+ body:text('body').notNull().default(''),
+ status:text('status',{enum:['draft','published']}).notNull().default('draft'),
+ createdAt:createdAt(),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[uniqueIndex('help_articles_slug_uq').on(t.orgId,t.slug),index('help_articles_org_status_idx').on(t.orgId,t.status,t.updatedAt)]);

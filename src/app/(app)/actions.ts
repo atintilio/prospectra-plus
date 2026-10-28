@@ -11,6 +11,7 @@ import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, r
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
 import { replyToConversation, setConversationStatus } from '@/lib/support';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
+import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
@@ -395,5 +396,31 @@ export async function setSupportStatusAction(conversationId: string, status: 'op
   const ctx = await requireOrg();
   await setConversationStatus(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, status);
   revalidatePath('/suporte');
+}
+
+// ---------- Central de ajuda ----------
+
+export async function saveArticleAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  const id = String(form.get('id') ?? '').trim() || undefined;
+  const title = String(form.get('title') ?? '').trim();
+  const body = String(form.get('body') ?? '');
+  if (!title) return { error: 'Dê um título ao artigo.' };
+  try { await upsertArticle(await getDb(), ctx.org.id, { id, title, body }); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar.' }; }
+  revalidatePath('/ajuda');
+  return { ok: 'Artigo salvo.' };
+}
+
+export async function setArticleStatusAction(id: string, status: 'draft' | 'published') {
+  const ctx = await requireOrg();
+  await setArticleStatus(await getDb(), ctx.org.id, id, status);
+  revalidatePath('/ajuda');
+}
+
+export async function deleteArticleAction(id: string) {
+  const ctx = await requireOrg();
+  await deleteArticle(await getDb(), ctx.org.id, id);
+  revalidatePath('/ajuda');
 }
 

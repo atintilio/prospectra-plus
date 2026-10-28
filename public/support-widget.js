@@ -16,7 +16,8 @@
     + '.pz-panel.pz-open{display:flex}.pz-head{background:' + accent + ';color:#fff;padding:14px 16px;font-weight:600}'
     + '.pz-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#f6f7f9}'
     + '.pz-m{max-width:80%;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.35;white-space:pre-wrap;word-break:break-word}'
-    + '.pz-me{align-self:flex-end;background:' + accent + ';color:#fff}.pz-sys{align-self:center;background:#e9ebef;color:#5c5f66;font-size:12px}'
+    + '.pz-me{align-self:flex-end;background:' + accent + ';color:#fff}.pz-them{align-self:flex-start;background:#e9ebef;color:#111}'
+    + '.pz-sys{align-self:center;background:#e9ebef;color:#5c5f66;font-size:12px}'
     + '.pz-form{display:flex;gap:6px;padding:10px;border-top:1px solid #e5e7eb}.pz-in{flex:1;border:1px solid #d7dae0;border-radius:10px;padding:8px;font:inherit;resize:none}'
     + '.pz-send{background:' + accent + ';color:#fff;border:0;border-radius:10px;padding:0 14px;cursor:pointer;font-weight:600}.pz-send:disabled{opacity:.5;cursor:default}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -32,10 +33,28 @@
   function convId() { try { return localStorage.getItem(key) || undefined; } catch (e) { return undefined; } }
   function setConv(id) { try { localStorage.setItem(key, id); } catch (e) {} }
 
-  var greeted = false;
+  var poll = null, lastCount = -1;
+  function render(list) {
+    msgs.innerHTML = ''; lastCount = list.length;
+    if (!list.length) { add('Olá! Como podemos ajudar?', 'pz-sys'); return; }
+    list.forEach(function (m) { add(m.body, m.author === 'agent' ? 'pz-them' : 'pz-me'); });
+  }
+  function refresh() {
+    var id = convId(); if (!id) return;
+    fetch(api + '/api/support/widget?orgId=' + encodeURIComponent(orgId) + '&conversationId=' + encodeURIComponent(id))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.messages && d.messages.length !== lastCount) render(d.messages); })
+      .catch(function () {});
+  }
+  function startPoll() { refresh(); if (!poll) poll = setInterval(refresh, 4000); }
+  function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+
   btn.addEventListener('click', function () {
     panel.classList.toggle('pz-open');
-    if (panel.classList.contains('pz-open')) { if (!greeted) { add('Olá! Como podemos ajudar?', 'pz-sys'); greeted = true; } input.focus(); }
+    if (panel.classList.contains('pz-open')) {
+      if (convId()) startPoll(); else if (!msgs.childNodes.length) add('Olá! Como podemos ajudar?', 'pz-sys');
+      input.focus();
+    } else { stopPoll(); }
   });
 
   form.addEventListener('submit', function (e) {
@@ -50,7 +69,7 @@
       if (!r.ok) throw new Error('fail');
       return r.json();
     }).then(function (d) {
-      if (d && d.conversationId) setConv(d.conversationId);
+      if (d && d.conversationId) { setConv(d.conversationId); startPoll(); }
       else if (d !== null) add('Não foi possível enviar. Tente de novo.', 'pz-sys');
     }).catch(function () { add('Não foi possível enviar. Tente de novo.', 'pz-sys'); })
       .finally(function () { send.disabled = false; input.focus(); });

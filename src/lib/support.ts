@@ -106,6 +106,16 @@ export async function conversationThread(db: DB, scope: Scope, conversationId: s
   return { conversation, messages };
 }
 
+/** Leitura pública para o widget: só os campos seguros das mensagens da conversa. */
+export async function publicConversationMessages(db: DB, orgId: string, conversationId: string): Promise<{ author: string; body: string; at: string }[] | null> {
+  const [c] = await db.select({ id: schema.supportConversations.id }).from(schema.supportConversations)
+    .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, orgId)));
+  if (!c) return null;
+  const msgs = await db.select({ author: schema.supportMessages.author, body: schema.supportMessages.body, at: schema.supportMessages.createdAt })
+    .from(schema.supportMessages).where(eq(schema.supportMessages.conversationId, conversationId)).orderBy(schema.supportMessages.createdAt);
+  return msgs.map((m) => ({ author: m.author, body: m.body, at: m.at.toISOString() }));
+}
+
 const phoneSchema = z.string().trim().regex(/^\+?[1-9]\d{7,14}$/).transform((v) => v.replace(/^\+/, ''));
 
 /** Entrada por WhatsApp (via WA-AKG). Agrupa por telefone na conversa aberta e deduplica por providerId. */

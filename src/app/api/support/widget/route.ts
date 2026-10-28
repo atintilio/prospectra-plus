@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { getDb } from '@/db';
-import { intakeWebMessage } from '@/lib/support';
+import { intakeWebMessage, originAllowed, publicConversationMessages } from '@/lib/support';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +19,20 @@ function corsHeaders(origin: string | null): HeadersInit {
 
 export function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: corsHeaders(req.headers.get('origin')) });
+}
+
+// Leitura das mensagens da conversa (o widget faz polling para mostrar as respostas do agente).
+export async function GET(req: Request) {
+  const origin = req.headers.get('origin');
+  const url = new URL(req.url);
+  const orgId = z.string().uuid().safeParse(url.searchParams.get('orgId'));
+  const conversationId = z.string().uuid().safeParse(url.searchParams.get('conversationId'));
+  if (!orgId.success || !conversationId.success) return new Response('bad request', { status: 400, headers: corsHeaders(origin) });
+  const db = await getDb();
+  if (!(await originAllowed(db, orgId.data, origin))) return new Response('forbidden', { status: 403, headers: corsHeaders(origin) });
+  const messages = await publicConversationMessages(db, orgId.data, conversationId.data);
+  if (!messages) return new Response('not found', { status: 404, headers: corsHeaders(origin) });
+  return Response.json({ messages }, { headers: corsHeaders(origin) });
 }
 
 export async function POST(req: Request) {
