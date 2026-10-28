@@ -3,6 +3,8 @@ import { aiGenerator } from '@/lib/ai';
 import { runScheduler } from '@/lib/cadence';
 import {runHarveyQueue} from '@/lib/harvey-operations';
 import { flushDeletionReports } from '@/lib/deletion-audit';
+import { runLinkedinQueue, linkedinAutomationEnabled } from '@/lib/linkedin/automation';
+import { linkedinExecutor } from '@/lib/linkedin/http-executor';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -15,6 +17,8 @@ export async function GET(req: Request) {
   const r = await runScheduler(db, { generate: aiGenerator });
   await flushDeletionReports(db);
   const harvey=await runHarveyQueue(db);
-  return Response.json({...r,harvey});
+  // LinkedIn automático só despacha quando ligado e com worker configurado; senão fica assistido.
+  const linkedin = linkedinAutomationEnabled() ? await runLinkedinQueue(db, { executor: linkedinExecutor() }) : null;
+  return Response.json({...r,harvey,linkedin});
 }
 
