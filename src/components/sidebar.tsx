@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, Building2, LayoutDashboard, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
+import { BookOpen, Bot, Building2, FileText, FolderKanban, Headset, LayoutDashboard, LifeBuoy, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { logoutAction } from '@/app/(auth)/actions';
@@ -14,11 +14,16 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     { href: '/leads', label: 'Leads', icon: UserSearch },
     { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
     { href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
+    { href: '/suporte', label: 'Suporte', icon: LifeBuoy },
+    { href: '/ajuda', label: 'Central de ajuda', icon: BookOpen },
+    { href: '/docs', label: 'Documentos', icon: FileText },
+    { href: '/projetos', label: 'Projetos', icon: FolderKanban },
     { href: '/inteligencia', label: 'Inteligência comercial', icon: Sparkles },
     { href: '/comunicacao', label: 'Perfil de comunicação', icon: MessageCircle },
     ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
     ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
     { href: '/conta', label: 'Minha conta', icon: Settings },
+    ...(isAdmin ? [{ href: '/argus', label: 'Suporte interno', icon: Headset }] : []),
     ...(isAdmin ? [{ href: '/admin', label: 'Administração de parceiros', icon: Building2 }] : []),
   ];
   const active = (href: string) => path === href || path.startsWith(`${href}/`);
