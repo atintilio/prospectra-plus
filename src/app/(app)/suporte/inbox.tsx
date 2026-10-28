@@ -1,18 +1,19 @@
 'use client';
 
-import { Check, Inbox, Lock, RotateCcw, Send, Tag, X } from 'lucide-react';
+import { Check, Inbox, Lock, RotateCcw, Send, Tag, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import { addSupportNoteAction, assignSupportAction, replySupportAction, setSupportLabelsAction, setSupportStatusAction } from '../actions';
+import { addSupportNoteAction, assignSupportAction, assignSupportTeamAction, replySupportAction, setSupportLabelsAction, setSupportStatusAction } from '../actions';
 import { Avatar, Empty } from '@/components/ui';
 
 type Msg = { id: string; author: 'visitor' | 'agent' | 'system'; body: string; at: string; private?: boolean; mentions?: string[] };
-type Selected = { id: string; subject: string; visitorName: string; visitorEmail: string; status: 'open' | 'closed'; assignedTo: string | null; labels: string[]; messages: Msg[] };
-type ListItem = { id: string; subject: string; visitorName: string; visitorEmail: string; channel: string; status: 'open' | 'closed'; assignedTo: string | null; labels: string[]; lastMessageAt: string };
+type Team = { id: string; name: string };
+type Selected = { id: string; subject: string; visitorName: string; visitorEmail: string; status: 'open' | 'closed'; assignedTo: string | null; teamId: string | null; labels: string[]; messages: Msg[] };
+type ListItem = { id: string; subject: string; visitorName: string; visitorEmail: string; channel: string; status: 'open' | 'closed'; assignedTo: string | null; teamId: string | null; labels: string[]; lastMessageAt: string };
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
-export function SupportInbox({ list, selected, status, members, canAssign, allLabels, activeLabel }: { list: ListItem[]; selected: Selected | null; status: 'open' | 'closed'; members: { id: string; name: string }[]; canAssign: boolean; allLabels: string[]; activeLabel: string }) {
+export function SupportInbox({ list, selected, status, members, canAssign, allLabels, activeLabel, teams, activeTeam }: { list: ListItem[]; selected: Selected | null; status: 'open' | 'closed'; members: { id: string; name: string }[]; canAssign: boolean; allLabels: string[]; activeLabel: string; teams: Team[]; activeTeam: string }) {
   const [, start] = useTransition();
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState('');
@@ -24,7 +25,10 @@ export function SupportInbox({ list, selected, status, members, canAssign, allLa
   const memberName = (id: string) => members.find((m) => m.id === id)?.name ?? 'alguém';
   if (labelKey !== selected?.id) { setLabelKey(selected?.id); setLabels(selected?.labels ?? []); } // ressincroniza ao trocar de conversa
   const saveLabels = (next: string[]) => { setLabels(next); start(async () => { const r = await setSupportLabelsAction(selected!.id, next); setNotice(r?.error ?? r?.ok ?? ''); }); };
-  const qs = (l: string) => `/suporte?status=${status}${l ? `&label=${encodeURIComponent(l)}` : ''}${selected ? `&c=${selected.id}` : ''}`;
+  const qs = (over: { label?: string; team?: string } = {}) => {
+    const label = over.label ?? activeLabel, team = over.team ?? activeTeam;
+    return `/suporte?status=${status}${label ? `&label=${encodeURIComponent(label)}` : ''}${team ? `&team=${encodeURIComponent(team)}` : ''}${selected ? `&c=${selected.id}` : ''}`;
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
@@ -33,11 +37,19 @@ export function SupportInbox({ list, selected, status, members, canAssign, allLa
           <Link href="/suporte?status=open" className={`flex-1 rounded-md px-3 py-1.5 text-center ${status === 'open' ? 'bg-surface-accent font-medium text-accent' : 'text-muted'}`}>Abertas</Link>
           <Link href="/suporte?status=closed" className={`flex-1 rounded-md px-3 py-1.5 text-center ${status === 'closed' ? 'bg-surface-accent font-medium text-accent' : 'text-muted'}`}>Fechadas</Link>
         </div>
+        {teams.length > 0 && (
+          <div className="flex flex-wrap gap-1 border-b border-border p-2">
+            <Link href={qs({ team: '' })} className={`rounded-full px-2 py-0.5 text-xs ${activeTeam ? 'bg-surface text-muted' : 'bg-surface-accent text-accent'}`}>Todos os times</Link>
+            {teams.map((t) => (
+              <Link key={t.id} href={qs({ team: t.id })} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${activeTeam === t.id ? 'bg-accent text-white' : 'bg-surface text-muted hover:text-text'}`}><Users className="h-3 w-3" />{t.name}</Link>
+            ))}
+          </div>
+        )}
         {allLabels.length > 0 && (
           <div className="flex flex-wrap gap-1 border-b border-border p-2">
-            <Link href={`/suporte?status=${status}${selected ? `&c=${selected.id}` : ''}`} className={`rounded-full px-2 py-0.5 text-xs ${activeLabel ? 'bg-surface text-muted' : 'bg-surface-accent text-accent'}`}>Todas</Link>
+            <Link href={qs({ label: '' })} className={`rounded-full px-2 py-0.5 text-xs ${activeLabel ? 'bg-surface text-muted' : 'bg-surface-accent text-accent'}`}>Todas</Link>
             {allLabels.map((l) => (
-              <Link key={l} href={qs(l)} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${activeLabel === l ? 'bg-accent text-white' : 'bg-surface text-muted hover:text-text'}`}><Tag className="h-3 w-3" />{l}</Link>
+              <Link key={l} href={qs({ label: l })} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${activeLabel === l ? 'bg-accent text-white' : 'bg-surface text-muted hover:text-text'}`}><Tag className="h-3 w-3" />{l}</Link>
             ))}
           </div>
         )}
@@ -81,6 +93,13 @@ export function SupportInbox({ list, selected, status, members, canAssign, allLa
                   })}>
                   <option value="">Ninguém</option>
                   {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </label>}
+              {canAssign && teams.length > 0 && <label className="text-xs text-muted">Time
+                <select className="input ml-2 h-9 w-36 py-1 text-xs" value={selected.teamId ?? ''}
+                  onChange={(e) => start(async () => { const r = await assignSupportTeamAction(selected.id, e.target.value || null); setNotice(r?.error ?? r?.ok ?? ''); })}>
+                  <option value="">Sem time</option>
+                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </label>}
               <button className="btn-outline ml-auto" onClick={() => start(() => { void setSupportStatusAction(selected.id, selected.status === 'open' ? 'closed' : 'open'); })}>

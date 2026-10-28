@@ -9,7 +9,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
-import { addPrivateNote, adminReplyProduct, adminSetProductStatus, assignConversation, openInternalTicket, replyToConversation, setConversationLabels, setConversationStatus } from '@/lib/support';
+import { addPrivateNote, adminReplyProduct, adminSetProductStatus, assignConversation, assignConversationTeam, createTeam, deleteTeam, openInternalTicket, replyToConversation, setConversationLabels, setConversationStatus, setTeamMembers } from '@/lib/support';
 import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
@@ -432,6 +432,38 @@ export async function addSupportNoteAction(conversationId: string, body: string,
   } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar a nota.' }; }
   revalidatePath('/suporte');
   return { ok: 'Nota interna adicionada.' };
+}
+
+export async function createSupportTeamAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  try { await createTeam(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, String(form.get('name') ?? '')); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível criar o time.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Time criado.' };
+}
+
+export async function deleteSupportTeamAction(teamId: string): Promise<State> {
+  const ctx = await requireOrg();
+  try { await deleteTeam(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, teamId); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível remover o time.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Time removido.' };
+}
+
+export async function setSupportTeamMembersAction(teamId: string, userIds: string[]): Promise<State> {
+  const ctx = await requireOrg();
+  try { await setTeamMembers(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, teamId, userIds); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar os membros.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Membros atualizados.' };
+}
+
+export async function assignSupportTeamAction(conversationId: string, teamId: string | null): Promise<State> {
+  const ctx = await requireOrg();
+  try { await assignConversationTeam(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, teamId); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível rotear a conversa.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Time da conversa atualizado.' };
 }
 
 export async function setSupportLabelsAction(conversationId: string, labels: string[]): Promise<State> {

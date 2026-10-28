@@ -6,10 +6,15 @@ import type { Scope } from '@/lib/whatsapp/akg';
 import type { Role } from '@/lib/auth';
 
 type InboxScope = Scope & { role: Role };
+const isManager = (scope: InboxScope) => scope.role === 'owner' || scope.role === 'manager';
 const inboxAccess = (scope: InboxScope) => and(
   eq(schema.supportConversations.orgId, scope.orgId),
   eq(schema.supportConversations.audience, 'customer'),
-  ...(scope.role === 'owner' || scope.role === 'manager' ? [] : [eq(schema.supportConversations.assignedTo, scope.userId)]),
+  // gestor vê tudo; agente vê o que é dele OU do time a que pertence
+  ...(isManager(scope) ? [] : [or(
+    eq(schema.supportConversations.assignedTo, scope.userId),
+    sql`${schema.supportConversations.teamId} in (select team_id from support_team_members where user_id = ${scope.userId})`,
+  )]),
 );
 
 // Suporte nativo (Helpin fase 1). Fronteira de confiança: toda entrada é validada aqui.
@@ -113,11 +118,65 @@ export async function assignConversation(db: DB, scope: InboxScope, conversation
     .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
 }
 
-export async function listInbox(db: DB, scope: InboxScope, status: 'open' | 'closed' = 'open', label?: string) {
+// ---- Times de atendimento ----
+const teamNameSchema = z.string().trim().min(1).max(60);
+
+/** Times da operação, cada um com seus membros. */
+export async function listTeams(db: DB, scope: InboxScope): Promise<{ id: string; name: string; memberIds: string[] }[]> {
+  const teams = await db.select().from(schema.supportTeams)
+    .where(eq(schema.supportTeams.orgId, scope.orgId)).orderBy(schema.supportTeams.name);
+  if (!teams.length) return [];
+  const mem = await db.select().from(schema.supportTeamMembers)
+    .where(inArray(schema.supportTeamMembers.teamId, teams.map((t) => t.id)));
+  return teams.map((t) => ({ id: t.id, name: t.name, memberIds: mem.filter((m) => m.teamId === t.id).map((m) => m.userId) }));
+}
+
+export async function createTeam(db: DB, scope: InboxScope, name: unknown): Promise<string> {
+  if (!isManager(scope)) throw new Error('Sem permissão para criar times.');
+  const [row] = await db.insert(schema.supportTeams).values({ orgId: scope.orgId, name: teamNameSchema.parse(name) })
+    .onConflictDoNothing().returning({ id: schema.supportTeams.id });
+  if (!row) throw new Error('Já existe um time com esse nome.');
+  return row.id;
+}
+
+export async function deleteTeam(db: DB, scope: InboxScope, teamId: string): Promise<void> {
+  if (!isManager(scope)) throw new Error('Sem permissão para remover times.');
+  await db.delete(schema.supportTeams).where(and(eq(schema.supportTeams.id, teamId), eq(schema.supportTeams.orgId, scope.orgId)));
+}
+
+/** Define os membros do time (só membros ativos da operação). */
+export async function setTeamMembers(db: DB, scope: InboxScope, teamId: string, userIds: unknown): Promise<void> {
+  if (!isManager(scope)) throw new Error('Sem permissão para editar times.');
+  const ids = z.array(z.string().uuid()).max(100).parse(userIds ?? []);
+  const [team] = await db.select({ id: schema.supportTeams.id }).from(schema.supportTeams)
+    .where(and(eq(schema.supportTeams.id, teamId), eq(schema.supportTeams.orgId, scope.orgId)));
+  if (!team) throw new Error('Time indisponível.');
+  const valid = ids.length ? (await db.select({ id: schema.memberships.userId }).from(schema.memberships).innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))
+    .where(and(eq(schema.memberships.orgId, scope.orgId), eq(schema.users.status, 'active'), inArray(schema.memberships.userId, ids)))).map((r) => r.id) : [];
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.supportTeamMembers).where(eq(schema.supportTeamMembers.teamId, teamId));
+    if (valid.length) await tx.insert(schema.supportTeamMembers).values(valid.map((userId) => ({ teamId, userId })));
+  });
+}
+
+/** Roteia a conversa para um time (ou remove). Só gestor. */
+export async function assignConversationTeam(db: DB, scope: InboxScope, conversationId: string, teamId: string | null): Promise<void> {
+  if (!isManager(scope)) throw new Error('Sem permissão para rotear conversas.');
+  if (teamId) {
+    const [team] = await db.select({ id: schema.supportTeams.id }).from(schema.supportTeams)
+      .where(and(eq(schema.supportTeams.id, teamId), eq(schema.supportTeams.orgId, scope.orgId)));
+    if (!team) throw new Error('Time não pertence a esta operação.');
+  }
+  await db.update(schema.supportConversations).set({ teamId })
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
+}
+
+export async function listInbox(db: DB, scope: InboxScope, status: 'open' | 'closed' = 'open', label?: string, teamId?: string) {
   const l = (label ?? '').trim();
   return db.select().from(schema.supportConversations)
     .where(and(inboxAccess(scope), eq(schema.supportConversations.status, status),
-      ...(l ? [sql`${schema.supportConversations.labels} @> ARRAY[${l}]::text[]`] : [])))
+      ...(l ? [sql`${schema.supportConversations.labels} @> ARRAY[${l}]::text[]`] : []),
+      ...(teamId ? [eq(schema.supportConversations.teamId, teamId)] : [])))
     .orderBy(desc(schema.supportConversations.lastMessageAt)).limit(100);
 }
 

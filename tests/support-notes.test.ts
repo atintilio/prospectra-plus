@@ -8,7 +8,7 @@ async function setup() {
   const db = await testDb();
   const { org, user } = await seedOrg(db);
   const [mate] = await db.insert(schema.users).values({ email: 'colega@x.com', name: 'Colega', status: 'active' }).returning();
-  await db.insert(schema.memberships).values({ orgId: org.id, userId: mate.id, role: 'member' });
+  await db.insert(schema.memberships).values({ orgId: org.id, userId: mate.id, role: 'sdr' });
   const [conv] = await db.insert(schema.supportConversations).values({ orgId: org.id, subject: 'Ajuda', visitorName: 'Cliente' }).returning();
   await db.insert(schema.supportMessages).values({ conversationId: conv.id, author: 'visitor', body: 'olá' });
   const scope = { orgId: org.id, userId: user.id, role: 'owner' as const };

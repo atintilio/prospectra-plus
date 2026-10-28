@@ -309,6 +309,7 @@ export const supportConversations=pgTable('support_conversations',{
  orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
  leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'set null'}),
  assignedTo:uuid('assigned_to').references(()=>users.id,{onDelete:'set null'}),
+ teamId:uuid('team_id').references(()=>supportTeams.id,{onDelete:'set null'}), // conversa roteada a um time
  audience:text('audience',{enum:['customer','product']}).notNull().default('customer'),
  channel:text('channel',{enum:['web','whatsapp','internal']}).notNull().default('web'),
  status:text('status',{enum:SUPPORT_STATUSES}).notNull().default('open'),
@@ -337,6 +338,18 @@ export const supportWidgetOrigins=pgTable('support_widget_origins',{
  origin:text('origin').notNull(),
  createdAt:createdAt(),
 },t=>[uniqueIndex('support_widget_origins_uq').on(t.orgId,t.origin)]);
+
+// Times de atendimento (Helpin): grupos de agentes para rotear conversas.
+export const supportTeams=pgTable('support_teams',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ name:text('name').notNull(),
+ createdAt:createdAt(),
+},t=>[uniqueIndex('support_teams_org_name_uq').on(t.orgId,t.name)]);
+export const supportTeamMembers=pgTable('support_team_members',{
+ teamId:uuid('team_id').notNull().references(()=>supportTeams.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+},t=>[primaryKey({columns:[t.teamId,t.userId]}),index('support_team_members_user_idx').on(t.userId)]);
 
 // Central de ajuda (Helpin fase 3): artigos de autoatendimento por operação.
 // Busca por texto (ILIKE); busca semântica (pgvector) fica como upgrade futuro.
