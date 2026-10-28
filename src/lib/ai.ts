@@ -63,6 +63,7 @@ const STEP_GOAL: Record<CampaignStep['type'], string> = {
   email: 'e-mail de prospecção B2B curto e pessoal, 3 a 5 frases, uma pergunta ou CTA leve no final, sem parecer template',
   whatsapp: 'mensagem de WhatsApp curta e cordial, 2 a 3 frases, tom próximo e direto, uma pergunta no final',
   voice: 'roteiro curto para áudio de WhatsApp, 2 a 3 frases faladas de forma natural, tom próximo, sem soar roteirizado',
+  image: 'legenda curta para uma imagem/informativo enviado no WhatsApp, 1 a 2 frases, tom próximo, sem soar template',
 };
 
 export const aiGenerator: Generator = async ({ step, lead, brief }) => {
