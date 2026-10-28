@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lte } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { aiGenerator } from '@/lib/ai';
@@ -33,6 +33,12 @@ export default async function FilaPage() {
     .where(and(eq(schema.leads.orgId, ctx.org.id), eq(schema.leads.ownerId, ctx.user.id), eq(schema.leads.stage, 'connected')))
     .orderBy(desc(schema.leads.lastActivityAt)).limit(40);
 
+  const meetingRows = await db.select({ m: schema.meetings, leadName: schema.leads.fullName })
+    .from(schema.meetings).innerJoin(schema.leads, eq(schema.leads.id, schema.meetings.leadId))
+    .where(and(eq(schema.meetings.orgId, ctx.org.id), eq(schema.meetings.userId, ctx.user.id), inArray(schema.meetings.status, ['requested', 'confirmed'])))
+    .orderBy(asc(schema.meetings.createdAt)).limit(40);
+  const meetings = meetingRows.map(({ m, leadName }) => ({ id: m.id, leadName, status: m.status as 'requested' | 'confirmed', schedulerUrl: m.schedulerUrl, scheduledAt: m.scheduledAt ? m.scheduledAt.toISOString() : null }));
+
   const items = rows.map(({ a, lead, camp }) => ({
     id: a.id, type: a.type, body: a.body, campaign: camp.name, overdue: a.dueDate < today,
     lead: { id: lead.id, fullName: lead.fullName, headline: lead.headline, company: lead.company, linkedinUrl: lead.linkedinUrl },
@@ -43,7 +49,7 @@ export default async function FilaPage() {
     <>
       <PageHeader eyebrow="Modo assistido" title="Fila do dia"
         subtitle={`O texto já vem pronto. Abra no LinkedIn, cole e marque como feito. Hoje ainda cabem ${invitesLeft} convites e ${messagesLeft} mensagens.`} />
-      <Queue items={items} waiting={waiting.map(slim)} connected={connected.map(slim)} limits={{ invitesLeft, messagesLeft }} />
+      <Queue items={items} waiting={waiting.map(slim)} connected={connected.map(slim)} meetings={meetings} limits={{ invitesLeft, messagesLeft }} />
     </>
   );
 }

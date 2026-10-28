@@ -14,6 +14,7 @@ import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
 import { assignTask, createTask, deleteDoc, deleteTask, setTaskStatus, upsertDoc } from '@/lib/workspace';
+import { confirmMeeting, cancelMeeting } from '@/lib/scheduling';
 import type { TaskStatus } from '@/db/schema';
 
 const ARGUS_SUPPORT = [process.env.MASTER_USER_EMAIL || 'atintilio@argusprime.com.br', 'mloro@argusprime.com.br'];
@@ -214,6 +215,21 @@ export async function refreshQueueAction() {
   const ctx = await requireOrg();
   const db = await getDb();
   await runScheduler(db, { orgId: ctx.org.id, generate: aiGenerator });
+  revalidatePath('/fila');
+}
+
+export async function confirmMeetingAction(meetingId: string, whenIso: string): Promise<State> {
+  const ctx = await requireOrg();
+  const when = new Date(whenIso);
+  if (Number.isNaN(when.getTime())) return { error: 'Data da reunião inválida.' };
+  await confirmMeeting(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, meetingId, when);
+  revalidatePath('/fila'); revalidatePath('/painel');
+  return { ok: 'Reunião confirmada.' };
+}
+
+export async function cancelMeetingAction(meetingId: string) {
+  const ctx = await requireOrg();
+  await cancelMeeting(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, meetingId);
   revalidatePath('/fila');
 }
 
