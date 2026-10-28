@@ -9,6 +9,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
+import { replyToConversation, setConversationStatus } from '@/lib/support';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
@@ -368,5 +369,23 @@ async function seedFeedIfEmpty(orgId: string) {
   const db = await getDb();
   const [row] = await db.select({ id: schema.simFeed.id }).from(schema.simFeed).where(eq(schema.simFeed.orgId, orgId)).limit(1);
   if (!row) await seedFeed(db, orgId);
+}
+
+// ---------- Suporte ----------
+
+export async function replySupportAction(conversationId: string, body: string): Promise<State> {
+  const ctx = await requireOrg();
+  if (!body?.trim()) return { error: 'Escreva uma resposta.' };
+  try {
+    await replyToConversation(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, body);
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível responder.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Resposta enviada.' };
+}
+
+export async function setSupportStatusAction(conversationId: string, status: 'open' | 'closed') {
+  const ctx = await requireOrg();
+  await setConversationStatus(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, status);
+  revalidatePath('/suporte');
 }
 

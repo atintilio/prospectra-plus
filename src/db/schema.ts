@@ -291,3 +291,38 @@ export const linkedinDispatches=pgTable('linkedin_dispatches',{
  providerId:text('provider_id'),
  createdAt:createdAt(),
 },t=>[uniqueIndex('linkedin_dispatches_action_uq').on(t.actionId),index('linkedin_dispatches_scope_idx').on(t.orgId,t.userId,t.createdAt)]);
+
+// Suporte (Helpin nativo, fase 1): inbox compartilhada de conversas, nativa no Prospectra+.
+// `audience` cobre os dois casos decididos: 'customer' (cliente do parceiro ↔ equipe) e
+// 'product' (usuário do Prospectra+ ↔ suporte Argus). `channel` já prevê web e whatsapp.
+// Origens do widget são allowlisted por operação: sem origem liberada, o widget recusa.
+export const SUPPORT_STATUSES=['open','closed'] as const;
+export type SupportStatus=(typeof SUPPORT_STATUSES)[number];
+export const supportConversations=pgTable('support_conversations',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'set null'}),
+ assignedTo:uuid('assigned_to').references(()=>users.id,{onDelete:'set null'}),
+ audience:text('audience',{enum:['customer','product']}).notNull().default('customer'),
+ channel:text('channel',{enum:['web','whatsapp','internal']}).notNull().default('web'),
+ status:text('status',{enum:SUPPORT_STATUSES}).notNull().default('open'),
+ subject:text('subject').notNull().default(''),
+ visitorName:text('visitor_name').notNull().default(''),
+ visitorEmail:text('visitor_email').notNull().default(''),
+ lastMessageAt:timestamp('last_message_at',{withTimezone:true}).notNull().defaultNow(),
+ createdAt:createdAt(),
+},t=>[index('support_conversations_inbox_idx').on(t.orgId,t.status,t.lastMessageAt),index('support_conversations_lead_idx').on(t.orgId,t.leadId)]);
+export const supportMessages=pgTable('support_messages',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ conversationId:uuid('conversation_id').notNull().references(()=>supportConversations.id,{onDelete:'cascade'}),
+ author:text('author',{enum:['visitor','agent','system']}).notNull(),
+ authorUserId:uuid('author_user_id').references(()=>users.id,{onDelete:'set null'}),
+ body:text('body').notNull(),
+ createdAt:createdAt(),
+},t=>[index('support_messages_conversation_idx').on(t.conversationId,t.createdAt)]);
+export const supportWidgetOrigins=pgTable('support_widget_origins',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ origin:text('origin').notNull(),
+ createdAt:createdAt(),
+},t=>[uniqueIndex('support_widget_origins_uq').on(t.orgId,t.origin)]);
