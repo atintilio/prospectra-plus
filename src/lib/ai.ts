@@ -3,17 +3,25 @@ import type { CampaignStep } from '@/db/schema';
 import type { Generator } from './cadence';
 import { fillTemplate } from './template';
 
-const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-const FALLBACK_MODEL = 'openrouter/free';
+// Provedor de IA genérico (API compatível com OpenAI): Z.AI/GLM, OpenRouter, etc.
+// Troca por env; sem env, mantém o comportamento atual (OpenRouter).
+const ENDPOINT = process.env.AI_BASE_URL?.trim() || 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_MODEL = process.env.AI_MODEL?.trim() || 'qwen/qwen3-30b-a3b:free';
+const IS_OPENROUTER = ENDPOINT.includes('openrouter.ai');
+
+function aiKey(): string | undefined {
+  return (process.env.AI_API_KEY || process.env.OPENROUTER_API_KEY)?.trim();
+}
 
 export function aiConfigured(): boolean {
-  return Boolean(process.env.OPENROUTER_API_KEY?.trim());
+  return Boolean(aiKey());
 }
 
 async function chat(system: string, user: string, maxTokens = 400): Promise<string> {
-  const key = process.env.OPENROUTER_API_KEY?.trim();
+  const key = aiKey();
   if (!key) throw new Error('AI_NOT_CONFIGURED');
-  const models = [process.env.AI_MODEL?.trim() || 'qwen/qwen3-30b-a3b:free', FALLBACK_MODEL];
+  // o fallback gratuito só existe no OpenRouter; com outro provedor, usa só o modelo configurado
+  const models = IS_OPENROUTER ? [DEFAULT_MODEL, 'openrouter/free'] : [DEFAULT_MODEL];
   let lastErr: unknown;
   for (const model of models) {
     try {
