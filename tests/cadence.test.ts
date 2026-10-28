@@ -94,6 +94,51 @@ describe('motor da cadência', () => {
 });
 
 
+describe('canais automáticos (e-mail + WhatsApp)', () => {
+  const multi: schema.CampaignStep[] = [
+    { id: 'e1', type: 'email', delayDays: 0, condition: 'always', template: 'Olá {nome}, tudo bem?', subject: 'Oi {nome}', useAi: false },
+    { id: 'w1', type: 'whatsapp', delayDays: 0, condition: 'always', template: 'Oi {nome}, posso te mandar um resumo?', useAi: false },
+  ];
+
+  async function setupMulti() {
+    const db = await testDb();
+    const { org, user } = await seedOrg(db);
+    const [camp] = await db.insert(schema.campaigns).values({ orgId: org.id, ownerId: user.id, name: 'Multi', status: 'active', steps: multi }).returning();
+    const [lead] = await db.insert(schema.leads).values({ orgId: org.id, linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Ana Souza', company: 'Acme', email: 'ana@acme.com', phone: '+5511999998888' }).returning();
+    await enrollLeads(db, org.id, camp.id, [lead.id], day(0));
+    return { db, org, user };
+  }
+
+  it('envia pelos canais injetados, conclui a ação e avança a cadência', async () => {
+    const { db, org } = await setupMulti();
+    const emails: [string, string, string][] = [];
+    const whats: [string, string][] = [];
+    const sendEmail = async (to: string, subject: string, body: string) => { emails.push([to, subject, body]); };
+    const sendWhatsapp = async (_s: { orgId: string; userId: string }, phone: string, text: string) => { whats.push([phone, text]); return { providerMessageId: 'wamid.1' }; };
+
+    expect((await runScheduler(db, { now: day(0), sendEmail, sendWhatsapp })).created).toBe(1);
+    expect(emails).toEqual([['ana@acme.com', 'Oi Ana', 'Olá Ana, tudo bem?']]);
+
+    expect((await runScheduler(db, { now: day(0), sendEmail, sendWhatsapp })).created).toBe(1);
+    expect(whats).toEqual([['5511999998888', 'Oi Ana, posso te mandar um resumo?']]);
+
+    expect((await db.select().from(schema.actions)).every((a) => a.status === 'done')).toBe(true);
+    expect((await db.select().from(schema.events)).map((e) => e.type).sort()).toEqual(['email_sent', 'whatsapp_sent']);
+    expect((await db.select().from(schema.enrollments))[0].state).toBe('done');
+  });
+
+  it('falha de envio deixa a ação pendente, sem reenvio automático', async () => {
+    const { db } = await setupMulti();
+    const sendEmail = async () => { throw new Error('smtp down'); };
+    await runScheduler(db, { now: day(0), sendEmail });
+    const [a] = await db.select().from(schema.actions);
+    expect(a.status).toBe('pending');
+    expect(await db.select().from(schema.events)).toHaveLength(0);
+    // sem reenvio: próxima execução não cria nova ação
+    expect((await runScheduler(db, { now: day(1), sendEmail })).created).toBe(0);
+  });
+});
+
 it('IA desligada na operação usa o texto base sem chamar o provedor', async () => {
  const {db,org,camp,lead}=await setup();
  await db.update(schema.orgs).set({aiEnabled:false}).where(eq(schema.orgs.id,org.id));

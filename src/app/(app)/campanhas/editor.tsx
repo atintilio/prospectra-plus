@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Heart, MessageCircle, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
+import { ArrowDown, ArrowUp, Heart, Mail, MessageCircle, MessageSquare, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { CampaignStep, StepType } from '@/db/schema';
@@ -14,8 +14,9 @@ export const DEFAULT_STEPS: CampaignStep[] = [
 ];
 
 const TYPES: Record<StepType, { label: string; icon: typeof Send }> = {
-  react: { label: 'Reagir a post', icon: Heart }, comment: { label: 'Comentar post', icon: MessageCircle },
-  invite: { label: 'Convite de conexão', icon: UserPlus }, message: { label: 'Mensagem', icon: Send },
+  react: { label: 'LinkedIn · reagir a post', icon: Heart }, comment: { label: 'LinkedIn · comentar post', icon: MessageCircle },
+  invite: { label: 'LinkedIn · convite', icon: UserPlus }, message: { label: 'LinkedIn · mensagem', icon: Send },
+  email: { label: 'E-mail', icon: Mail }, whatsapp: { label: 'WhatsApp', icon: MessageSquare },
 };
 
 type Initial = { name: string; aiBrief: string; assignedTo: string | null; steps: CampaignStep[] };
@@ -71,8 +72,12 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
               </div>
               {s.type !== 'react' && (
                 <>
+                  {s.type === 'email' && (
+                    <input className="input mt-3" value={s.subject ?? ''} maxLength={160}
+                      placeholder="Assunto do e-mail" onChange={(e) => setStep(i, { subject: e.target.value })} />
+                  )}
                   <textarea rows={3} className="input mt-3 leading-relaxed" value={s.template} maxLength={s.type === 'invite' ? 300 : 1500}
-                    placeholder={s.type === 'invite' ? 'Nota do convite (até 300 caracteres)' : 'Texto base'} onChange={(e) => setStep(i, { template: e.target.value })} />
+                    placeholder={s.type === 'invite' ? 'Nota do convite (até 300 caracteres)' : s.type === 'email' ? 'Corpo do e-mail' : s.type === 'whatsapp' ? 'Mensagem de WhatsApp' : 'Texto base'} onChange={(e) => setStep(i, { template: e.target.value })} />
                   <label className="mt-2 flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={s.useAi} onChange={(e) => setStep(i, { useAi: e.target.checked })} />
                     <Sparkles className="h-4 w-4 text-violet" /> Personalizar com IA para cada lead {!aiOn && <span className="text-xs text-muted">(IA não configurada: usa o texto base)</span>}

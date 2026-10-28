@@ -3,6 +3,9 @@ import type { DB } from '@/db';
 import * as schema from '@/db/schema';
 import type { CampaignStep, EventType, LeadStage } from '@/db/schema';
 import { fillTemplate } from './template';
+import { sendWhatsAppCommand } from '@/lib/whatsapp/commands';
+import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
+import { sendSupportMail, mailerConfigured } from '@/lib/mailer';
 
 // Motor da cadência (modo assistido).
 // - O scheduler transforma inscrições vencidas em "ações" na Fila do dia de quem executa a campanha.
@@ -53,7 +56,11 @@ export async function enrollLeads(db: DB, orgId: string, campaignId: string, lea
 }
 
 /** Gera as ações vencidas. Idempotente: rodar duas vezes não duplica ações. */
-export async function runScheduler(db: DB, opts: { orgId?: string; now?: Date; generate?: Generator } = {}) {
+export async function runScheduler(db: DB, opts: {
+  orgId?: string; now?: Date; generate?: Generator;
+  sendEmail?: (to: string, subject: string, body: string) => Promise<void>;
+  sendWhatsapp?: (scope: { orgId: string; userId: string }, phone: string, text: string) => Promise<{ providerMessageId: string }>;
+} = {}) {
   const now = opts.now ?? new Date();
   const generate = opts.generate ?? defaultGenerator;
   const conds = [eq(schema.enrollments.state, 'running'), lte(schema.enrollments.nextRunAt, now), eq(schema.campaigns.status, 'active')];
@@ -82,24 +89,47 @@ export async function runScheduler(db: DB, opts: { orgId?: string; now?: Date; g
       await db.update(schema.enrollments).set({ state: 'waiting_accept' }).where(eq(schema.enrollments.id, enr.id));
       continue;
     }
+    const userId = camp.assignedTo ?? camp.ownerId;
     let body = '';
-    if (step.type === 'invite' || step.type === 'message' || step.type === 'comment') {
+    if (step.type !== 'react') {
       body = step.useAi && aiEnabled ? await generate({ step, lead, brief: camp.aiBrief }).catch(() => fillTemplate(step.template, lead)) : fillTemplate(step.template, lead);
       if (step.type === 'invite') body = body.slice(0, 300); // limite da nota de convite do LinkedIn
     }
-    const res = await db.insert(schema.actions).values({
+    const [action] = await db.insert(schema.actions).values({
       orgId: enr.orgId, enrollmentId: enr.id, campaignId: camp.id, leadId: lead.id,
-      userId: camp.assignedTo ?? camp.ownerId, stepIndex: enr.stepIndex, type: step.type, body,
-      dueDate: dayString(now),
+      userId, stepIndex: enr.stepIndex, type: step.type, body, dueDate: dayString(now),
     }).onConflictDoNothing().returning({ id: schema.actions.id });
-    created += res.length;
-    // aguardando execução humana: a próxima etapa só é agendada quando a ação for concluída
+    if (action) created++;
+
+    // Canais automáticos. Se enviar, conclui a ação e a cadência avança; senão fica pendente (fallback
+    // assistido na Fila), sem reenvio automático. Delays/limites vêm do passo e do usuário, não inventados.
+    if (action && step.type === 'email') {
+      const to = (lead.email ?? '').trim();
+      const send = opts.sendEmail ?? (mailerConfigured() ? (t: string, s: string, b: string) => sendSupportMail([t], s, b) : null);
+      if (to && send) {
+        const subject = (step.subject && fillTemplate(step.subject, lead).trim()) || `Contato — ${lead.company || lead.fullName}`;
+        try { await send(to, subject, body); await completeAction(db, enr.orgId, userId, action.id, 'done', body, now); continue; }
+        catch { /* incerto: fica pendente, sem reenvio automático */ }
+      }
+    } else if (action && step.type === 'whatsapp') {
+      const phone = (lead.phone ?? '').replace(/\D/g, '');
+      const cfg = akgConfig();
+      const send = opts.sendWhatsapp ?? (cfg ? (scope: { orgId: string; userId: string }, p: string, t: string) => new AkgGateway(cfg).sendText(scope, p, t) : null);
+      if (phone && send) {
+        const [u] = await db.select({ d: schema.users.dailyMessages }).from(schema.users).where(eq(schema.users.id, userId));
+        try {
+          const r = await sendWhatsAppCommand(db, { orgId: enr.orgId, userId }, { id: action.id, recipient: phone, text: body }, u?.d ?? 40, send);
+          if (r.state === 'sent') { await completeAction(db, enr.orgId, userId, action.id, 'done', body, now); continue; }
+        } catch { /* incerto: pendente, sem reenvio */ }
+      }
+    }
+    // aguardando execução (assistida ou canal não configurado): próximo passo só após concluir a ação
     await db.update(schema.enrollments).set({ nextRunAt: addDays(now, 3650) }).where(eq(schema.enrollments.id, enr.id));
   }
   return { processed: due.length, created };
 }
 
-const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent' };
+const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent' };
 
 /** Conclui (ou pula) uma ação da fila e agenda o próximo passo da cadência. */
 export async function completeAction(db: DB, orgId: string, userId: string, actionId: string, outcome: 'done' | 'skipped', body?: string, now = new Date()) {
