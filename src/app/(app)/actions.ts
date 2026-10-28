@@ -10,6 +10,7 @@ import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
 import { replyToConversation, setConversationStatus } from '@/lib/support';
+import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
@@ -376,9 +377,16 @@ async function seedFeedIfEmpty(orgId: string) {
 export async function replySupportAction(conversationId: string, body: string): Promise<State> {
   const ctx = await requireOrg();
   if (!body?.trim()) return { error: 'Escreva uma resposta.' };
+  const db = await getDb();
   try {
-    await replyToConversation(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, body);
+    await replyToConversation(db, { orgId: ctx.org.id, userId: ctx.user.id }, conversationId, body);
   } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível responder.' }; }
+  // Conversa de WhatsApp: entrega a resposta pelo gateway quando configurado (best-effort; já ficou registrada).
+  try {
+    const [c] = await db.select().from(schema.supportConversations).where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, ctx.org.id)));
+    const cfg = akgConfig();
+    if (c?.channel === 'whatsapp' && c.visitorPhone && cfg) await new AkgGateway(cfg).sendText({ orgId: ctx.org.id, userId: ctx.user.id }, c.visitorPhone, body);
+  } catch { /* entrega pelo WhatsApp é best-effort */ }
   revalidatePath('/suporte');
   return { ok: 'Resposta enviada.' };
 }

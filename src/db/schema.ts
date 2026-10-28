@@ -309,17 +309,19 @@ export const supportConversations=pgTable('support_conversations',{
  subject:text('subject').notNull().default(''),
  visitorName:text('visitor_name').notNull().default(''),
  visitorEmail:text('visitor_email').notNull().default(''),
+ visitorPhone:text('visitor_phone').notNull().default(''),
  lastMessageAt:timestamp('last_message_at',{withTimezone:true}).notNull().defaultNow(),
  createdAt:createdAt(),
-},t=>[index('support_conversations_inbox_idx').on(t.orgId,t.status,t.lastMessageAt),index('support_conversations_lead_idx').on(t.orgId,t.leadId)]);
+},t=>[index('support_conversations_inbox_idx').on(t.orgId,t.status,t.lastMessageAt),index('support_conversations_lead_idx').on(t.orgId,t.leadId),index('support_conversations_phone_idx').on(t.orgId,t.visitorPhone)]);
 export const supportMessages=pgTable('support_messages',{
  id:uuid('id').primaryKey().defaultRandom(),
  conversationId:uuid('conversation_id').notNull().references(()=>supportConversations.id,{onDelete:'cascade'}),
  author:text('author',{enum:['visitor','agent','system']}).notNull(),
  authorUserId:uuid('author_user_id').references(()=>users.id,{onDelete:'set null'}),
  body:text('body').notNull(),
+ providerId:text('provider_id'),
  createdAt:createdAt(),
-},t=>[index('support_messages_conversation_idx').on(t.conversationId,t.createdAt)]);
+},t=>[index('support_messages_conversation_idx').on(t.conversationId,t.createdAt),uniqueIndex('support_messages_provider_uq').on(t.providerId).where(sql`provider_id is not null`)]);
 export const supportWidgetOrigins=pgTable('support_widget_origins',{
  id:uuid('id').primaryKey().defaultRandom(),
  orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),

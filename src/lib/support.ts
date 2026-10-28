@@ -105,3 +105,35 @@ export async function conversationThread(db: DB, scope: Scope, conversationId: s
     .where(eq(schema.supportMessages.conversationId, conversationId)).orderBy(schema.supportMessages.createdAt);
   return { conversation, messages };
 }
+
+const phoneSchema = z.string().trim().regex(/^\+?[1-9]\d{7,14}$/).transform((v) => v.replace(/^\+/, ''));
+
+/** Entrada por WhatsApp (via WA-AKG). Agrupa por telefone na conversa aberta e deduplica por providerId. */
+export async function intakeWhatsappMessage(
+  db: DB,
+  input: { orgId: string; phone: string; name?: string; body: string; providerId: string },
+): Promise<{ conversationId: string; deduped: boolean }> {
+  const body = bodySchema.parse(input.body);
+  const phone = phoneSchema.parse(input.phone);
+  const name = input.name ? nameSchema.parse(input.name) : '';
+  const providerId = z.string().trim().min(1).max(200).parse(input.providerId);
+  return db.transaction(async (tx) => {
+    const [dup] = await tx.select({ conversationId: schema.supportMessages.conversationId }).from(schema.supportMessages)
+      .where(eq(schema.supportMessages.providerId, providerId));
+    if (dup) return { conversationId: dup.conversationId, deduped: true }; // retry do gateway
+
+    let [conv] = await tx.select().from(schema.supportConversations)
+      .where(and(eq(schema.supportConversations.orgId, input.orgId), eq(schema.supportConversations.visitorPhone, phone), eq(schema.supportConversations.status, 'open')))
+      .orderBy(desc(schema.supportConversations.lastMessageAt)).limit(1);
+    if (!conv) {
+      [conv] = await tx.insert(schema.supportConversations)
+        .values({ orgId: input.orgId, audience: 'customer', channel: 'whatsapp', subject: body.slice(0, 80), visitorName: name, visitorPhone: phone })
+        .returning();
+    }
+    const [inserted] = await tx.insert(schema.supportMessages)
+      .values({ conversationId: conv.id, author: 'visitor', body, providerId }).onConflictDoNothing().returning({ id: schema.supportMessages.id });
+    if (!inserted) return { conversationId: conv.id, deduped: true }; // corrida: outro processo já gravou
+    await tx.update(schema.supportConversations).set({ status: 'open', lastMessageAt: new Date() }).where(eq(schema.supportConversations.id, conv.id));
+    return { conversationId: conv.id, deduped: false };
+  });
+}
