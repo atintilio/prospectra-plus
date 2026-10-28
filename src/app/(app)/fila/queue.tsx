@@ -1,13 +1,13 @@
 'use client';
 
-import { CalendarClock, Check, Clipboard, ExternalLink, Heart, Mail, MessageCircle, MessageSquare, Mic, PartyPopper, RefreshCw, Send, SkipForward, UserPlus, X } from 'lucide-react';
+import { CalendarClock, Check, Clipboard, ExternalLink, Heart, Image, Mail, MessageCircle, MessageSquare, Mic, PartyPopper, RefreshCw, Send, SkipForward, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useOptimistic, useState, useTransition } from 'react';
 import { cancelMeetingAction, completeActionAction, confirmMeetingAction, refreshQueueAction, updateLeadStageAction } from '../actions';
 import { Avatar, Empty } from '@/components/ui';
 
 type Lead = { id: string; fullName: string; headline: string; company: string; linkedinUrl: string };
-type Item = { id: string; type: 'react' | 'comment' | 'invite' | 'message' | 'email' | 'whatsapp' | 'voice'; body: string; campaign: string; overdue: boolean; lead: Lead };
+type Item = { id: string; type: 'react' | 'comment' | 'invite' | 'message' | 'email' | 'whatsapp' | 'voice' | 'image'; body: string; campaign: string; overdue: boolean; lead: Lead };
 type Meeting = { id: string; leadName: string; status: 'requested' | 'confirmed'; schedulerUrl: string | null; scheduledAt: string | null };
 
 const TYPE = {
@@ -18,6 +18,7 @@ const TYPE = {
   email: { label: 'E-mail', icon: Mail, how: 'Canal automático não configurado: copie e envie este e-mail ao lead.' },
   whatsapp: { label: 'WhatsApp', icon: MessageSquare, how: 'Canal automático não configurado: copie e envie esta mensagem no WhatsApp do lead.' },
   voice: { label: 'WhatsApp · voz', icon: Mic, how: 'Voz automática indisponível: grave o áudio deste roteiro e envie no WhatsApp do lead.' },
+  image: { label: 'WhatsApp · imagem/informativo', icon: Image, how: 'Envio automático indisponível: envie a imagem/informativo no WhatsApp do lead, com esta legenda.' },
 } as const;
 
 function openUrl(item: Item) {
