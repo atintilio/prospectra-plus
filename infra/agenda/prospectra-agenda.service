@@ -13,7 +13,7 @@ EnvironmentFile=/opt/agenda/.env
 Environment=NEXT_PUBLIC_LICENSE_CONSENT=agree
 Environment=CALCOM_TELEMETRY_DISABLED=1
 Environment=NODE_OPTIONS=--max-old-space-size=4096
-ExecStart=/usr/bin/corepack yarn workspace @calcom/web start -H 127.0.0.1 -p 3102
+ExecStart=/usr/local/bin/yarn4 workspace @calcom/web start -H 127.0.0.1 -p 3102
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
