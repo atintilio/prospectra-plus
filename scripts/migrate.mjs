@@ -10,6 +10,28 @@ if (!url || url.startsWith('pglite://')) {
   process.exit(0);
 }
 const client = postgres(url, { max: 1 });
+
+// Auto-cura: o ledger de migrações pode sobreviver a um banco recriado/limpo
+// (o schema `drizzle` e a tabela `__drizzle_migrations` continuam lá, mas as
+// tabelas do app somem). Nesse estado o drizzle acha que já aplicou tudo e
+// não recria nada — e a aplicação quebra com "relation "users" does not
+// exist" em toda rota que toca o banco. Detectamos a inconsistência e
+// zeramos o schema para as migrações rodarem de novo do zero.
+const CORE_TABLES = ['users', 'orgs', 'leads'];
+const [missing] = await client`
+  select count(*)::int as faltando
+  from unnest(${CORE_TABLES}) as t(nome)
+  where to_regclass('public.' || t.nome) is null
+`;
+if (missing.faltando > 0) {
+  console.log(`[migrate] ${missing.faltando} de ${CORE_TABLES.length} tabelas ausentes; recriando o schema do zero.`);
+  await client`drop schema if exists drizzle cascade`;
+  await client`drop schema if exists public cascade`;
+  await client`create schema public`;
+  await client`grant usage on schema public to public`;
+  await client`grant all on schema public to public`;
+}
+
 await migrate(drizzle(client), { migrationsFolder: 'drizzle' });
 if (process.env.BLOB_READ_WRITE_TOKEN) {
   const { get } = await import('@vercel/blob');
