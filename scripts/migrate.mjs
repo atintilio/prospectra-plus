@@ -20,7 +20,7 @@ const client = postgres(url, { max: 1 });
 const CORE_TABLES = ['users', 'orgs', 'leads'];
 const [missing] = await client`
   select count(*)::int as faltando
-  from unnest(${CORE_TABLES}) as t(nome)
+  from (values ('users'), ('orgs'), ('leads')) as t(nome)
   where to_regclass('public.' || t.nome) is null
 `;
 if (missing.faltando > 0) {
