@@ -30,6 +30,6 @@ step trpc 900 workspace @calcom/trpc run build
 step embed 900 --cwd packages/embeds/embed-core workspace @calcom/embed-core run build
 step assets 600 --cwd apps/web workspace @calcom/web run copy-app-store-static
 step web 3600 --cwd apps/web workspace @calcom/web run build
-step migrate 600 prisma migrate deploy --schema=packages/prisma/schema.prisma
+step migrate 600 prisma migrate deploy --schema=/opt/agenda/source/packages/prisma/schema.prisma
 chown -R prospectra-agenda:prospectra-agenda /opt/agenda/source || fail
 echo "=== BUILD v7 FIM $(date -Is) ==="
