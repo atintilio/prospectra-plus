@@ -1,9 +1,10 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Heart, Mail, MessageCircle, MessageSquare, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
+import { ArrowDown, ArrowUp, GripVertical, Heart, Image, Mail, MessageCircle, MessageSquare, Mic, Phone, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { CampaignStep, StepType } from '@/db/schema';
+import { stepTypeEnabled, type CampaignFeatures } from '@/lib/campaign-features';
 import { saveCampaignAction } from '../actions';
 
 export const DEFAULT_STEPS: CampaignStep[] = [
@@ -17,19 +18,24 @@ const TYPES: Record<StepType, { label: string; icon: typeof Send }> = {
   react: { label: 'LinkedIn · reagir a post', icon: Heart }, comment: { label: 'LinkedIn · comentar post', icon: MessageCircle },
   invite: { label: 'LinkedIn · convite', icon: UserPlus }, message: { label: 'LinkedIn · mensagem', icon: Send },
   email: { label: 'E-mail', icon: Mail }, whatsapp: { label: 'WhatsApp', icon: MessageSquare },
+  voice: { label: 'WhatsApp · voz', icon: Mic },
+  image: { label: 'WhatsApp · imagem/informativo', icon: Image },
+  call: { label: 'WhatsApp · ligação (assistida)', icon: Phone },
 };
 
 type Initial = { name: string; aiBrief: string; assignedTo: string | null; steps: CampaignStep[] };
 
-export function CampaignEditor({ id, initial, members, aiOn }: { id: string | null; initial: Initial; members: { id: string; name: string; email: string }[]; aiOn: boolean }) {
+export function CampaignEditor({ id, initial, members, aiOn, features }: { id: string | null; initial: Initial; members: { id: string; name: string; email: string }[]; aiOn: boolean; features: CampaignFeatures }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string>();
   const [saved, setSaved] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [pending, start] = useTransition();
 
   const setStep = (i: number, patch: Partial<CampaignStep>) => { setSaved(false); setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) })); };
   const move = (i: number, d: -1 | 1) => setForm((f) => { const s = [...f.steps]; [s[i], s[i + d]] = [s[i + d], s[i]]; return { ...f, steps: s }; });
+  const reorder = (from: number, to: number) => { setSaved(false); setForm((f) => { if (from === to || from < 0 || from >= f.steps.length) return f; const s = [...f.steps]; const [m] = s.splice(from, 1); s.splice(to, 0, m); return { ...f, steps: s }; }); };
   const add = (type: StepType) => setForm((f) => ({ ...f, steps: [...f.steps, { id: `s${Date.now()}`, type, delayDays: 2, condition: f.steps.some((s) => s.type === 'invite') && type === 'message' ? 'accepted' : 'always', template: '', useAi: type !== 'react' }] }));
   const save = () => start(async () => {
     setError(undefined);
@@ -47,11 +53,14 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
           day += s.delayDays;
           const T = TYPES[s.type];
           return (
-            <div key={s.id} className="card p-4">
+            <div key={s.id} className={`card p-4 ${dragIndex === i ? 'opacity-50' : ''}`}
+              onDragOver={(e) => { if (dragIndex !== null && dragIndex !== i) e.preventDefault(); }}
+              onDrop={() => { if (dragIndex !== null) { reorder(dragIndex, i); setDragIndex(null); } }}>
               <div className="flex flex-wrap items-center gap-2">
+                <span className="cursor-grab text-muted" draggable onDragStart={() => setDragIndex(i)} onDragEnd={() => setDragIndex(null)} aria-label="Arrastar para reordenar"><GripVertical className="h-4 w-4" /></span>
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-accent text-sm font-semibold text-accent">{i + 1}</span>
                 <select className="input w-auto font-medium" value={s.type} onChange={(e) => setStep(i, { type: e.target.value as StepType })} aria-label="Tipo do passo">
-                  {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  {Object.entries(TYPES).filter(([k]) => stepTypeEnabled(features, k) || k === s.type).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
                 <T.icon className="h-4 w-4 text-muted" />
                 <span className="text-xs text-muted">dia {day}</span>
@@ -76,22 +85,32 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
                     <input className="input mt-3" value={s.subject ?? ''} maxLength={160}
                       placeholder="Assunto do e-mail" onChange={(e) => setStep(i, { subject: e.target.value })} />
                   )}
+                  {s.type === 'image' && (
+                    <input className="input mt-3" value={s.mediaUrl ?? ''} maxLength={2000} type="url" inputMode="url"
+                      placeholder="URL pública da imagem ou PDF (https://…)" onChange={(e) => setStep(i, { mediaUrl: e.target.value })} />
+                  )}
                   <textarea rows={3} className="input mt-3 leading-relaxed" value={s.template} maxLength={s.type === 'invite' ? 300 : 1500}
-                    placeholder={s.type === 'invite' ? 'Nota do convite (até 300 caracteres)' : s.type === 'email' ? 'Corpo do e-mail' : s.type === 'whatsapp' ? 'Mensagem de WhatsApp' : 'Texto base'} onChange={(e) => setStep(i, { template: e.target.value })} />
+                    placeholder={s.type === 'invite' ? 'Nota do convite (até 300 caracteres)' : s.type === 'email' ? 'Corpo do e-mail' : s.type === 'whatsapp' ? 'Mensagem de WhatsApp' : s.type === 'voice' ? 'Roteiro da mensagem de voz (vira áudio na sua voz)' : s.type === 'image' ? 'Legenda da imagem/informativo (opcional)' : s.type === 'call' ? 'Roteiro da ligação (abertura, pergunta, próximo passo)' : 'Texto base'} onChange={(e) => setStep(i, { template: e.target.value })} />
                   <label className="mt-2 flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={s.useAi} onChange={(e) => setStep(i, { useAi: e.target.checked })} />
                     <Sparkles className="h-4 w-4 text-violet" /> Personalizar com IA para cada lead {!aiOn && <span className="text-xs text-muted">(IA não configurada: usa o texto base)</span>}
                   </label>
                 </>
               )}
+              {!stepTypeEnabled(features, s.type) && (
+                <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-xs text-muted">Este recurso está desligado nesta operação: o passo não age na cadência até o administrador liberá-lo.</p>
+              )}
             </div>
           );
         })}
         <div className="flex flex-wrap gap-2 rounded-2xl border border-dashed border-border p-3">
-          {Object.entries(TYPES).map(([k, v]) => (
+          {Object.entries(TYPES).filter(([k]) => stepTypeEnabled(features, k)).map(([k, v]) => (
             <button key={k} className="btn-outline py-1.5" onClick={() => add(k as StepType)}><Plus className="h-4 w-4" />{v.label}</button>
           ))}
         </div>
+        {(!stepTypeEnabled(features, 'image') || !stepTypeEnabled(features, 'call')) && (
+          <p className="text-xs text-muted">Imagem/informativo e ligação são recursos activados por operação: só aparecem aqui quando o administrador os liberar.</p>
+        )}
       </div>
 
       <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">

@@ -26,6 +26,10 @@ export const orgs = pgTable('orgs', {
   driver: text('driver', { enum: ['assisted', 'unipile'] }).notNull().default('assisted'),
   active: boolean('active').notNull().default(true),
   aiEnabled: boolean('ai_enabled').notNull().default(true),
+  // Recursos de campanha que a operação ativa dentro do Prospectra. Desligados por padrão:
+  // o passo de imagem/informativo e o de ligação só existem para quem os ativou.
+  imageEnabled: boolean('image_enabled').notNull().default(false),
+  callEnabled: boolean('call_enabled').notNull().default(false),
   isDemo: boolean('is_demo').notNull().default(false),
   createdAt: createdAt(),
 });
@@ -83,7 +87,7 @@ export const leads = pgTable('leads', {
   index('leads_org_phone_idx').on(t.orgId, t.phone),
 ]);
 
-export type StepType = 'react' | 'comment' | 'invite' | 'message' | 'email' | 'whatsapp';
+export type StepType = 'react' | 'comment' | 'invite' | 'message' | 'email' | 'whatsapp' | 'voice' | 'image' | 'call';
 export type CampaignStep = {
   id: string;
   type: StepType;
@@ -92,6 +96,7 @@ export type CampaignStep = {
   template: string;
   useAi: boolean;
   subject?: string; // assunto (apenas passos de e-mail)
+  mediaUrl?: string; // URL pública da imagem/informativo (apenas passos de imagem)
 };
 
 export const campaigns = pgTable('campaigns', {
@@ -129,7 +134,7 @@ export const actions = pgTable('actions', {
   leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   stepIndex: integer('step_index').notNull(),
-  type: text('type', { enum: ['react', 'comment', 'invite', 'message', 'email', 'whatsapp'] }).notNull(),
+  type: text('type', { enum: ['react', 'comment', 'invite', 'message', 'email', 'whatsapp', 'voice', 'image', 'call'] }).notNull(),
   body: text('body').notNull().default(''),
   dueDate: date('due_date').notNull(),
   status: text('status', { enum: ['pending', 'done', 'skipped'] }).notNull().default('pending'),
@@ -142,7 +147,7 @@ export const actions = pgTable('actions', {
 
 export const EVENT_TYPES = [
   'invite_sent', 'invite_accepted', 'message_sent', 'reply_received', 'reaction_sent', 'comment_sent',
-  'email_sent', 'whatsapp_sent', 'meeting_booked', 'deal_won', 'deal_lost', 'ai_search',
+  'email_sent', 'whatsapp_sent', 'voice_sent', 'image_sent', 'call_made', 'meeting_booked', 'deal_won', 'deal_lost', 'ai_search',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -308,6 +313,7 @@ export const supportConversations=pgTable('support_conversations',{
  orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
  leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'set null'}),
  assignedTo:uuid('assigned_to').references(()=>users.id,{onDelete:'set null'}),
+ teamId:uuid('team_id').references(()=>supportTeams.id,{onDelete:'set null'}), // conversa roteada a um time
  audience:text('audience',{enum:['customer','product']}).notNull().default('customer'),
  channel:text('channel',{enum:['web','whatsapp','internal']}).notNull().default('web'),
  status:text('status',{enum:SUPPORT_STATUSES}).notNull().default('open'),
@@ -315,6 +321,7 @@ export const supportConversations=pgTable('support_conversations',{
  visitorName:text('visitor_name').notNull().default(''),
  visitorEmail:text('visitor_email').notNull().default(''),
  visitorPhone:text('visitor_phone').notNull().default(''),
+ labels:text('labels').array().notNull().default(sql`'{}'::text[]`), // etiquetas para classificar/filtrar
  lastMessageAt:timestamp('last_message_at',{withTimezone:true}).notNull().defaultNow(),
  createdAt:createdAt(),
 },t=>[index('support_conversations_inbox_idx').on(t.orgId,t.status,t.lastMessageAt),index('support_conversations_lead_idx').on(t.orgId,t.leadId),index('support_conversations_phone_idx').on(t.orgId,t.visitorPhone)]);
@@ -324,6 +331,8 @@ export const supportMessages=pgTable('support_messages',{
  author:text('author',{enum:['visitor','agent','system']}).notNull(),
  authorUserId:uuid('author_user_id').references(()=>users.id,{onDelete:'set null'}),
  body:text('body').notNull(),
+ private:boolean('private').notNull().default(false), // nota interna: nunca vai pro cliente (widget/WhatsApp)
+ mentions:text('mentions').array().notNull().default(sql`'{}'::text[]`), // ids de membros mencionados na nota
  providerId:text('provider_id'),
  createdAt:createdAt(),
 },t=>[index('support_messages_conversation_idx').on(t.conversationId,t.createdAt),uniqueIndex('support_messages_provider_uq').on(t.providerId).where(sql`provider_id is not null`)]);
@@ -333,6 +342,18 @@ export const supportWidgetOrigins=pgTable('support_widget_origins',{
  origin:text('origin').notNull(),
  createdAt:createdAt(),
 },t=>[uniqueIndex('support_widget_origins_uq').on(t.orgId,t.origin)]);
+
+// Times de atendimento (Helpin): grupos de agentes para rotear conversas.
+export const supportTeams=pgTable('support_teams',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ name:text('name').notNull(),
+ createdAt:createdAt(),
+},t=>[uniqueIndex('support_teams_org_name_uq').on(t.orgId,t.name)]);
+export const supportTeamMembers=pgTable('support_team_members',{
+ teamId:uuid('team_id').notNull().references(()=>supportTeams.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+},t=>[primaryKey({columns:[t.teamId,t.userId]}),index('support_team_members_user_idx').on(t.userId)]);
 
 // Central de ajuda (Helpin fase 3): artigos de autoatendimento por operação.
 // Busca por texto (ILIKE); busca semântica (pgvector) fica como upgrade futuro.

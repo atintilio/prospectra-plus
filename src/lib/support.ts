@@ -1,15 +1,20 @@
 import 'server-only';
-import { and, desc, eq, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { schema, type DB } from '@/db';
 import type { Scope } from '@/lib/whatsapp/akg';
 import type { Role } from '@/lib/auth';
 
 type InboxScope = Scope & { role: Role };
+const isManager = (scope: InboxScope) => scope.role === 'owner' || scope.role === 'manager';
 const inboxAccess = (scope: InboxScope) => and(
   eq(schema.supportConversations.orgId, scope.orgId),
   eq(schema.supportConversations.audience, 'customer'),
-  ...(scope.role === 'owner' || scope.role === 'manager' ? [] : [eq(schema.supportConversations.assignedTo, scope.userId)]),
+  // gestor vê tudo; agente vê o que é dele OU do time a que pertence
+  ...(isManager(scope) ? [] : [or(
+    eq(schema.supportConversations.assignedTo, scope.userId),
+    sql`${schema.supportConversations.teamId} in (select team_id from support_team_members where user_id = ${scope.userId})`,
+  )]),
 );
 
 // Suporte nativo (Helpin fase 1). Fronteira de confiança: toda entrada é validada aqui.
@@ -113,10 +118,86 @@ export async function assignConversation(db: DB, scope: InboxScope, conversation
     .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
 }
 
-export async function listInbox(db: DB, scope: InboxScope, status: 'open' | 'closed' = 'open') {
+// ---- Times de atendimento ----
+const teamNameSchema = z.string().trim().min(1).max(60);
+
+/** Times da operação, cada um com seus membros. */
+export async function listTeams(db: DB, scope: InboxScope): Promise<{ id: string; name: string; memberIds: string[] }[]> {
+  const teams = await db.select().from(schema.supportTeams)
+    .where(eq(schema.supportTeams.orgId, scope.orgId)).orderBy(schema.supportTeams.name);
+  if (!teams.length) return [];
+  const mem = await db.select().from(schema.supportTeamMembers)
+    .where(inArray(schema.supportTeamMembers.teamId, teams.map((t) => t.id)));
+  return teams.map((t) => ({ id: t.id, name: t.name, memberIds: mem.filter((m) => m.teamId === t.id).map((m) => m.userId) }));
+}
+
+export async function createTeam(db: DB, scope: InboxScope, name: unknown): Promise<string> {
+  if (!isManager(scope)) throw new Error('Sem permissão para criar times.');
+  const [row] = await db.insert(schema.supportTeams).values({ orgId: scope.orgId, name: teamNameSchema.parse(name) })
+    .onConflictDoNothing().returning({ id: schema.supportTeams.id });
+  if (!row) throw new Error('Já existe um time com esse nome.');
+  return row.id;
+}
+
+export async function deleteTeam(db: DB, scope: InboxScope, teamId: string): Promise<void> {
+  if (!isManager(scope)) throw new Error('Sem permissão para remover times.');
+  await db.delete(schema.supportTeams).where(and(eq(schema.supportTeams.id, teamId), eq(schema.supportTeams.orgId, scope.orgId)));
+}
+
+/** Define os membros do time (só membros ativos da operação). */
+export async function setTeamMembers(db: DB, scope: InboxScope, teamId: string, userIds: unknown): Promise<void> {
+  if (!isManager(scope)) throw new Error('Sem permissão para editar times.');
+  const ids = z.array(z.string().uuid()).max(100).parse(userIds ?? []);
+  const [team] = await db.select({ id: schema.supportTeams.id }).from(schema.supportTeams)
+    .where(and(eq(schema.supportTeams.id, teamId), eq(schema.supportTeams.orgId, scope.orgId)));
+  if (!team) throw new Error('Time indisponível.');
+  const valid = ids.length ? (await db.select({ id: schema.memberships.userId }).from(schema.memberships).innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))
+    .where(and(eq(schema.memberships.orgId, scope.orgId), eq(schema.users.status, 'active'), inArray(schema.memberships.userId, ids)))).map((r) => r.id) : [];
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.supportTeamMembers).where(eq(schema.supportTeamMembers.teamId, teamId));
+    if (valid.length) await tx.insert(schema.supportTeamMembers).values(valid.map((userId) => ({ teamId, userId })));
+  });
+}
+
+/** Roteia a conversa para um time (ou remove). Só gestor. */
+export async function assignConversationTeam(db: DB, scope: InboxScope, conversationId: string, teamId: string | null): Promise<void> {
+  if (!isManager(scope)) throw new Error('Sem permissão para rotear conversas.');
+  if (teamId) {
+    const [team] = await db.select({ id: schema.supportTeams.id }).from(schema.supportTeams)
+      .where(and(eq(schema.supportTeams.id, teamId), eq(schema.supportTeams.orgId, scope.orgId)));
+    if (!team) throw new Error('Time não pertence a esta operação.');
+  }
+  await db.update(schema.supportConversations).set({ teamId })
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
+}
+
+export async function listInbox(db: DB, scope: InboxScope, status: 'open' | 'closed' = 'open', label?: string, teamId?: string) {
+  const l = (label ?? '').trim();
   return db.select().from(schema.supportConversations)
-    .where(and(inboxAccess(scope), eq(schema.supportConversations.status, status)))
+    .where(and(inboxAccess(scope), eq(schema.supportConversations.status, status),
+      ...(l ? [sql`${schema.supportConversations.labels} @> ARRAY[${l}]::text[]`] : []),
+      ...(teamId ? [eq(schema.supportConversations.teamId, teamId)] : [])))
     .orderBy(desc(schema.supportConversations.lastMessageAt)).limit(100);
+}
+
+const labelsSchema = z.array(z.string().trim().min(1).max(30)).max(10)
+  .transform((a) => Array.from(new Set(a)));
+
+/** Define as etiquetas de uma conversa (até 10, cada uma ≤30 chars). Respeita o acesso à inbox. */
+export async function setConversationLabels(db: DB, scope: InboxScope, conversationId: string, labels: unknown): Promise<string[]> {
+  const clean = labelsSchema.parse(labels);
+  const [row] = await db.update(schema.supportConversations).set({ labels: clean })
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)))
+    .returning({ labels: schema.supportConversations.labels });
+  if (!row) throw new Error('Conversa indisponível para este usuário.');
+  return row.labels;
+}
+
+/** Catálogo de etiquetas já usadas na operação (para sugestões e filtro). */
+export async function listOrgLabels(db: DB, scope: InboxScope): Promise<string[]> {
+  const rows = await db.select({ label: sql<string>`distinct unnest(${schema.supportConversations.labels})` })
+    .from(schema.supportConversations).where(inboxAccess(scope));
+  return rows.map((r) => r.label).filter(Boolean).sort();
 }
 
 export async function conversationThread(db: DB, scope: InboxScope, conversationId: string) {
@@ -128,13 +209,33 @@ export async function conversationThread(db: DB, scope: InboxScope, conversation
   return { conversation, messages };
 }
 
+/** Nota interna na conversa: só a equipe vê (nunca entregue ao cliente). Menciona membros ativos. */
+export async function addPrivateNote(db: DB, scope: InboxScope, conversationId: string, body: unknown, mentions: unknown): Promise<{ id: string; mentioned: { id: string; name: string; email: string }[] }> {
+  const text = bodySchema.parse(body);
+  const ids = z.array(z.string().uuid()).max(20).parse(mentions ?? []);
+  const [conv] = await db.select({ id: schema.supportConversations.id }).from(schema.supportConversations)
+    .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
+  if (!conv) throw new Error('Conversa indisponível para este usuário.');
+  // só menciona quem é membro ativo da operação (fronteira de confiança)
+  const mentioned = ids.length ? await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+    .from(schema.memberships).innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))
+    .where(and(eq(schema.memberships.orgId, scope.orgId), eq(schema.users.status, 'active'), inArray(schema.users.id, ids))) : [];
+  const [note] = await db.insert(schema.supportMessages)
+    .values({ conversationId, author: 'agent', authorUserId: scope.userId, body: text, private: true, mentions: mentioned.map((m) => m.id) })
+    .returning({ id: schema.supportMessages.id });
+  await db.update(schema.supportConversations).set({ lastMessageAt: new Date() }).where(eq(schema.supportConversations.id, conversationId));
+  return { id: note.id, mentioned };
+}
+
 /** Leitura pública para o widget: só os campos seguros das mensagens da conversa. */
 export async function publicConversationMessages(db: DB, orgId: string, conversationId: string): Promise<{ author: string; body: string; at: string }[] | null> {
   const [c] = await db.select({ id: schema.supportConversations.id }).from(schema.supportConversations)
     .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, orgId)));
   if (!c) return null;
   const msgs = await db.select({ author: schema.supportMessages.author, body: schema.supportMessages.body, at: schema.supportMessages.createdAt })
-    .from(schema.supportMessages).where(eq(schema.supportMessages.conversationId, conversationId)).orderBy(schema.supportMessages.createdAt);
+    .from(schema.supportMessages)
+    .where(and(eq(schema.supportMessages.conversationId, conversationId), eq(schema.supportMessages.private, false))) // nunca expõe nota interna
+    .orderBy(schema.supportMessages.createdAt);
   return msgs.map((m) => ({ author: m.author, body: m.body, at: m.at.toISOString() }));
 }
 

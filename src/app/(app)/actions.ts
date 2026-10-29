@@ -9,7 +9,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
-import { adminReplyProduct, adminSetProductStatus, assignConversation, openInternalTicket, replyToConversation, setConversationStatus } from '@/lib/support';
+import { addPrivateNote, adminReplyProduct, adminSetProductStatus, assignConversation, assignConversationTeam, createTeam, deleteTeam, openInternalTicket, replyToConversation, setConversationLabels, setConversationStatus, setTeamMembers } from '@/lib/support';
 import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
@@ -351,10 +351,10 @@ export async function createPartnerAction(_: State, form: FormData): Promise<Sta
   return { ok: `Parceiro ${name} criado e convite enviado para ${ownerEmail}.` };
 }
 
-export async function updatePartnerAction(orgId: string, patch: { seats?: number; searchCreditsMonth?: number; active?: boolean; aiEnabled?: boolean }) {
+export async function updatePartnerAction(orgId: string, patch: { seats?: number; searchCreditsMonth?: number; active?: boolean; aiEnabled?: boolean; imageEnabled?: boolean; callEnabled?: boolean }) {
   await requireAdmin();
   const db = await getDb();
-  const validated = z.object({ seats: z.number().int().min(1).max(200).optional(), searchCreditsMonth: z.number().int().min(0).max(100000).optional(), active: z.boolean().optional(), aiEnabled: z.boolean().optional() }).strict().parse(patch);
+  const validated = z.object({ seats: z.number().int().min(1).max(200).optional(), searchCreditsMonth: z.number().int().min(0).max(100000).optional(), active: z.boolean().optional(), aiEnabled: z.boolean().optional(), imageEnabled: z.boolean().optional(), callEnabled: z.boolean().optional() }).strict().parse(patch);
   await db.update(schema.orgs).set(validated).where(eq(schema.orgs.id, orgId));
   revalidatePath('/admin');
 }
@@ -419,6 +419,60 @@ export async function setSupportStatusAction(conversationId: string, status: 'op
   const ctx = await requireOrg();
   await setConversationStatus(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, status);
   revalidatePath('/suporte');
+}
+
+export async function addSupportNoteAction(conversationId: string, body: string, mentions: string[] = []): Promise<State> {
+  const ctx = await requireOrg();
+  if (!body?.trim()) return { error: 'Escreva a nota.' };
+  try {
+    const { mentioned } = await addPrivateNote(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, body, mentions);
+    // avisa os mencionados por e-mail (best-effort; a nota já ficou registrada)
+    const to = mentioned.map((m) => m.email).filter(Boolean);
+    if (to.length) sendSupportMail(to, `${ctx.user.name} mencionou você numa nota de suporte`, body.slice(0, 2000)).catch(() => {});
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar a nota.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Nota interna adicionada.' };
+}
+
+export async function createSupportTeamAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  try { await createTeam(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, String(form.get('name') ?? '')); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível criar o time.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Time criado.' };
+}
+
+export async function deleteSupportTeamAction(teamId: string): Promise<State> {
+  const ctx = await requireOrg();
+  try { await deleteTeam(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, teamId); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível remover o time.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Time removido.' };
+}
+
+export async function setSupportTeamMembersAction(teamId: string, userIds: string[]): Promise<State> {
+  const ctx = await requireOrg();
+  try { await setTeamMembers(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, teamId, userIds); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar os membros.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Membros atualizados.' };
+}
+
+export async function assignSupportTeamAction(conversationId: string, teamId: string | null): Promise<State> {
+  const ctx = await requireOrg();
+  try { await assignConversationTeam(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, teamId); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível rotear a conversa.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Time da conversa atualizado.' };
+}
+
+export async function setSupportLabelsAction(conversationId: string, labels: string[]): Promise<State> {
+  const ctx = await requireOrg();
+  try {
+    await setConversationLabels(await getDb(), { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, labels);
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível salvar as etiquetas.' }; }
+  revalidatePath('/suporte');
+  return { ok: 'Etiquetas atualizadas.' };
 }
 
 export async function assignSupportAction(conversationId: string, assigneeId: string | null): Promise<State> {

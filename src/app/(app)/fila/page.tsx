@@ -43,7 +43,7 @@ export default async function FilaPage() {
 
   const items = rows.map(({ a, lead, camp }) => ({
     id: a.id, type: a.type, body: a.body, campaign: camp.name, overdue: a.dueDate < today,
-    lead: { id: lead.id, fullName: lead.fullName, headline: lead.headline, company: lead.company, linkedinUrl: lead.linkedinUrl },
+    lead: { id: lead.id, fullName: lead.fullName, headline: lead.headline, company: lead.company, linkedinUrl: lead.linkedinUrl, phone: lead.phone },
   }));
   const slim = (l: typeof waiting[number]) => ({ id: l.id, fullName: l.fullName, headline: l.headline, company: l.company, linkedinUrl: l.linkedinUrl });
 

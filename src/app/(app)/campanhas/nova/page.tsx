@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { aiConfigured } from '@/lib/ai';
+import { campaignFeatures } from '@/lib/campaign-features';
 import { PageHeader } from '@/components/ui';
 import { CampaignEditor, DEFAULT_STEPS } from '../editor';
 
@@ -15,7 +16,7 @@ export default async function NovaCampanha() {
   return (
     <>
       <PageHeader title="Nova campanha" subtitle="Monte a sequência. Os textos usam variáveis e a IA adapta cada um ao lead." />
-      <CampaignEditor id={null} initial={{ name: '', aiBrief: '', assignedTo: ctx.user.id, steps: DEFAULT_STEPS }} members={members} aiOn={aiConfigured()} />
+      <CampaignEditor id={null} initial={{ name: '', aiBrief: '', assignedTo: ctx.user.id, steps: DEFAULT_STEPS }} members={members} aiOn={aiConfigured()} features={campaignFeatures(ctx.org)} />
     </>
   );
 }

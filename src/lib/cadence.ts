@@ -6,6 +6,8 @@ import { fillTemplate } from './template';
 import { sendWhatsAppCommand } from '@/lib/whatsapp/commands';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { sendSupportMail, mailerConfigured } from '@/lib/mailer';
+import { queueVoiceDelivery } from '@/lib/voice/delivery';
+import { campaignFeatures, stepTypeEnabled } from '@/lib/campaign-features';
 
 // Motor da cadência (modo assistido).
 // - O scheduler transforma inscrições vencidas em "ações" na Fila do dia de quem executa a campanha.
@@ -55,18 +57,32 @@ export async function enrollLeads(db: DB, orgId: string, campaignId: string, lea
   return { added, skipped: leadIds.length - added };
 }
 
+/** Passo com recurso desligado na operação: não age e a cadência avança para o próximo passo. */
+async function skipStep(db: DB, enr: typeof schema.enrollments.$inferSelect, camp: typeof schema.campaigns.$inferSelect, now: Date) {
+  const nextIndex = enr.stepIndex + 1;
+  const next = camp.steps[nextIndex];
+  if (!next) {
+    await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'done' }).where(eq(schema.enrollments.id, enr.id));
+  } else {
+    await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'running', nextRunAt: addDays(now, next.delayDays) })
+      .where(eq(schema.enrollments.id, enr.id));
+  }
+}
+
 /** Gera as ações vencidas. Idempotente: rodar duas vezes não duplica ações. */
 export async function runScheduler(db: DB, opts: {
   orgId?: string; now?: Date; generate?: Generator;
   sendEmail?: (to: string, subject: string, body: string) => Promise<void>;
   sendWhatsapp?: (scope: { orgId: string; userId: string }, phone: string, text: string) => Promise<{ providerMessageId: string }>;
+  sendMedia?: (scope: { orgId: string; userId: string }, phone: string, file: Blob, caption: string, kind: 'image' | 'document') => Promise<{ providerMessageId: string }>;
 } = {}) {
   const now = opts.now ?? new Date();
   const generate = opts.generate ?? defaultGenerator;
   const conds = [eq(schema.enrollments.state, 'running'), lte(schema.enrollments.nextRunAt, now), eq(schema.campaigns.status, 'active')];
   if (opts.orgId) conds.push(eq(schema.enrollments.orgId, opts.orgId));
   const due = await db
-    .select({ enr: schema.enrollments, camp: schema.campaigns, lead: schema.leads, aiEnabled: schema.orgs.aiEnabled })
+    .select({ enr: schema.enrollments, camp: schema.campaigns, lead: schema.leads, aiEnabled: schema.orgs.aiEnabled,
+      orgActive: schema.orgs.active, orgDemo: schema.orgs.isDemo, imageEnabled: schema.orgs.imageEnabled, callEnabled: schema.orgs.callEnabled })
     .from(schema.enrollments)
     .innerJoin(schema.orgs, eq(schema.orgs.id, schema.enrollments.orgId))
     .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.enrollments.campaignId))
@@ -75,14 +91,21 @@ export async function runScheduler(db: DB, opts: {
     .limit(500);
 
   let created = 0;
-  for (const { enr, camp, lead, aiEnabled } of due) {
+  for (const { enr, camp, lead, aiEnabled, orgActive, orgDemo, imageEnabled, callEnabled } of due) {
     const step = camp.steps[enr.stepIndex];
     if (!step) {
       await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
       continue;
     }
+    // Recursos de campanha dependem de activação da operação: sem activação, o passo não age.
+    const features = campaignFeatures({ active: orgActive, isDemo: orgDemo, imageEnabled, callEnabled });
     if (lead.stage === 'replied' || lead.stage === 'meeting' || lead.stage === 'won' || lead.stage === 'lost' || lead.stage === 'do_not_contact') {
       await db.update(schema.enrollments).set({ state: 'stopped' }).where(eq(schema.enrollments.id, enr.id));
+      continue;
+    }
+    if (!stepTypeEnabled(features, step.type)) {
+      // Passo ainda não alcançado com o recurso desligado: não age e não vira tarefa na Fila.
+      await skipStep(db, enr, camp, now);
       continue;
     }
     if (step.condition === 'accepted' && lead.stage !== 'connected') {
@@ -122,6 +145,27 @@ export async function runScheduler(db: DB, opts: {
           if (r.state === 'sent') { await completeAction(db, enr.orgId, userId, action.id, 'done', body, now); continue; }
         } catch { /* incerto: pendente, sem reenvio */ }
       }
+    } else if (action && step.type === 'voice') {
+      const phone = (lead.phone ?? '').replace(/\D/g, '');
+      if (phone) {
+        // Só enfileira a mensagem de voz (idempotente por action.id). A geração no Voice Studio pode
+        // levar minutos, então roda no worker de voz, que conclui a ação ao enviar. Aqui nunca geramos
+        // áudio nem concluímos; sem voz disponível, fica assistida na Fila.
+        try { await queueVoiceDelivery(db, { orgId: enr.orgId, userId }, { id: action.id, recipient: phone, text: body, kind: 'audio' }); }
+        catch { /* voz indisponível nesta operação */ }
+      }
+    } else if (action && step.type === 'image' && features.image) {
+      const phone = (lead.phone ?? '').replace(/\D/g, '');
+      const url = (step.mediaUrl ?? '').trim();
+      const cfg = akgConfig();
+      const send = opts.sendMedia ?? (cfg ? (scope: { orgId: string; userId: string }, p: string, f: Blob, c: string, k: 'image' | 'document') => new AkgGateway(cfg).sendMedia(scope, p, f, c, k) : null);
+      if (phone && url && send) {
+        try {
+          const media = await fetchMedia(url); // https, tamanho limitado; body é a legenda
+          await send({ orgId: enr.orgId, userId }, phone, media.file, body, media.kind);
+          await completeAction(db, enr.orgId, userId, action.id, 'done', body, now); continue;
+        } catch { /* incerto/sem mídia: fica pendente, sem reenvio automático */ }
+      }
     }
     // aguardando execução (assistida ou canal não configurado): próximo passo só após concluir a ação
     await db.update(schema.enrollments).set({ nextRunAt: addDays(now, 3650) }).where(eq(schema.enrollments.id, enr.id));
@@ -129,7 +173,22 @@ export async function runScheduler(db: DB, opts: {
   return { processed: due.length, created };
 }
 
-const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent' };
+const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent', email: 'email_sent', whatsapp: 'whatsapp_sent', voice: 'voice_sent', image: 'image_sent', call: 'call_made' };
+
+// Busca a imagem/informativo da URL pública do passo. https apenas; tamanho limitado; tipo pela resposta.
+// shortcut: aceita URL pública (sem upload/armazenamento próprio); evoluir para upload quando necessário.
+async function fetchMedia(url: string): Promise<{ file: Blob; kind: 'image' | 'document' }> {
+  const u = new URL(url);
+  if (u.protocol !== 'https:') throw new Error('A URL da mídia precisa ser https.');
+  const res = await fetch(u, { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error('Mídia indisponível na URL.');
+  const type = (res.headers.get('content-type') ?? '').split(';')[0].trim();
+  const kind = type === 'application/pdf' ? 'document' : type.startsWith('image/') ? 'image' : null;
+  if (!kind) throw new Error('Tipo de mídia não suportado (use imagem ou PDF).');
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > 16_000_000) throw new Error('Mídia acima de 16 MB.');
+  return { file: new Blob([buf], { type }), kind };
+}
 
 /** Conclui (ou pula) uma ação da fila e agenda o próximo passo da cadência. */
 export async function completeAction(db: DB, orgId: string, userId: string, actionId: string, outcome: 'done' | 'skipped', body?: string, now = new Date()) {

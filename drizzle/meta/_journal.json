@@ -120,6 +120,34 @@
       "when": 1793176946537,
       "tag": "0016_polite_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793229554104,
+      "tag": "0017_lean_doctor_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793230339538,
+      "tag": "0018_sticky_bloodstorm",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793230744714,
+      "tag": "0019_whole_gorilla_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793230920560,
+      "tag": "0020_powerful_betty_brant",
+      "breakpoints": true
     }
   ]
 }
