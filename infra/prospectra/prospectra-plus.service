@@ -12,7 +12,7 @@ WorkingDirectory=/opt/prospectra-plus-current
 Environment=NODE_ENV=production
 Environment=NODE_OPTIONS=--max-old-space-size=4096
 EnvironmentFile=/etc/prospectra-plus/app.env
-ExecStartPre=/usr/bin/node --input-type=module -e "for(const k of ['DATABASE_URL','AUTH_SECRET','CRON_SECRET'])if(!process.env[k])throw new Error(k+' is missing');if(process.env.PUBLIC_APP_URL!=='https://prospectra.argusprime.com.br')throw new Error('PUBLIC_APP_URL is invalid');"
+ExecStartPre=/usr/bin/node --input-type=module -e "for(const k of ['DATABASE_URL','CRON_SECRET'])if(!process.env[k])throw new Error(k+' is missing');if(process.env.PUBLIC_APP_URL!=='https://prospectra.argusprime.com.br')throw new Error('PUBLIC_APP_URL is invalid');"
 ExecStart=/usr/bin/node /opt/prospectra-plus-current/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3100
 Restart=on-failure
 RestartSec=5
