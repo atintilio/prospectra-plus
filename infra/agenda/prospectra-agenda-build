@@ -8,7 +8,7 @@ RUNENV=(python3 /opt/agenda/run_env.py)
 export YARN_NM_MODE=hardlinks-local
 
 fail() {
-  echo "=== BUILD v6 FIM (falha) $(date -Is) ==="
+  echo "=== BUILD v7 FIM (falha) $(date -Is) ==="
   exit 1
 }
 
@@ -22,9 +22,9 @@ step() {
   [ "$result" -eq 0 ] || fail
 }
 
-echo "=== BUILD v6 INICIADO $(date -Is) ==="
+echo "=== BUILD v7 INICIADO $(date -Is) ==="
 cd /opt/agenda/source || fail
-step install 14400 install --immutable
+step install 14400 install --immutable --inline-builds
 [ -f node_modules/.yarn-state.yml ] || fail
 step trpc 900 workspace @calcom/trpc run build
 step embed 900 --cwd packages/embeds/embed-core workspace @calcom/embed-core run build
@@ -32,4 +32,4 @@ step assets 600 --cwd apps/web workspace @calcom/web run copy-app-store-static
 step web 3600 --cwd apps/web workspace @calcom/web run build
 step migrate 600 prisma migrate deploy --schema=packages/prisma/schema.prisma
 chown -R prospectra-agenda:prospectra-agenda /opt/agenda/source || fail
-echo "=== BUILD v6 FIM $(date -Is) ==="
+echo "=== BUILD v7 FIM $(date -Is) ==="
