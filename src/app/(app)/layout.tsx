@@ -19,9 +19,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const roleLabel = ctx.user.platformRole === 'admin' ? 'Admin master' : ({ owner: 'Dono', manager: 'Gestor', sdr: 'SDR', closer: 'Closer' } as const)[ctx.role ?? 'sdr'];
 
   return (
-    <div className="prospectra-shell flex min-h-dvh">
+    <div className="prospectra-shell relative flex min-h-dvh overflow-hidden">
+      <video className="prospectra-ambient" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260823_050407_500d0339-ab28-41c1-9688-132a74a3b5aa.mp4" />
+      <div className="prospectra-ambient-scrim" aria-hidden="true" />
       <Sidebar isDemo={isDemo} isAdmin={ctx.user.platformRole === 'admin'} canManage={ctx.role === 'owner' || ctx.role === 'manager'} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <header className="prospectra-topbar sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b border-border bg-white/90 px-4 backdrop-blur md:px-8">
           <div className="md:hidden" />
           <OrgSwitcher orgs={orgs} current={ctx.org?.id ?? null} />
