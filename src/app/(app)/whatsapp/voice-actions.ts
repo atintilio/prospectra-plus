@@ -9,6 +9,7 @@ import {queueVoiceDelivery,saveVoiceProfile,claimVoiceRegistration} from '@/lib/
 type State={message:string};
 export async function registerVoiceAction(_:State,form:FormData):Promise<State>{
  const ctx=await requireOrg();
+ if(ctx.org.isDemo)return {message:'Demonstração: voz cadastrada e pronta para simulação; nenhum áudio real foi criado.'};
  try{
   const scope=assertWhatsAppAccess(ctx),config=voiceConfig();
   if(!config||!ctx.org.aiEnabled)throw Error('Voz indisponível.');
@@ -21,6 +22,7 @@ export async function registerVoiceAction(_:State,form:FormData):Promise<State>{
 }
 export async function queueVoiceAction(_:State,form:FormData):Promise<State>{
  const ctx=await requireOrg();
+ if(ctx.org.isDemo)return {message:'Demonstração: áudio simulado e registrado; nada foi enviado.'};
  try{
   const scope=assertWhatsAppAccess(ctx);
   if(process.env.VOICE_AUTOMATION_ENABLED!=='true'||!voiceConfig())throw Error('Executor indisponível.');
