@@ -15,6 +15,7 @@ export function HarveyOperations({profile,leads,conversations,sellerName,enabled
  <div className="grid gap-5 lg:grid-cols-2">
  <form className="card p-5 space-y-4" onSubmit={e=>{e.preventDefault();start(async()=>{const r=await saveProfileAction(draft);setMessage(r.error??'Perfil e ofertas salvos.');setSaved(Boolean(r.ok));});}}>
  <h3 className="font-semibold">Perfil comercial e ofertas manuais</h3>
+{!profile&&<p className="text-xs text-muted">Primeiro passo: salve seu perfil e pelo menos uma oferta. Sem isso o fluxo por lead não tem o que oferecer e a IA não tem identidade para falar.</p>}
  {(['sellerName','companyName','sellerPhone'] as const).map(key=><label className="block text-sm" key={key}>{{sellerName:'Nome do vendedor',companyName:'Empresa apresentada ao lead',sellerPhone:'WhatsApp interno do vendedor (país + DDD + número)'}[key]}<input className="input mt-1 w-full" required value={draft[key]} onChange={e=>edit(key,e.target.value)} maxLength={key==='sellerPhone'?16:100}/></label>)}
  <label className="block text-sm">Estratégia aprovada<textarea className="input mt-1 w-full" required minLength={5} maxLength={2000} rows={3} value={draft.strategy} onChange={e=>edit('strategy',e.target.value)} placeholder="Público, objetivo, tom, limites e quando você quer assumir."/></label>
  <p className="text-xs text-muted">A primeira oferta abre o contato. Nas respostas, a IA só escolhe ofertas e perguntas permitidas. O fluxo encerra a qualificação em até três respostas e transfere para o vendedor.</p>
