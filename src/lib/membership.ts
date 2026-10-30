@@ -24,3 +24,20 @@ export async function ensureTeam(db: DB, userId: string, legacyRole?: string | n
   await db.insert(schema.memberships).values({ orgId, userId, role: legacyRole === 'admin' ? 'manager' : 'sdr' }).onConflictDoNothing();
   return true;
 }
+
+/**
+ * Garante que o admin master tenha operação e equipe de dono.
+ *
+ * Depois de um incidente em que o banco foi recriado, as operações podem sumir
+ * mesmo com as contas de pé: o login cria a sessão sem parceiro e o usuário cai
+ * em /sem-equipe, com o Prospectra "aberto" mas sem nada para usar.
+ */
+export async function ensureMasterOrg(db: DB, userId: string, orgName = 'Argus Prime'): Promise<string> {
+  const [membership] = await db.select({ orgId: schema.memberships.orgId }).from(schema.memberships)
+    .where(eq(schema.memberships.userId, userId)).limit(1);
+  if (membership) return membership.orgId;
+  const [found] = await db.select().from(schema.orgs).where(eq(schema.orgs.name, orgName)).limit(1);
+  const org = found ?? (await db.insert(schema.orgs).values({ name: orgName, seats: 50, searchCreditsMonth: 5000 }).returning())[0];
+  await db.insert(schema.memberships).values({ orgId: org.id, userId, role: 'owner' }).onConflictDoNothing();
+  return org.id;
+}

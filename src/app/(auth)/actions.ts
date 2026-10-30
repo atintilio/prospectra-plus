@@ -7,7 +7,7 @@ import { createSession, destroySession, isMasterEmail, issueAccessLink, normaliz
 import { hashPassword, sha256, verifyPassword } from '@/lib/crypto';
 import { sendAccessEmail } from '@/lib/mailer';
 import { findLegacyUser } from '@/lib/legacy';
-import { ensureTeam } from '@/lib/membership';
+import { ensureMasterOrg, ensureTeam } from '@/lib/membership';
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -40,7 +40,12 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
     if (!user || user.status !== 'active' || !(await verifyPassword(password, user.passwordHash))) {
       return { error: 'E-mail ou senha incorretos.' };
     }
-    if (user.platformRole !== 'admin') {
+    if (isMasterEmail(email)) {
+      // O master precisa de operação + equipe para entrar: garante sempre (o banco pode
+      // ter sido recriado e as operações perdidas — sem isso o login cai em /sem-equipe).
+      await ensureMaster(email);
+      [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
+    } else if (user.platformRole !== 'admin') {
       // conta migrada do v1 chega sem equipe: coloca na equipe padrão com o papel equivalente
       legacy = legacy ?? (await findLegacyUser(email));
       if (legacy) await ensureTeam(db, user.id, legacy.role);
@@ -59,6 +64,9 @@ async function ensureMaster(email: string) {
   const [existing] = await db.select().from(schema.users).where(eq(schema.users.email, email));
   if (existing) {
     if (existing.platformRole !== 'admin') await db.update(schema.users).set({ platformRole: 'admin' }).where(eq(schema.users.id, existing.id));
+    // Sem operação (tabelas recriadas após incidente) o master entra sem parceiro e
+    // cai em /sem-equipe. Garante a operação e a equipe de dono.
+    await ensureMasterOrg(db, existing.id);
     return existing;
   }
   const [user] = await db.insert(schema.users).values({ email, name: 'Administrador', platformRole: 'admin', status: 'invited' }).returning();
