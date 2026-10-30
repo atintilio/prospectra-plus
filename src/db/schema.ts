@@ -78,6 +78,7 @@ export const leads = pgTable('leads', {
   email: text('email').notNull().default(''),   // merge de CRM: contato completo, não só LinkedIn
   phone: text('phone').notNull().default(''),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
+  attributes: jsonb('attributes').notNull().default(sql`'{}'::jsonb`), // atributos personalizados por operação (Fase A)
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex('leads_org_url_uq').on(t.orgId, t.linkedinUrl),
@@ -323,6 +324,12 @@ export const supportConversations=pgTable('support_conversations',{
  visitorPhone:text('visitor_phone').notNull().default(''),
  labels:text('labels').array().notNull().default(sql`'{}'::text[]`), // etiquetas para classificar/filtrar
  lastMessageAt:timestamp('last_message_at',{withTimezone:true}).notNull().defaultNow(),
+ slaDueAt:timestamp('sla_due_at',{withTimezone:true}), // prazo de primeira resposta
+ resolvedAt:timestamp('resolved_at',{withTimezone:true}), // resolução concluída
+ autoReplied:boolean('auto_replied').notNull().default(false), // respondeu fora do horário
+ csatRating:integer('csat_rating'), // 1..5
+ csatComment:text('csat_comment'),
+ csatSentAt:timestamp('csat_sent_at',{withTimezone:true}),
  createdAt:createdAt(),
 },t=>[index('support_conversations_inbox_idx').on(t.orgId,t.status,t.lastMessageAt),index('support_conversations_lead_idx').on(t.orgId,t.leadId),index('support_conversations_phone_idx').on(t.orgId,t.visitorPhone)]);
 export const supportMessages=pgTable('support_messages',{
@@ -391,3 +398,86 @@ export const tasks=pgTable('tasks',{
  createdAt:createdAt(),
  updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
 },t=>[index('tasks_org_status_idx').on(t.orgId,t.status,t.updatedAt)]);
+
+// ── Helpin fase 6: SLA, horário de atendimento, auto-resposta e atributos ──
+// SLA por operação: prazo de primeira resposta e de resolução, em minutos.
+export const supportSlaPolicies = pgTable('support_sla_policies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  firstResponseMinutes: integer('first_response_minutes').notNull().default(60),
+  resolutionMinutes: integer('resolution_minutes').notNull().default(1440),
+  businessHoursOnly: boolean('business_hours_only').notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('support_sla_policies_org_uq').on(t.orgId)]);
+
+// Horário de atendimento: dias da semana (0=domingo..6=sábado), minutos do dia.
+// Fora do horário, a conversa cai na fila e a auto-resposta entra (se ligada).
+export const supportSchedules = pgTable('support_schedules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  timezone: text('timezone').notNull().default('America/Sao_Paulo'),
+  weekdays: integer('weekdays').array().notNull().default(sql`'{1,2,3,4,5}'::int[]`),
+  openMinute: integer('open_minute').notNull().default(9 * 60),
+  closeMinute: integer('close_minute').notNull().default(18 * 60),
+  autoReplyEnabled: boolean('auto_reply_enabled').notNull().default(false),
+  autoReplyMessage: text('auto_reply_message').notNull().default(''),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('support_schedules_org_uq').on(t.orgId)]);
+
+// Formulário pré-chat: campos pedidos antes de abrir a conversa no widget.
+export const supportPrechatForms = pgTable('support_prechat_forms', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  fields: jsonb('fields').notNull().default(sql`'[]'::jsonb`),
+  active: boolean('active').notNull().default(false),
+  createdAt: createdAt(),
+}, (t) => [index('support_prechat_forms_org_idx').on(t.orgId, t.active)]);
+
+// Atributos personalizados de lead por operação (Fase A).
+export const leadAttributeDefs = pgTable('lead_attribute_defs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  key: text('key').notNull(),
+  type: text('type', { enum: ['text', 'number', 'date', 'bool', 'select'] }).notNull().default('text'),
+  options: text('options').array().notNull().default(sql`'{}'::text[]`),
+  required: boolean('required').notNull().default(false),
+  position: integer('position').notNull().default(0),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('lead_attribute_defs_org_key_uq').on(t.orgId, t.key), index('lead_attribute_defs_org_idx').on(t.orgId, t.position)]);
+
+// Regras de automação do Helpin (Fase C): gatilho -> condições -> ações.
+export const automationRules = pgTable('automation_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger', { enum: ['conversation_created', 'conversation_replied', 'sla_breached', 'conversation_closed', 'csat_received'] }).notNull(),
+  conditions: jsonb('conditions').notNull().default(sql`'[]'::jsonb`),
+  actions: jsonb('actions').notNull().default(sql`'[]'::jsonb`),
+  active: boolean('active').notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [index('automation_rules_org_active_idx').on(t.orgId, t.active)]);
+
+// Auditoria: rastro de ações sensíveis por operação (Fase D).
+export const auditLog = pgTable('audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+  action: text('action').notNull(),
+  entity: text('entity').notNull(),
+  entityId: text('entity_id'),
+  payload: jsonb('payload').notNull().default(sql`'{}'::jsonb`),
+  createdAt: createdAt(),
+}, (t) => [index('audit_log_org_created_idx').on(t.orgId, t.createdAt)]);
+
+// Webhooks de saída: o Prospectra avisa a URL do parceiro nos eventos escolhidos (Fase D).
+export const webhookEndpoints = pgTable('webhook_endpoints', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  secret: text('secret').notNull(),
+  events: text('events').array().notNull().default(sql`'{}'::text[]`),
+  active: boolean('active').notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [index('webhook_endpoints_org_idx').on(t.orgId, t.active)]);

@@ -148,6 +148,13 @@
       "when": 1793230920560,
       "tag": "0020_powerful_betty_brant",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793327144542,
+      "tag": "0021_helpin_fase6_sla_atributos",
+      "breakpoints": true
     }
   ]
 }
