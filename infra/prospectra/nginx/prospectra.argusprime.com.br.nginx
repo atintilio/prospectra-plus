@@ -1,0 +1,38 @@
+# Vhost do Prospectra na VPS nativa (nginx).
+# O TLS termina na Cloudflare; aqui o nginx escuta so em [::]:80.
+#
+# O gateway do WhatsApp (WA-AKG) mora em 127.0.0.1:3101 e e exposto sob o
+# prefixo /whatsapp-gateway porque o dominio do CRM (crm.argusprime.com.br)
+# aponta para a Vercel — o proxy do WA-AKG no vhost do CRM nunca chega na VPS.
+#
+# A lista de rotas permitidas e a mesma do CRM: só o que o Prospectra usa.
+
+server {
+    listen [::]:80;
+    server_name prospectra.argusprime.com.br;
+    client_max_body_size 20m;
+
+    # Gateway do WhatsApp (WA-AKG).
+    location ^~ /whatsapp-gateway/api/ {
+        if ($http_x_api_key = "") { return 401; }
+        if ($uri !~ "^/whatsapp-gateway/api/(sessions(/[A-Za-z0-9_-]+(/(start|stop|logout|qr|bot-config))?)?|messages/[A-Za-z0-9_-]+/[^/]+/(send|media)|webhooks/[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)?)$") { return 404; }
+        client_max_body_size 9m;
+        rewrite ^/whatsapp-gateway(/api/.*)$ $1 break;
+        proxy_pass http://127.0.0.1:3101;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 60s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3100;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 120s;
+    }
+}

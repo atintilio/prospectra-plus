@@ -85,6 +85,17 @@ it('troca de modelo quando o provedor entra em rate limit (1302)', async () => {
   expect(calls.map((call) => call.body.model)).toEqual(['glm-4.7', 'glm-4.7-flash']);
 });
 
+it('troca de modelo quando o serviço está sobrecarregado (1305)', async () => {
+  vi.stubEnv('AI_BASE_URL', ZAI_ENDPOINT);
+  vi.stubEnv('AI_API_KEY', 'zai-key');
+  vi.stubEnv('AI_MODEL', 'glm-4.7');
+  const calls = mockProvider((call) => (call.body.model === 'glm-4.7'
+    ? zaiError('1305', 'The service may be temporarily overloaded, please try again later')
+    : ok('depois da sobrecarga')));
+  expect(await aiComplete('sistema', 'usuario')).toBe('depois da sobrecarga');
+  expect(calls.map((call) => call.body.model)).toEqual(['glm-4.7', 'glm-4.7-flash']);
+});
+
 it('não troca de modelo em erro de autenticação (401) e falha direto', async () => {
   vi.stubEnv('AI_BASE_URL', ZAI_ENDPOINT);
   vi.stubEnv('AI_API_KEY', 'zai-key');

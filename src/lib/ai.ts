@@ -18,7 +18,7 @@ const MAX_ATTEMPTS = 3;
 /** Código do provedor que significa "sem saldo / sem pacote de recursos". */
 const ACCOUNT_ERROR_CODES = new Set(['1113']);
 /** Códigos do provedor que significam "limite de requisições". */
-const RATE_LIMIT_ERROR_CODES = new Set(['1302', '429']);
+const RATE_LIMIT_ERROR_CODES = new Set(['1302', '1305', '429']);
 
 export type AiProvider = { endpoint: string; isOpenRouter: boolean; isZai: boolean; key?: string };
 
