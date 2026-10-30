@@ -26,13 +26,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="auth-hero-scrim" aria-hidden="true" />
       <header className="auth-nav">
         <a className="auth-brand" href="#home"><span className="auth-brand-mark"><i /></span><span>prospectra</span></a>
-        <nav className={menuOpen ? 'auth-links auth-links-open' : 'auth-links'} aria-label="Navegação principal"><a href="#home" onClick={closeMenu}>HOME</a><a href="#about" onClick={closeMenu}>ABOUT</a><a href="#contact" onClick={closeMenu}>CONTACT US</a></nav>
+        <nav className={menuOpen ? 'auth-links auth-links-open' : 'auth-links'} aria-label="Navegação principal"><a href="#home" onClick={closeMenu}>INÍCIO</a><a href="#about" onClick={closeMenu}>SOBRE</a><a href="#contact" onClick={closeMenu}>CONTATO</a></nav>
         <button className="auth-menu-toggle" type="button" aria-expanded={menuOpen} aria-label="Abrir menu" onClick={() => setMenuOpen((open) => !open)}><span /><span /><span /></button>
-        <a className="auth-contact" href="#contact">CONTACT US <span aria-hidden="true">↗</span></a>
+        <a className="auth-contact" href="#contact">FALE CONOSCO <span aria-hidden="true">↗</span></a>
       </header>
-      <div className="auth-hero-grid"><div className="auth-hero-copy"><p className="auth-kicker">PROSPECÇÃO ASSISTIDA POR IA</p><h1>SCALING<br />THE<br />PLATFORM<br /><span>FOR</span><br /><span>YOUR</span><br /><span className="auth-accent">BUSINESS</span></h1><a className="auth-cta" href="#about">GET STARTED <b aria-hidden="true" /></a></div><div className="auth-login-card">{children}</div></div>
+      <div className="auth-hero-grid"><div className="auth-hero-copy"><p className="auth-kicker">PROSPECÇÃO ASSISTIDA POR IA</p><h1>ESCALE<br />A<br />PLATAFORMA<br /><span>DO</span><br /><span>SEU</span><br /><span className="auth-accent">NEGÓCIO</span></h1><a className="auth-cta" href="#about">COMEÇAR <b aria-hidden="true" /></a></div><div className="auth-login-card">{children}</div></div>
     </section>
-    <section className="auth-about" id="about"><div className="auth-about-copy"><h2>ABOUT<br /><span>PROSPECTRA</span></h2><p>O Prospectra transforma relacionamento em oportunidade. Da busca inteligente às cadências personalizadas, sua equipe encontra os contatos certos, entende o contexto e conduz cada conversa até a reunião.</p><a className="auth-cta" href="#contact">LEARN MORE <b aria-hidden="true" /></a></div><div className="auth-about-media"><video data-autoplay autoPlay muted loop playsInline preload="auto" src={aboutVideo} aria-label="Demonstração visual do Prospectra" /><div aria-hidden="true" /></div></section>
+    <section className="auth-about" id="about"><div className="auth-about-copy"><h2>SOBRE<br /><span>O PROSPECTRA</span></h2><p>O Prospectra transforma relacionamento em oportunidade. Da busca inteligente às cadências personalizadas, sua equipe encontra os contatos certos, entende o contexto e conduz cada conversa até a reunião.</p><a className="auth-cta" href="#contact">SAIBA MAIS <b aria-hidden="true" /></a></div><div className="auth-about-media"><video data-autoplay autoPlay muted loop playsInline preload="auto" src={aboutVideo} aria-label="Demonstração visual do Prospectra" /><div aria-hidden="true" /></div></section>
     <footer id="contact" className="auth-footer">© Argus Prime · Prospectra</footer>
   </main>;
 }

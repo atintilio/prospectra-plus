@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "@fontsource/libre-baskerville/400-italic.css";
-@import url('https://fonts.googleapis.com/css2?family=Quantico:wght@400;700&display=swap');
+/* Quantico era importado do Google Fonts: o bundler descartava o @import url e a
+   fonte caía no fallback (Arial Narrow). Agora é servida pelo próprio app. */
+@import "@fontsource/quantico/400.css";
+@import "@fontsource/quantico/700.css";
 
 /* Identidade Prospectra: base LeadFlow (branco, azul elétrico) + logo azul/roxo/prata */
 :root {
