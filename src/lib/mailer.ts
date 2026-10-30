@@ -63,6 +63,21 @@ export async function sendAccessEmail(to: string, link: string, opts: { name?: s
 }
 
 
+export async function sendRawEmail(opts: { to: string; subject: string; html: string; mailbox?: string; attachments?: { name: string; contentBase64: string; contentType: string }[] }): Promise<void> {
+  const sender = opts.mailbox?.trim() || env('OFFICE365_SENDER_EMAIL', 'MS_GRAPH_USER_ID', 'MAIL_FROM');
+  if (!sender) throw new Error('OFFICE365_NOT_CONFIGURED');
+  const token = await accessToken();
+  const message: Record<string, unknown> = { subject: opts.subject, body: { contentType: 'HTML', content: opts.html }, toRecipients: [{ emailAddress: { address: opts.to } }] };
+  if (opts.attachments?.length) {
+    message.attachments = opts.attachments.map((a) => ({ '@odata.type': '#microsoft.graph.fileAttachment', name: a.name, contentType: a.contentType, contentBytes: a.contentBase64 }));
+  }
+  const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, saveToSentItems: true }),
+  });
+  if (!res.ok) throw new Error(`OFFICE365_SEND_FAILED_${res.status}`);
+}
 export async function sendDeletionReport(report: { id: string; actorEmail: string; orgName: string; createdAt: Date; records: { id: string; name: string }[] }): Promise<void> {
   const sender = env('OFFICE365_SENDER_EMAIL', 'MS_GRAPH_USER_ID', 'MAIL_FROM');
   if (!sender) throw new Error('OFFICE365_NOT_CONFIGURED');
