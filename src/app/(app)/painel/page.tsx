@@ -6,6 +6,8 @@ import { requireOrg } from '@/lib/auth';
 import { aiGenerator } from '@/lib/ai';
 import { dayString, runScheduler } from '@/lib/cadence';
 import { Avatar, Card, KpiCard, LineChart, PageHeader, StagePill } from '@/components/ui';
+import { agendaStatus } from '@/lib/agenda';
+import { AgendaSetupCard } from '../agenda-card';
 
 export const metadata = { title: 'Painel' };
 
@@ -27,7 +29,7 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
       .where(and(scope(schema.events), gte(schema.events.at, start), lt(schema.events.at, end))).groupBy(schema.events.type);
     return Object.fromEntries(rows.map((r) => [r.type, r.n])) as Record<string, number>;
   };
-  const [cur, prev] = await Promise.all([counts(from, now), counts(prevFrom, from)]);
+  const [cur, prev, agenda] = await Promise.all([counts(from, now), counts(prevFrom, from), agendaStatus()]);
   const delta = (k: string) => (prev[k] ? Math.round((((cur[k] ?? 0) - prev[k]) / prev[k]) * 100) : null);
   const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
   const invites = cur.invite_sent ?? 0, accepted = cur.invite_accepted ?? 0, replies = cur.reply_received ?? 0, msgs = cur.message_sent ?? 0;
@@ -82,6 +84,7 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
           ))}
         </div>
       </PageHeader>
+      <AgendaSetupCard awaitingAdmin={agenda.awaitingAdmin} unreachable={agenda.unreachable} message={agenda.message} />
 
       {pending > 0 && (
         <Link href="/fila" className="mb-6 flex items-center justify-between rounded-2xl bg-gradient-to-r from-accent to-violet px-5 py-4 text-white shadow-sm">

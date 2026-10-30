@@ -1,0 +1,1 @@
+ALTER TABLE "orgs" ADD COLUMN "linkedin_enabled" boolean DEFAULT false NOT NULL;

@@ -30,6 +30,9 @@ export const orgs = pgTable('orgs', {
   // o passo de imagem/informativo e o de ligação só existem para quem os ativou.
   imageEnabled: boolean('image_enabled').notNull().default(false),
   callEnabled: boolean('call_enabled').notNull().default(false),
+  // LinkedIn automático: o backend (LINKEDIN_AUTOMATION_ENABLED) é o interruptor geral;
+  // cada operação liga o seu dentro do Prospectra.
+  linkedinEnabled: boolean('linkedin_enabled').notNull().default(false),
   isDemo: boolean('is_demo').notNull().default(false),
   createdAt: createdAt(),
 });

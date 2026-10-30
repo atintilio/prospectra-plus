@@ -47,6 +47,18 @@ export class VoiceStudioGateway {
   const data=JSON.parse(new TextDecoder().decode(await this.bounded(response,64000)));
   return {profileId:id.parse(data.id)};
  }
+ /** Transcreve a gravação de referência — o MOSS-TTS-Nano exige o texto exato do áudio. */
+ async transcribe(reference:Blob):Promise<string>{
+  const type=reference.type.split(';')[0];
+  if(!reference.size||reference.size>3_000_000||!['audio/wav','audio/x-wav','audio/webm','audio/ogg','audio/mpeg','audio/mp4'].includes(type))throw Error('Gravação de referência inválida.');
+  const ext=({'audio/wav':'wav','audio/x-wav':'wav','audio/webm':'webm','audio/ogg':'ogg','audio/mpeg':'mp3','audio/mp4':'m4a'}[type]);
+  const form=new FormData();form.set('audio',reference,'reference.'+ext);form.set('language','pt');
+  const response=await this.request('/transcribe',{method:'POST',body:form},180000);
+  const data=JSON.parse(new TextDecoder().decode(await this.bounded(response,64000)));
+  const text=typeof data?.text==='string'?data.text:(typeof data?.transcript==='string'?data.transcript:'');
+  if(!text.trim())throw Error('Não foi possível transcrever a gravação.');
+  return text.trim();
+ }
  async generate(input:{profileId:string;text:string;language?:string}):Promise<Blob>{
   const profileId=id.parse(input.profileId),text=textSchema.parse(input.text);
   const form=new FormData();form.set('profile_id',profileId);form.set('text',text);form.set('engine',this.config.engine);form.set('language',z.enum(['Portuguese']).parse(input.language??'Portuguese'));form.set('stream','false');

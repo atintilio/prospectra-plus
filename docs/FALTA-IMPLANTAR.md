@@ -128,9 +128,18 @@ Schema (migration aditiva `drizzle/0021_helpin_fase6_sla_atributos.sql` ✅) + m
 **Como verificar**: `/api/health` ✅, `/api/cron` ✅, `/api/support/reports` (sessão) ✅,
 `/atendimento` ✅, `/relatorios` ✅, `/leads/atributos` ✅.
 
+### 2.8 Entrega de 30/10 (tarde) — voz, agenda e LinkedIn
+
+| Entrega | Onde | Como funciona |
+|---|---|---|
+| Clonagem da sua voz | `/voz` | Você grava → o Prospectra transcreve no Voice Studio → cria o perfil vinculado só à sua conta |
+| Primeiro acesso da agenda | Card no Painel e em `/admin` | O Prospectra (na mesma VPS) cria o admin da agenda pelo loopback; publicamente `/auth/setup` segue 403 |
+| LinkedIn automático | `/admin` | Backend ligado; cada operação libera o seu. A fila só despacha para operação com o flag ligado |
+| Transcrição automática | `VoiceStudioGateway.transcribe()` | Novo método: `POST /transcribe` no Voice Studio (multipart, `language=pt`) |
+
 ---
 
-## 2.8 Achados da auditoria de 30/10 (o que já foi corrigido)
+### 2.9 Achados da auditoria de 30/10 (o que já foi corrigido)
 
 | Achado | Correção |
 |---|---|
@@ -145,10 +154,10 @@ Schema (migration aditiva `drizzle/0021_helpin_fase6_sla_atributos.sql` ✅) + m
 | # | Item | O que falta | Depende de |
 |---|------|-------------|------------|
 | 1 | **WhatsApp real** | Parear o número (QR na tela **WhatsApp** do app) e validar envio/recebimento/respostas/encaminhamento | **Você** escaneando o QR |
-| 2 | **Voz automática** | Validar a voz à mão e então ligar `VOICE_AUTOMATION_ENABLED=true` na Vercel | **Você** (decisão) |
-| 3 | **Agenda (cal.diy)** | Build e serviço prontos ✅ — falta **criar o primeiro admin** (o vhost bloqueia `/auth/setup` com 403 por segurança: remover a trava por 2 min ou túnel SSH) | **Você** |
+| 2 | **Voz automática** | Clonar a sua voz em `/voz` ✅ (gravar ✅ → transcrever ✅ → criar o perfil ✅) ✅, validar à mão e então ligar `VOICE_AUTOMATION_ENABLED=true` | **Você** (a gravação) |
+| 3 | **Agenda (cal.diy)** | No ar ✅ e **com o primeiro admin já criado** ✅ (`atintilio` ✅) — o cadastro agora também acontece dentro do Prospectra (card no Painel e em `/admin` ✅) ✅; falta `MEETING_SCHEDULER_URL` na Vercel ✅ | **Você** (a senha do admin) |
 | 4 | **Agendamento de reuniões** | Apontar `MEETING_SCHEDULER_URL` na Vercel para a agenda; o provedor de e-mail (Gmail/Office365/Zimbra) você configura | Agenda no ar |
-| 5 | **LinkedIn automático** | Decidir se ativa; provisionar `LINKEDIN_AUTOMATION_ENABLED`, `LINKEDIN_WORKER_URL` e `LINKEDIN_WORKER_KEY`; rodar `infra/linkedin` com `LI_AT` e `PROXY_URL`; revalidar os seletores no site vivo | **Você** (decisão — termos de uso) |
+| 5 | **LinkedIn automático** | O backend **já está ligado** ✅ e cada operação liga o seu em `/admin` ✅ — falta `LINKEDIN_WORKER_URL`/`LINKEDIN_WORKER_KEY` ✅, rodar `infra/linkedin` com `LI_AT` e `PROXY_URL` ✅ e revalidar os seletores no site vivo ✅ | **Você** (proxy e conta) |
 | 6 | **Worker de inteligência** | `INTELLIGENCE_WORKER_ENABLED` não está configurada na Vercel; o executor Python precisa ser validado na VPS | Validação na VPS |
 | 7 | **CRM (Argus)** | Nada — fora de escopo nesta fase | **Você** (re-deploy) |
 | 8 | **Helpin standalone** | **Não recomendado** — ver riscos | Decisão sua |

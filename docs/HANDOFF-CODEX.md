@@ -44,6 +44,30 @@ a auto-resposta entra como mensagem de sistema ✅ e marca `auto_replied` ✅; f
 
 **Testes**: `tests/helpin-fase6.test.ts` — 21 casos ✅ (horário, SLA, webhooks, persistência ✅).
 
+## Entrega de 30/10 (tarde) — voz, agenda e LinkedIn
+
+**Voz (`/voz`)** — página nova para clonar a própria voz ✅:
+- `VoiceStudioGateway.transcribe()` ✅ (novo, em `src/lib/voice/voicestudio.ts` ✅): manda a
+  gravação ao `POST /transcribe` ✅ do Voice Studio ✅ e devolve o texto ✅ — o MOSS-TTS-Nano
+  exige o texto exato do áudio ✅, sem isso o clone sai torto ✅.
+- O formulário ✅ fica em `src/app/(app)/voz/` ✅ com o botão **"Transcrever automaticamente"** ✅.
+- O perfil ✅ é vinculado **só à conta do usuário** ✅ (`voice_profiles` ✅, chave org+user ✅) ✅.
+- `registerVoiceAction` (WhatsApp) ✅ continua válido ✅ — a página nova é o caminho descobrível ✅.
+
+**Agenda (cal.diy)** — o primeiro acesso agora acontece dentro do Prospectra ✅:
+- `src/lib/agenda.ts` ✅: `agendaStatus()` ✅ (sonda `POST /api/auth/setup` ✅ com corpo vazio ✅ —
+  400 = já tem admin ✅, 422 = ainda não tem ✅) ✅ e `createAgendaAdmin()` ✅ ✅.
+- `AgendaSetupCard` ✅ aparece no **Painel** (primeiro acesso ✅) ✅ e em **/admin** ✅ ✅.
+- O nginx ✅ libera `/api/auth/setup` **apenas para o loopback** ✅ (`allow 127.0.0.1; allow ::1; deny all;` ✅) ✅
+  — publicamente continua 403 ✅ ✅. O Prospectra (na mesma máquina) ✅ cria o admin ✅ ✅.
+- **Estado real**: a agenda **já tem** admin ✅ (`atintilio` ✅, criado em 29/10 ✅) ✅.
+
+**LinkedIn** — automático ligado no backend ✅, liberado por operação ✅:
+- `orgs.linkedin_enabled` ✅ (migration `0022` ✅ ✅) ✅ + toggle em `/admin` ✅ ✅.
+- `LINKEDIN_AUTOMATION_ENABLED=true` ✅ no backend ✅ (VPS ✅ e Vercel ✅ ✅) ✅ — o interruptor geral ✅ ✅.
+- A fila só despacha para operações com o flag ligado ✅ (`runLinkedinQueue` ✅ filtra por
+  `orgs.linkedin_enabled` ✅ ✅) ✅ — o interruptor geral **e** o por operação ✅ ✅.
+
 ## Próximos passos — CÓDIGO (Codex)
 Expansão do Helpin, na ordem. Cada tela nova **responsiva no mobile**.
 
@@ -80,7 +104,7 @@ O que falta pra ficar **100% operacional** (o que já está no ar está marcado 
 1. **WhatsApp**: WA-AKG no ar ✅ (`https://crm.argusprime.com.br/prospectra-whatsapp` ✅, envs na Vercel ✅) — falta **parear o número** escaneando o QR na tela **WhatsApp** do app ✅ → liga Harvey + WhatsApp/voz/imagem ✅.
 2. **Voz**: Voice Studio no ar ✅ (`https://voice.argusprime.com.br` ✅, 401 sem chave ✅, 200 com chave ✅, motor MOSS-TTS-Nano ✅) — falta `VOICE_AUTOMATION_ENABLED=true` depois da **validação à mão** ✅ e o profile de voz com **referência PT-BR** ✅ (hoje é a demo em inglês ✅).
 3. **LinkedIn automático**: `infra/linkedin` pronto na VPS ✅ — falta `LINKEDIN_AUTOMATION_ENABLED=true` + `LINKEDIN_WORKER_URL/KEY` ✅ (decisão do dono, risco de termos de uso ✅) e **revalidar os seletores** no site vivo ✅.
-4. **Agendamento**: cal.diy **buildado e no ar** ✅ (`https://agenda.argusprime.com.br` ✅, 307 → `/auth/setup` ✅) — falta criar o **primeiro admin** ✅ (o vhost bloqueia `/auth/setup` com 403 de propósito ✅: remover a trava por 2 min ou túnel SSH ✅) e `MEETING_SCHEDULER_URL` na Vercel ✅.
+4. **Agendamento**: cal.diy **buildado e no ar** ✅ (`https://agenda.argusprime.com.br` ✅) — o **primeiro admin já existe** ✅ (`atintilio` ✅ ✅); o login é `/auth/login` ✅ (a "primeira visita" `/auth/setup` segue 403 no público ✅ ✅ de propósito ✅). Falta `MEETING_SCHEDULER_URL` ✅ ✅ na Vercel ✅ ✅.
 5. **Heartbeat**: rodando na VPS ✅ (cron de 5 min ✅, `/api/cron` 200 ✅) — o secret no GitHub é opcional ✅ (o schedule do GitHub é throttled a 1×/dia ✅).
 6. **Domínio**: decidir o swap do domínio da Vercel para a implantação nativa na VPS ✅ (antes, validar
    Microsoft 365 e saldo do Z.AI ✅). O WA-AKG mora **dentro** do vhost `argus-crm` ✅ — mover para um

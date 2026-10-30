@@ -16,6 +16,11 @@ async function seedAction(db: DB, orgId: string, userId: string, type: 'invite' 
 
 const okExecutor = (): LinkedInExecutor => ({ dispatch: vi.fn(async () => ({ state: 'sent' as const, providerId: 'x' })) });
 
+/** O dono liga o LinkedIn da operação dentro do Prospectra (/admin). */
+async function enableLinkedin(db: DB, orgId: string) {
+  await db.update(schema.orgs).set({ linkedinEnabled: true }).where(eq(schema.orgs.id, orgId));
+}
+
 test('desligado por padrão: no-op, não chama o executor, ação fica pendente', async () => {
   const db = await testDb();
   const a = await seedOrg(db, 'LI A');
@@ -31,6 +36,7 @@ test('habilitado: despacha, conclui a ação, registra o evento e o recibo', asy
   process.env.LINKEDIN_AUTOMATION_ENABLED = 'true';
   const db = await testDb();
   const a = await seedOrg(db, 'LI B');
+  await enableLinkedin(db, a.org.id);
   const { lead, action } = await seedAction(db, a.org.id, a.user.id, 'invite');
   const res = await runLinkedinQueue(db, { executor: okExecutor() });
   expect(res.dispatched).toBe(1);
@@ -46,6 +52,7 @@ test('limite diário zera o despacho de convites; a ação permanece pendente', 
   process.env.LINKEDIN_AUTOMATION_ENABLED = 'true';
   const db = await testDb();
   const a = await seedOrg(db, 'LI C');
+  await enableLinkedin(db, a.org.id);
   await db.update(schema.users).set({ dailyInvites: 0 }).where(eq(schema.users.id, a.user.id));
   const { action } = await seedAction(db, a.org.id, a.user.id, 'invite');
   const exec = okExecutor();
@@ -60,6 +67,7 @@ test('resultado incerto não é reenviado automaticamente', async () => {
   process.env.LINKEDIN_AUTOMATION_ENABLED = 'true';
   const db = await testDb();
   const a = await seedOrg(db, 'LI D');
+  await enableLinkedin(db, a.org.id);
   const { action } = await seedAction(db, a.org.id, a.user.id, 'message');
   const exec: LinkedInExecutor = { dispatch: vi.fn(async () => ({ state: 'unknown' as const })) };
   await runLinkedinQueue(db, { executor: exec });
@@ -67,6 +75,19 @@ test('resultado incerto não é reenviado automaticamente', async () => {
   expect(exec.dispatch).toHaveBeenCalledTimes(1);
   const [r] = await db.select().from(schema.linkedinDispatches).where(eq(schema.linkedinDispatches.actionId, action.id));
   expect(r.state).toBe('unknown');
+  const [after] = await db.select().from(schema.actions).where(eq(schema.actions.id, action.id));
+  expect(after.status).toBe('pending');
+});
+
+test('backend ligado mas operação sem o LinkedIn ativado: nada é despachado', async () => {
+  process.env.LINKEDIN_AUTOMATION_ENABLED = 'true';
+  const db = await testDb();
+  const a = await seedOrg(db, 'LI E');
+  const { action } = await seedAction(db, a.org.id, a.user.id, 'invite');
+  const exec = okExecutor();
+  const res = await runLinkedinQueue(db, { executor: exec });
+  expect(res.dispatched).toBe(0);
+  expect(exec.dispatch).not.toHaveBeenCalled();
   const [after] = await db.select().from(schema.actions).where(eq(schema.actions.id, action.id));
   expect(after.status).toBe('pending');
 });

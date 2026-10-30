@@ -1,5 +1,6 @@
 import 'server-only';
 import { and, eq, gte, inArray } from 'drizzle-orm';
+import { getDb } from '@/db';
 import { schema, type DB } from '@/db';
 import { completeAction } from '@/lib/cadence';
 
@@ -22,8 +23,21 @@ export type LinkedInExecutor = {
   dispatch(item: LinkedInWorkItem): Promise<{ state: 'sent' | 'unknown'; providerId?: string }>;
 };
 
+/**
+ * Interruptor geral do backend. O dono deixa ligado; cada operação decide se usa
+ * (orgs.linkedin_enabled, ligado no Prospectra em /admin).
+ */
 export function linkedinAutomationEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.LINKEDIN_AUTOMATION_ENABLED === 'true';
+}
+
+/** A operação ligou o LinkedIn automático dentro do Prospectra? */
+export async function linkedinEnabledForOrg(orgId: string, db?: DB): Promise<boolean> {
+  if (!linkedinAutomationEnabled()) return false;
+  const database = db ?? (await getDb());
+  const [row] = await database.select({ enabled: schema.orgs.linkedinEnabled })
+    .from(schema.orgs).where(eq(schema.orgs.id, orgId));
+  return row?.enabled === true;
 }
 
 // Só canais do LinkedIn são despachados aqui; e-mail e WhatsApp são enviados pelo scheduler.
@@ -63,13 +77,19 @@ export async function runLinkedinQueue(
   const since = startOfUtcDay(now);
   const limit = Math.min(Math.max(1, deps.maxActions ?? 20), 50);
 
-  const conds = [eq(schema.actions.status, 'pending'), inArray(schema.actions.type, LINKEDIN_TYPES)];
+  const conds = [
+    eq(schema.actions.status, 'pending'),
+    inArray(schema.actions.type, LINKEDIN_TYPES),
+    // Só as operações que ligaram o LinkedIn no Prospectra entram na fila automática.
+    eq(schema.orgs.linkedinEnabled, true),
+  ];
   if (deps.orgId) conds.push(eq(schema.actions.orgId, deps.orgId));
   const pending = await db
     .select({ action: schema.actions, lead: schema.leads, user: schema.users })
     .from(schema.actions)
     .innerJoin(schema.leads, eq(schema.leads.id, schema.actions.leadId))
     .innerJoin(schema.users, eq(schema.users.id, schema.actions.userId))
+    .innerJoin(schema.orgs, eq(schema.orgs.id, schema.actions.orgId))
     .where(and(...conds))
     .orderBy(schema.actions.dueDate)
     .limit(limit);
