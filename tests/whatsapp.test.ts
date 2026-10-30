@@ -27,6 +27,15 @@ test('session identity is stable and isolated by seller and operation',()=>{
  expect(sessionIdFor(scope)).not.toBe(sessionIdFor({...scope,userId:'other'}));
  expect(sessionIdFor(scope)).not.toBe(sessionIdFor({...scope,orgId:'other'}));
 });
+test('a sessao fixa da instalacao (WA_AKG_SESSION_ID) vale para todos os escopos',()=>{
+ const anterior=process.env.WA_AKG_SESSION_ID;
+ process.env.WA_AKG_SESSION_ID='prospectra-30592258160abd52e895f911450114df631a2bf9';
+ try{
+  expect(sessionIdFor(scope)).toBe('prospectra-30592258160abd52e895f911450114df631a2bf9');
+  expect(sessionIdFor({...scope,userId:'other'})).toBe(sessionIdFor(scope));
+  expect(sessionIdFor({...scope,orgId:'other'})).toBe(sessionIdFor(scope));
+ }finally{ if(anterior===undefined)delete process.env.WA_AKG_SESSION_ID; else process.env.WA_AKG_SESSION_ID=anterior; }
+});
 test('inactive accounts, inactive operations and demo never call the real gateway',()=>{
  expect(()=>assertWhatsAppAccess({user:{id:'a',status:'disabled'},org:{id:'b',active:true,isDemo:false}})).toThrow();
  expect(()=>assertWhatsAppAccess({user:{id:'a',status:'active'},org:{id:'b',active:false,isDemo:false}})).toThrow();

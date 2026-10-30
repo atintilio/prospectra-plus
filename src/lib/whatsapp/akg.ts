@@ -11,6 +11,12 @@ export function assertWhatsAppAccess(ctx:Access):Scope {
  return {orgId:ctx.org.id,userId:ctx.user.id};
 }
 export function sessionIdFor(scope:Scope):string {
+ // Sessao fixa por instalacao (WA_AKG_SESSION_ID): o numero do WhatsApp e
+ // unico e ja esta pareado no WA-AKG. O hash por escopo so serve quando ha
+ // varios numeros; se o banco for recriado, o id da operacao muda e a sessao
+ // pareada deixa de bater.
+ const fixed=process.env.WA_AKG_SESSION_ID?.trim();
+ if(fixed)return fixed;
  return 'prospectra-'+createHash('sha256').update(JSON.stringify([scope.orgId,scope.userId])).digest('hex').slice(0,40);
 }
 export function akgConfig() {
