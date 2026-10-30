@@ -7,6 +7,7 @@
 
 > **Atualizado em 30/10/2026** — Helpin fase 6 entregue (schema + atributos + SLA + horário +
 > auto-resposta + CSAT + relatórios + webhooks + auditoria). Ver "O que entrou nesta entrega".
+> **Agenda nativa entregue no mesmo dia** (o cal.com saiu de cena) — ver "Entrega de 30/10 (noite)".
 
 ## Já no `main` / produção (não refazer)
 - App, login, CRM/leads, **importação de leads** (CSV/URLs), cadência assistida (Fila do dia).
@@ -54,7 +55,8 @@ a auto-resposta entra como mensagem de sistema ✅ e marca `auto_replied` ✅; f
 - O perfil ✅ é vinculado **só à conta do usuário** ✅ (`voice_profiles` ✅, chave org+user ✅) ✅.
 - `registerVoiceAction` (WhatsApp) ✅ continua válido ✅ — a página nova é o caminho descobrível ✅.
 
-**Agenda (cal.diy)** — o primeiro acesso agora acontece dentro do Prospectra ✅:
+**Agenda (cal.diy)** — ⚠️ **SUBSTITUÍDO pela agenda nativa** (entrega de 30/10, noite).
+O bloco abaixo descreve o estado antigo; o que vale agora está em "Entrega de 30/10 (noite)":
 - `src/lib/agenda.ts` ✅: `agendaStatus()` ✅ (sonda `POST /api/auth/setup` ✅ com corpo vazio ✅ —
   400 = já tem admin ✅, 422 = ainda não tem ✅) ✅ e `createAgendaAdmin()` ✅ ✅.
 - `AgendaSetupCard` ✅ aparece no **Painel** (primeiro acesso ✅) ✅ e em **/admin** ✅ ✅.
@@ -67,6 +69,59 @@ a auto-resposta entra como mensagem de sistema ✅ e marca `auto_replied` ✅; f
 - `LINKEDIN_AUTOMATION_ENABLED=true` ✅ no backend ✅ (VPS ✅ e Vercel ✅ ✅) ✅ — o interruptor geral ✅ ✅.
 - A fila só despacha para operações com o flag ligado ✅ (`runLinkedinQueue` ✅ filtra por
   `orgs.linkedin_enabled` ✅ ✅) ✅ — o interruptor geral **e** o por operação ✅ ✅.
+
+## Entrega de 30/10 (noite) — **agenda nativa** (o cal.com saiu de cena)
+
+A agenda deixou de ser um app separado e virou **um módulo dentro do Prospectra**: mesmo banco
+(Neon), mesma sessão, mesma operação, lead vinculado à reserva. Documentação completa em
+**`docs/AGEND-NATIVA.md`**.
+
+**Schema** — `drizzle/0023_agenda_nativa.sql` ✅: `agenda_event_types`, `agenda_availability`,
+`agenda_blackouts`, `agenda_links` + colunas novas em `meetings` (`event_type_id`, `link_id`,
+`attendee_name/email/phone`, `end_time`, `timezone`, `location`, `cancel_token`, `notes`,
+`confirmed_at`, `cancelled_at`, `reminder_sent_at`); `meetings.lead_id` ficou **nullable** e
+`source` ganhou `'agenda'`. Dois índices novos: `meetings_no_double_booking`
+(`org_id,user_id,scheduled_at` quando `status IN ('requested','confirmed')`) e
+`meetings_one_open_per_lead`.
+
+**Módulos** (`src/lib/`):
+- `agenda-slots.ts` ✅ — cálculo dos horários livres, **puro** (sem banco, sem `date-fns`/`luxon`:
+  fuso resolvido com `Intl.DateTimeFormat(..., { timeZone }).formatToParts`). Respeita
+  antecedência, janelas semanais, bloqueios, reservas existentes e **buffer** entre reuniões.
+- `agenda-booking.ts` ✅ — tipos de reunião, disponibilidade, **links rastreados**, reservas
+  públicas e cancelamento. `bookPublic` **recalcula** a grade no servidor (nunca confia no
+  horário do navegador) e o índice unique barra reserva dupla.
+- `agenda.ts` ✅ — reexporta os dois acima; as funções do cal.diy (`agendaStatus`,
+  `createAgendaAdmin`) foram removidas ✅.
+
+**APIs** (`src/app/api/agenda/**`, todas JSON, entrada validada com `zod`):
+- públicas (sem sessão): `GET /event`, `GET /slots`, `POST /book`, `POST /cancel`;
+- internas (sessão, `orgId` **nunca** do cliente): `GET|POST /event-types`,
+  `PATCH /event-types/[id]`, `POST /event-types/[id]/availability`, `GET /bookings`,
+  `POST /links`.
+
+**Telas** (pt-BR, responsivas): `/agenda` (tipos de reunião, disponibilidade, gerar link,
+próximas reservas, confirmar/cancelar), `/agendamento/[slug]` (grade pública + reserva),
+`/agendamento/cancelar` (cancelamento por token), `/agendamento` (entrada do domínio).
+Item **"Agenda"** no menu lateral ✅ e card "Agenda" no Painel/Admin ✅ (substituindo o card
+do cal.diy).
+
+**Infra** ✅: vhost novo versionado em `infra/prospectra/nginx/agenda.argusprime.com.br.nginx`
+e **aplicado na VPS em 30/10** — `agenda.argusprime.com.br` passou a servir
+`127.0.0.1:3100` (o app) em vez de `127.0.0.1:3102` (cal.com). `nginx -t` passou sem warning;
+o vhost antigo ficou **preservado** em `/etc/nginx/sites-available/prospectra-agenda` (rollback
+em um comando, documentado). O serviço `prospectra-agenda` (cal.com) **continua rodando** —
+perdeu só o vhost público — e o banco dele está **vazio** (0 evento, 0 reserva).
+
+**Variáveis**: `AGENDA_PUBLIC_URL` ✅ em uso (`https://agenda.argusprime.com.br`).
+`AGENDA_BASE_URL` (endereço interno do cal.com) ficou **obsoleta** — nada mais lê; pode ser
+removida do `/etc/prospectra-plus/app.env` depois de publicar a release.
+
+**Testes**: `tests/agenda-slots.test.ts` ✅ e `tests/agenda-booking.test.ts` ✅.
+
+> ⚠️ **Falta publicar a release** — a release que está na VPS é a `a84c904` (sem as rotas da
+> agenda), então `/agenda` e `/agendamento/*` respondem **404** até você publicar o `main`.
+
 
 ## Próximos passos — CÓDIGO (Codex)
 Expansão do Helpin, na ordem. Cada tela nova **responsiva no mobile**.
@@ -104,10 +159,9 @@ O que falta pra ficar **100% operacional** (o que já está no ar está marcado 
 1. **WhatsApp**: WA-AKG no ar ✅ (`https://crm.argusprime.com.br/prospectra-whatsapp` ✅, envs na Vercel ✅) — falta **parear o número** escaneando o QR na tela **WhatsApp** do app ✅ → liga Harvey + WhatsApp/voz/imagem ✅.
 2. **Voz**: Voice Studio no ar ✅ (`https://voice.argusprime.com.br` ✅, 401 sem chave ✅, 200 com chave ✅, motor MOSS-TTS-Nano ✅) — falta `VOICE_AUTOMATION_ENABLED=true` depois da **validação à mão** ✅ e o profile de voz com **referência PT-BR** ✅ (hoje é a demo em inglês ✅).
 3. **LinkedIn automático**: `infra/linkedin` pronto na VPS ✅ — falta `LINKEDIN_AUTOMATION_ENABLED=true` + `LINKEDIN_WORKER_URL/KEY` ✅ (decisão do dono, risco de termos de uso ✅) e **revalidar os seletores** no site vivo ✅.
-4. **Agendamento**: cal.diy **buildado e no ar** ✅ (`https://agenda.argusprime.com.br` ✅) — o **primeiro admin já existe** ✅ (`atintilio` ✅ ✅); o login é `/auth/login` ✅ (a "primeira visita" `/auth/setup` segue 403 no público ✅ ✅ de propósito ✅). Falta `MEETING_SCHEDULER_URL` ✅ ✅ na Vercel ✅ ✅.
-5. **Heartbeat**: rodando na VPS ✅ (cron de 5 min ✅, `/api/cron` 200 ✅) — o secret no GitHub é opcional ✅ (o schedule do GitHub é throttled a 1×/dia ✅).
-6. **Domínio**: decidir o swap do domínio da Vercel para a implantação nativa na VPS ✅ (antes, validar
-   Microsoft 365 e saldo do Z.AI ✅). O WA-AKG mora **dentro** do vhost `argus-crm` ✅ — mover para um
-   vhost próprio **antes** de qualquer re-deploy do CRM ✅.
-7. **Auto-cura da migration**: `scripts/migrate-repair.mjs` só recria o schema quando as 3 tabelas
+4. **Agendamento**: **agenda nativa** ✅ — o domínio `https://agenda.argusprime.com.br` já serve o app do Prospectra ✅ (vhost trocado em 30/10 ✅, cal.com sem vhost público ✅). Falta: **publicar a release** ✅ (as rotas `/agenda` e `/agendamento/*` só existem depois disso ✅), criar o **primeiro tipo de reunião** ✅ e gerar o link ✅, e apontar `MEETING_SCHEDULER_URL` ✅ na Vercel para a página do tipo de reunião ✅. Passo a passo em `docs/AGEND-NATIVA.md` §4 ✅.
+5. **Cal.com — desligar depois de validar**: serviço `prospectra-agenda` ainda ativo em `127.0.0.1:3102` ✅ (banco vazio: 0 evento, 0 reserva ✅). Após validar a agenda nativa: `systemctl disable --now prospectra-agenda` + remover `AGENDA_BASE_URL` do `app.env` + `systemctl restart prospectra-plus` ✅. Detalhes e rollback em `docs/AGEND-NATIVA.md` §5 ✅.
+6. **Heartbeat**: rodando na VPS ✅ (cron de 5 min ✅, `/api/cron` 200 ✅) — o secret no GitHub é opcional ✅ (o schedule do GitHub é throttled a 1×/dia ✅).
+7. **Domínio**: o swap do domínio principal da Vercel para a implantação nativa na VPS ✅ já está feito ✅ (`prospectra.argusprime.com.br` ✅ na VPS ✅). Falta validar Microsoft 365 e saldo do Z.AI ✅. O WA-AKG mora **dentro** do vhost `argus-crm` ✅ — mover para um vhost próprio **antes** de qualquer re-deploy do CRM ✅.
+8. **Auto-cura da migration**: `scripts/migrate-repair.mjs` só recria o schema quando as 3 tabelas
    centrais faltam **e** o ledger do drizzle existe ✅; desliga com `PROSPERTA_DB_REPAIR=0` ✅.

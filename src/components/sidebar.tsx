@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, BookOpen, Bot, Building2, FileText, FolderKanban, Headset, LayoutDashboard, LifeBuoy, ListChecks, LogOut, Megaphone, Mic, Settings, SlidersHorizontal, Timer, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
+import { BarChart3, BookOpen, Bot, Building2, CalendarDays, FileText, FolderKanban, Headset, LayoutDashboard, LifeBuoy, ListChecks, LogOut, Megaphone, Mic, Settings, SlidersHorizontal, Timer, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { logoutAction } from '@/app/(auth)/actions';
@@ -11,6 +11,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
   const items = [
     { href: '/painel', label: 'Painel', icon: LayoutDashboard },
     { href: '/fila', label: 'Fila do dia', icon: ListChecks },
+    { href: '/agenda', label: 'Agenda', icon: CalendarDays },
     { href: '/leads', label: 'Leads', icon: UserSearch },
     { href: '/leads/atributos', label: 'Campos', icon: SlidersHorizontal },
     { href: '/campanhas', label: 'Campanhas', icon: Megaphone },

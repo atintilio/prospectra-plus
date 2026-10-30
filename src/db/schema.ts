@@ -277,18 +277,101 @@ export const meetings=pgTable('meetings',{
  id:uuid('id').primaryKey().defaultRandom(),
  orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
  userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
- leadId:uuid('lead_id').notNull().references(()=>leads.id,{onDelete:'cascade'}),
+ leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'cascade'}),
  conversationId:uuid('conversation_id').references(()=>harveyConversations.id,{onDelete:'set null'}),
  status:text('status',{enum:MEETING_STATUSES}).notNull().default('requested'),
- source:text('source',{enum:['harvey','manual']}).notNull().default('manual'),
+ source:text('source',{enum:['harvey','manual','agenda']}).notNull().default('manual'),
  schedulerUrl:text('scheduler_url'),
  scheduledAt:timestamp('scheduled_at',{withTimezone:true}),
  note:text('note').notNull().default(''),
+ // --- Agenda nativa (dentro do Prospectra) ---
+ eventTypeId:uuid('event_type_id').references(()=>agendaEventTypes.id,{onDelete:'set null'}),
+ linkId:uuid('link_id').references(()=>agendaLinks.id,{onDelete:'set null'}),
+ attendeeName:text('attendee_name'),
+ attendeeEmail:text('attendee_email'),
+ attendeePhone:text('attendee_phone'),
+ endTime:timestamp('end_time',{withTimezone:true}),
+ timezone:text('timezone').notNull().default('America/Sao_Paulo'),
+ location:text('location').notNull().default(''),
+ cancelToken:text('cancel_token'),
+ notes:text('notes').notNull().default(''),
+ confirmedAt:timestamp('confirmed_at',{withTimezone:true}),
+ cancelledAt:timestamp('cancelled_at',{withTimezone:true}),
+ reminderSentAt:timestamp('reminder_sent_at',{withTimezone:true}),
  createdAt:createdAt(),
 },t=>[
  uniqueIndex('meetings_one_open_per_lead').on(t.orgId,t.leadId).where(sql`status in ('requested','confirmed')`),
  index('meetings_org_status_idx').on(t.orgId,t.status),
  index('meetings_user_idx').on(t.userId,t.createdAt),
+ index('meetings_org_start_idx').on(t.orgId,t.scheduledAt),
+ index('meetings_event_type_idx').on(t.eventTypeId),
+ // Um horário não pode ser reservado duas vezes pelo mesmo vendedor.
+ uniqueIndex('meetings_no_double_booking').on(t.orgId,t.userId,t.scheduledAt).where(sql`status in ('requested','confirmed')`),
+]);
+
+// ---------- Agenda nativa (módulo do Prospectra) ----------
+// Um "tipo de reunião" define duração, antecedência e o link público que o
+// lead usa para marcar. A disponibilidade semanal e os bloqueios definem os
+// horários livres; as reservas confirmadas entram na tabela `meetings`.
+
+export const agendaEventTypes=pgTable('agenda_event_types',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ title:text('title').notNull(),
+ slug:text('slug').notNull(),
+ description:text('description').notNull().default(''),
+ durationMin:integer('duration_min').notNull().default(30),
+ slotIntervalMin:integer('slot_interval_min').notNull().default(30),
+ minNoticeMin:integer('min_notice_min').notNull().default(120),
+ bufferMin:integer('buffer_min').notNull().default(0),
+ timezone:text('timezone').notNull().default('America/Sao_Paulo'),
+ location:text('location').notNull().default(''),
+ requiresConfirmation:boolean('requires_confirmation').notNull().default(false),
+ isActive:boolean('is_active').notNull().default(true),
+ createdAt:createdAt(),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[
+ uniqueIndex('agenda_event_types_slug_uq').on(t.orgId,t.slug),
+ index('agenda_event_types_org_idx').on(t.orgId,t.isActive),
+]);
+
+// Disponibilidade semanal: dia da semana (0=domingo) + janela em minutos.
+export const agendaAvailability=pgTable('agenda_availability',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ eventTypeId:uuid('event_type_id').notNull().references(()=>agendaEventTypes.id,{onDelete:'cascade'}),
+ dayOfWeek:integer('day_of_week').notNull(),
+ startMinute:integer('start_minute').notNull(),
+ endMinute:integer('end_minute').notNull(),
+},t=>[
+ index('agenda_availability_event_idx').on(t.eventTypeId,t.dayOfWeek),
+]);
+
+// Bloqueios: férias, indisponibilidade pontual.
+export const agendaBlackouts=pgTable('agenda_blackouts',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ startAt:timestamp('start_at',{withTimezone:true}).notNull(),
+ endAt:timestamp('end_at',{withTimezone:true}).notNull(),
+ reason:text('reason').notNull().default(''),
+},t=>[
+ index('agenda_blackouts_org_idx').on(t.orgId,t.startAt),
+]);
+
+// Links públicos rastreados: dizem de qual lead veio o agendamento.
+export const agendaLinks=pgTable('agenda_links',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ eventTypeId:uuid('event_type_id').notNull().references(()=>agendaEventTypes.id,{onDelete:'cascade'}),
+ leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'set null'}),
+ token:text('token').notNull(),
+ channel:text('channel').notNull().default('link'),
+ createdAt:createdAt(),
+ usedAt:timestamp('used_at',{withTimezone:true}),
+},t=>[
+ uniqueIndex('agenda_links_token_uq').on(t.token),
+ index('agenda_links_event_idx').on(t.eventTypeId),
 ]);
 
 // Execução automática de LinkedIn (desligada por padrão: LINKEDIN_AUTOMATION_ENABLED).

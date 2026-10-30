@@ -2,12 +2,13 @@
 
 O texto anterior (27/10) dizia que não havia acesso SSH à VPS, que a voz não estava no
 ar e que a agenda não existia. **Nada disso é mais verdade**: o acesso SSH funciona
-deste ambiente, a voz está **no ar e validada ponta a ponta** e a agenda está **em build**
-na VPS.
+deste ambiente, a voz está **no ar e validada ponta a ponta** e a **agenda virou um
+módulo do próprio Prospectra** (o cal.com saiu de cena).
 
 Estado do repositório: `main` com as PRs #48..#58, #30 e a **Helpin fase 6** mergeados.
 Detalhes operacionais da voz em `docs/voice-studio.md`; do gateway WhatsApp em
-`docs/wa-akg.md`; o estado para continuar o trabalho está em `docs/HANDOFF-CODEX.md`.
+`docs/wa-akg.md`; **da agenda nativa em `docs/AGEND-NATIVA.md`**; o estado para continuar
+o trabalho está em `docs/HANDOFF-CODEX.md`.
 
 ---
 
@@ -20,7 +21,8 @@ Detalhes operacionais da voz em `docs/voice-studio.md`; do gateway WhatsApp em
 | WA-AKG (gateway WhatsApp) | **NO AR** | `https://crm.argusprime.com.br/prospectra-whatsapp` — 401 sem `x-api-key` |
 | Heartbeat (cron) | **NO AR** | `/usr/local/bin/prospectra-tick` + `/etc/cron.d/prospectra-tick`, a cada 5 min |
 | Gate de imagem/ligação | **IMPLEMENTADO** | `orgs.image_enabled` / `orgs.call_enabled`, default `false`, liberados em `/admin` |
-| Agenda (cal.diy) | **NO AR** | `https://agenda.argusprime.com.br` → 307 para `/auth/setup` (403 público por segurança ✅) |
+| Agenda (cal.diy) | **SUBSTITUÍDA** | O cal.com saiu de cena: o domínio `https://agenda.argusprime.com.br` agora serve o **app do Prospectra** (vhost trocado em 30/10 ✅). O serviço dele continua rodando em `127.0.0.1:3102`, **sem vhost público** |
+| Agenda nativa | **CÓDIGO PRONTO — FALTA PUBLICAR** | Schema (`0023`) ✅, libs (`agenda-slots`, `agenda-booking`) ✅, APIs ✅ e telas (`/agenda`, `/agendamento/*`) ✅ no `main`. Falta **publicar a release na VPS** — até lá `/agenda` e `/agendamento/*` respondem 404 |
 | WhatsApp (número real) | **AGUARDA PAREAMENTO** | Falta escanear o QR do número na tela **WhatsApp** do app |
 | Voz automática | **AGUARDA VALIDAÇÃO** | `VOICE_AUTOMATION_ENABLED=false` na Vercel até você validar a voz à mão |
 | LinkedIn automático | **AGUARDA DECISÃO** | Código e worker na VPS prontos; não ativar sem decisão explícita (termos de uso) |
@@ -133,13 +135,51 @@ Schema (migration aditiva `drizzle/0021_helpin_fase6_sla_atributos.sql` ✅) + m
 | Entrega | Onde | Como funciona |
 |---|---|---|
 | Clonagem da sua voz | `/voz` | Você grava → o Prospectra transcreve no Voice Studio → cria o perfil vinculado só à sua conta |
-| Primeiro acesso da agenda | Card no Painel e em `/admin` | O Prospectra (na mesma VPS) cria o admin da agenda pelo loopback; publicamente `/auth/setup` segue 403 |
+| Primeiro acesso da agenda | Card no Painel e em `/admin` | **Substituído pela agenda nativa** (seção 2.9) — o card do cal.diy saiu do app |
 | LinkedIn automático | `/admin` | Backend ligado; cada operação libera o seu. A fila só despacha para operação com o flag ligado |
 | Transcrição automática | `VoiceStudioGateway.transcribe()` | Novo método: `POST /transcribe` no Voice Studio (multipart, `language=pt`) |
 
 ---
 
-### 2.9 Achados da auditoria de 30/10 (o que já foi corrigido)
+### 2.9 Agenda nativa — o que mudou (30/10/2026, fechamento)
+
+A agenda **deixou de ser um app separado**. O cal.com (cal.diy) era um Next.js à parte, na
+porta 3102, ligado ao Prospectra só por um card com link externo — não era integração.
+Agora é **um módulo dentro do Prospectra**: mesmo banco (Neon), mesma sessão, mesma
+operação, lead vinculado à reserva.
+
+| Entrega | Onde | Como funciona |
+|---|---|---|
+| Tipo de reunião | `/agenda` | Título, duração, antecedência, intervalo, fuso, local da call, "exigir aprovação do vendedor"; slug único na operação |
+| Disponibilidade | `/agenda` | Janelas semanais por dia da semana (minutos desde 00:00 no fuso do evento) |
+| Link rastreado | `/agenda` → "Gerar link" | Gera `agenda_links` com token; se gerar para um lead, a reserva nasce **vinculada a ele** |
+| Grade pública | `/agendamento/<slug>` | Horários livres por dia, pt-BR, mobile-first; agenda com nome/e-mail/telefone/observação |
+| Cancelamento | `/agendamento/cancelar?token=...` | Token por reserva; marca `cancelled` + `cancelledAt` |
+| Reservas do time | `/agenda` | Próximas reservas, confirmar (quando `requested`) e cancelar |
+| Schema | `drizzle/0023_agenda_nativa.sql` | `agenda_event_types`, `agenda_availability`, `agenda_blackouts`, `agenda_links` + colunas novas em `meetings` |
+| Sem duplicidade | banco | `meetings_no_double_booking` (não agenda 2× o mesmo horário do mesmo vendedor) e `meetings_one_open_per_lead` (1 reunião aberta por contato) |
+
+**O servidor nunca confia no horário enviado pelo navegador**: `bookPublic` recalcula a
+grade na hora e valida o pedido contra a disponibilidade atual.
+
+**Domínio**: `agenda.argusprime.com.br` passou a servir o app do Prospectra
+(`127.0.0.1:3100`) em 30/10 ✅ — o vhost novo está versionado em
+`infra/prospectra/nginx/agenda.argusprime.com.br.nginx`, o antigo do cal.com foi
+removido de `sites-enabled` mas **preservado em `sites-available`** (rollback em um
+comando). O serviço `prospectra-agenda` (cal.com) **continua rodando** em `127.0.0.1:3102`
+— ele só perdeu o vhost público.
+
+**Estado do cal.com**: banco vazio (0 `EventType`, 0 `Booking`, 0 `Availability`) — **nada
+a migrar**. O desligamento definitivo do serviço é decisão do dono, depois de validar a
+agenda nativa (passo a passo em `docs/AGEND-NATIVA.md`, seções 4 e 5).
+
+> ⚠️ **Falta a publicação da release.** O código está no `main`, mas a release que está
+> na VPS (`a84c904`) ainda não tem as rotas da agenda — por isso `/agenda` e
+> `/agendamento/*` respondem **404** até você publicar.
+
+---
+
+### 2.10 Achados da auditoria de 30/10 (o que já foi corrigido)
 
 | Achado | Correção |
 |---|---|
@@ -155,12 +195,14 @@ Schema (migration aditiva `drizzle/0021_helpin_fase6_sla_atributos.sql` ✅) + m
 |---|------|-------------|------------|
 | 1 | **WhatsApp real** | Parear o número (QR na tela **WhatsApp** do app) e validar envio/recebimento/respostas/encaminhamento | **Você** escaneando o QR |
 | 2 | **Voz automática** | Clonar a sua voz em `/voz` ✅ (gravar ✅ → transcrever ✅ → criar o perfil ✅) ✅, validar à mão e então ligar `VOICE_AUTOMATION_ENABLED=true` | **Você** (a gravação) |
-| 3 | **Agenda (cal.diy)** | No ar ✅ e **com o primeiro admin já criado** ✅ (`atintilio` ✅) — o cadastro agora também acontece dentro do Prospectra (card no Painel e em `/admin` ✅) ✅; falta `MEETING_SCHEDULER_URL` na Vercel ✅ | **Você** (a senha do admin) |
-| 4 | **Agendamento de reuniões** | Apontar `MEETING_SCHEDULER_URL` na Vercel para a agenda; o provedor de e-mail (Gmail/Office365/Zimbra) você configura | Agenda no ar |
-| 5 | **LinkedIn automático** | O backend **já está ligado** ✅ e cada operação liga o seu em `/admin` ✅ — falta `LINKEDIN_WORKER_URL`/`LINKEDIN_WORKER_KEY` ✅, rodar `infra/linkedin` com `LI_AT` e `PROXY_URL` ✅ e revalidar os seletores no site vivo ✅ | **Você** (proxy e conta) |
-| 6 | **Worker de inteligência** | `INTELLIGENCE_WORKER_ENABLED` não está configurada na Vercel; o executor Python precisa ser validado na VPS | Validação na VPS |
-| 7 | **CRM (Argus)** | Nada — fora de escopo nesta fase | **Você** (re-deploy) |
-| 8 | **Helpin standalone** | **Não recomendado** — ver riscos | Decisão sua |
+| 3 | **Agenda nativa — publicar** | Código ✅ (schema, libs, APIs, telas), domínio ✅ (vhost trocado em 30/10). Falta **publicar a release na VPS** (`/usr/local/bin/prospectra-plus-release <sha>`) — até lá `/agenda` e `/agendamento/*` respondem 404 | **Você** (publicação) |
+| 4 | **Agenda nativa — primeiro tipo de reunião** | Criar o 1º tipo de reunião em `/agenda` (título, duração, disponibilidade) e gerar o link público; testar uma reserva e o cancelamento. Passo a passo em `docs/AGEND-NATIVA.md` §4 | **Você** (a agenda de verdade) |
+| 5 | **Desligar o cal.com** | O serviço `prospectra-agenda` (3102) já está **sem vhost público** ✅ e o banco dele está **vazio** (0/0/0) ✅. Falta você validar a agenda nativa e então `systemctl disable --now prospectra-agenda` + remover `AGENDA_BASE_URL` do `app.env` (§5 de `docs/AGEND-NATIVA.md`) | **Você** (após validar) |
+| 6 | **Agendamento de reuniões (fila assistida)** | Apontar `MEETING_SCHEDULER_URL` na Vercel para a página do tipo de reunião na agenda nativa (`https://agenda.argusprime.com.br/agendamento/<slug>`); o provedor de e-mail (Gmail/Office365/Zimbra) você configura | Agenda nativa publicada |
+| 7 | **LinkedIn automático** | O backend **já está ligado** ✅ e cada operação liga o seu em `/admin` ✅ — falta `LINKEDIN_WORKER_URL`/`LINKEDIN_WORKER_KEY` ✅, rodar `infra/linkedin` com `LI_AT` e `PROXY_URL` ✅ e revalidar os seletores no site vivo ✅ | **Você** (proxy e conta) |
+| 8 | **Worker de inteligência** | `INTELLIGENCE_WORKER_ENABLED` não está configurada na Vercel; o executor Python precisa ser validado na VPS | Validação na VPS |
+| 9 | **CRM (Argus)** | Nada — fora de escopo nesta fase | **Você** (re-deploy) |
+| 10 | **Helpin standalone** | **Não recomendado** — ver riscos | Decisão sua |
 
 ---
 
@@ -186,6 +228,17 @@ Schema (migration aditiva `drizzle/0021_helpin_fase6_sla_atributos.sql` ✅) + m
    CRM e o build da agenda; e **duplica o Helpin nativo** que já está no `main` (inbox
    web/WhatsApp/interno, dois públicos, central de ajuda, merge de CRM, etiquetas, notas
    internas e @menções, times de atendimento). Manter o Helpin nativo.
+6. **Cal.com — desligar depois de validar.** O serviço `prospectra-agenda` (3102) já está
+   **sem vhost público** (30/10 ✅) e o banco dele está **vazio** (0 evento, 0 reserva,
+   0 disponibilidade) ✅ — **nada a migrar**. Ainda assim ele roda, ocupando memória e
+   CPU da VPS. Depois de você validar a agenda nativa (criar um tipo de reunião, gerar um
+   link, fazer e cancelar uma reserva de teste), o desligamento é:
+   `systemctl disable --now prospectra-agenda` + remover `AGENDA_BASE_URL` de
+   `/etc/prospectra-plus/app.env` + `systemctl restart prospectra-plus`.
+   Passo a passo e rollback em `docs/AGEND-NATIVA.md` §5. **Não desligar antes de validar.**
+7. **Publicação da release da agenda** — o domínio já aponta para o app, mas a release
+   que está na VPS ainda não tem as rotas da agenda. Publicar antes de criar o primeiro
+   tipo de reunião, senão `/agenda` responde 404.
 
 ---
 
@@ -198,7 +251,8 @@ Schema (migration aditiva `drizzle/0021_helpin_fase6_sla_atributos.sql` ✅) + m
 | **Voz: referência de demonstração** | `demo0001.wav` é a voz de demonstração do VoiceStudio, **em inglês**; o profile `70b1a89f` clona esse timbre | Para produção em pt-BR, grave uma referência do locutor e recrie o profile |
 | **Voz: custo de CPU** | ~3 min de CPU por take em 2 vCPU | Gerar só na VPS; nunca em Vercel Functions |
 | **Voz: patches do motor** | O upstream do `moss-tts-nano` não funciona sem os patches; reinstalar o pacote ou limpar o cache do HF quebra a voz | Ver `docs/voice-studio.md` — backups `.orig`/`.bak` na VPS |
-| **Build da agenda** | A VPS está sob carga com o build do cal.diy; qualquer reinício de serviço durante o build joga fora o progresso | Não reiniciar `prospectra-voice`; acompanhar `/var/log/prospectra-agenda-build.log` |
+| **Cal.com ainda rodando em 3102** | O serviço `prospectra-agenda` continua ativo na VPS (memória/CPU), mesmo sem vhost público e com banco vazio | Desligar **depois** de validar a agenda nativa — `systemctl disable --now prospectra-agenda` (decisão do dono, `docs/AGEND-NATIVA.md` §5) |
+| **Agenda nativa ainda não publicada** | O vhost já aponta para o app, mas a release em produção é a `a84c904` (sem as rotas da agenda) → `/agenda` e `/agendamento/*` respondem 404 | Publicar a release do `main` antes de usar a agenda; o cutover do domínio já está feito e é reversível |
 
 ---
 
@@ -222,17 +276,26 @@ curl -s -o /dev/null -w '%{http_code}\n' https://crm.argusprime.com.br/prospectr
 # WA-AKG com x-api-key -> 200
 curl -s -o /dev/null -w '%{http_code}\n' -H "x-api-key: $WA_AKG_API_KEY" https://crm.argusprime.com.br/prospectra-whatsapp/api/sessions
 
-# Agenda -> 502 enquanto o serviço não sobe; 200 depois
+# Agenda (vhost trocado em 30/10) -> 307 (redireciona para o login do app)
+# 404 em /agendamento é o APP sem a rota (falta publicar a release) — nunca 502/503
 curl -s -o /dev/null -w '%{http_code}\n' https://agenda.argusprime.com.br/
+curl -s -o /dev/null -w '%{http_code}\n' https://agenda.argusprime.com.br/agendamento
 ```
 
 ### 6.2 Na VPS
 
 ```bash
 # serviços
-systemctl is-active prospectra-voice        # active
-systemctl is-active prospectra-agenda-build  # activating enquanto o build roda
-systemctl is-active prospectra-agenda        # inactive agora; active quando o build acabar
+systemctl is-active prospectra-plus         # active
+systemctl is-active prospectra-voice         # active
+systemctl is-active prospectra-agenda        # active (cal.com; só perde o vhost público)
+
+# app (3100) e cal.com (3102) — os dois no ar
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/api/health
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3102/
+
+# vhost da agenda (o nginx só escuta em [::]:80 — teste com Host)
+curl -s -o /dev/null -w '%{http_code}\n' -H "Host: agenda.argusprime.com.br" "http://[::1]/agendamento"
 
 # voz
 curl -s http://127.0.0.1:3900/health          # {"status":"ok","device":"cpu","version":"0.5.7"}
@@ -240,14 +303,8 @@ curl -s http://127.0.0.1:3900/health          # {"status":"ok","device":"cpu","v
 # gateway WhatsApp (401 = no ar, exigindo chave)
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3101/api/sessions
 
-# agenda (000 = nada escutando ainda)
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3102/
-
 # heartbeat
 cat /etc/cron.d/prospectra-tick               # */5 * * * * root /usr/local/bin/prospectra-tick
-
-# build da agenda
-tail -n 20 /var/log/prospectra-agenda-build.log
 ```
 
 SSH (usar `timeout` e nunca `tail -f` — a VPS está sob carga):
@@ -264,5 +321,6 @@ ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -p 9229 root@VPS-905340.ssh
 |---|---|
 | `docs/voice-studio.md` | Procedimento da voz na VPS: motor, patches, contrato da API, como reverter |
 | `docs/wa-akg.md` | Gateway WhatsApp: preparação, variáveis, pareamento |
+| `docs/AGEND-NATIVA.md` | **Agenda nativa**: como funciona, URLs, variáveis, passo a passo do dono, o que fazer com o cal.com e rollback do vhost |
 | `docs/HANDOFF-CODEX.md` | Estado do produto e próximos passos de código |
 | `scripts/install-helpin-vps.sh` | Instalador do Helpin standalone — **não recomendado** (ver seção 4) |

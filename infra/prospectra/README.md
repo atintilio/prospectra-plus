@@ -28,6 +28,24 @@ O nginx publica `prospectra.argusprime.com.br`; o DNS usa o endereço HTTP rotea
 7. Troque o DNS somente após a validação. Confira HTTPS, sessão, integrações e
    cron antes de retirar o destino anterior da produção.
 
+## Vhosts nginx
+
+Os vhosts versionados ficam em `infra/prospectra/nginx/`:
+
+| Arquivo | Domínio | Origem |
+|---|---|---|
+| `prospectra-plus.nginx` | `prospectra.argusprime.com.br` | `127.0.0.1:3100` (app) |
+| `agenda.argusprime.com.br.nginx` | `agenda.argusprime.com.br` | `127.0.0.1:3100` (app) — **agenda nativa** |
+
+O domínio da agenda apontava para o cal.com (`127.0.0.1:3102`, serviço
+`prospectra-agenda`) e passou a servir o app em 30/10/2026. O serviço do cal.com continua
+rodando — perdeu apenas o vhost público. O vhost antigo ficou preservado em
+`/etc/nginx/sites-available/prospectra-agenda`; o rollback está em
+`docs/AGEND-NATIVA.md` §6.
+
+O nginx da VPS escuta **somente em `[::]:80`** (o TLS fica na Cloudflare). Para testar
+localmente, use `http://[::1]/` com `-H "Host: <dominio>"` — `127.0.0.1` não conecta.
+
 ## Agendador
 
 Nesta VPS já existe `/etc/cron.d/prospectra-tick`, a cada cinco minutos. Confira
@@ -39,8 +57,9 @@ confirme um heartbeat bem-sucedido no aplicativo.
 
 Use `systemctl status prospectra-plus`, `journalctl -u prospectra-plus` e
 `curl http://127.0.0.1:3100/api/health`. Credenciais nunca pertencem aos logs ou
-ao repositório. A agenda cal.diy é outro serviço, na porta 3102; seu link de
-evento precisa existir antes de definir `MEETING_SCHEDULER_URL`.
+ao repositório. A agenda nativa é um módulo do próprio app (documentação em
+`docs/AGEND-NATIVA.md`); o cal.com é um serviço legado em `127.0.0.1:3102`, sem
+vhost público desde 30/10/2026.
 
 ## Estado verificado em 29/10/2026
 

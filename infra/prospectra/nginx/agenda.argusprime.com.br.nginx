@@ -1,0 +1,47 @@
+# Vhost público da agenda NATIVA do Prospectra.
+#
+# `agenda.argusprime.com.br` deixa de apontar para o cal.com (127.0.0.1:3102,
+# systemd `prospectra-agenda`) e passa a servir o app do Prospectra
+# (127.0.0.1:3100, systemd `prospectra-plus`). O cal.com continua rodando na
+# 3102 — ele só perde o vhost público.
+#
+# Instalar na VPS:
+#   cp infra/prospectra/nginx/agenda.argusprime.com.br.nginx \
+#      /etc/nginx/sites-available/agenda.argusprime.com.br
+#   ln -sfn /etc/nginx/sites-available/agenda.argusprime.com.br \
+#      /etc/nginx/sites-enabled/agenda.argusprime.com.br
+#   rm -f /etc/nginx/sites-enabled/prospectra-agenda   # vhost antigo do cal.com
+#   nginx -t && systemctl reload nginx
+#
+# ROLLBACK (voltar o domínio para o cal.com):
+#   rm -f /etc/nginx/sites-enabled/agenda.argusprime.com.br
+#   cp /etc/nginx/sites-available/prospectra-agenda \
+#      /etc/nginx/sites-enabled/prospectra-agenda
+#   nginx -t && systemctl reload nginx
+#
+# O TLS fica na Cloudflare: aqui só escuta em :80 e o `Host` original vai no
+# header, igual aos demais vhosts da casa.
+
+server {
+    listen [::]:80;
+    server_name agenda.argusprime.com.br;
+
+    client_max_body_size 20m;
+
+    # Rotas do cal.com que não existem no app nativo. Seguem 403 para ninguém
+    # criar conta por engano — o login do Prospectra é o próprio.
+    location ^~ /auth/setup { return 403; }
+    location ^~ /api/auth/setup { return 403; }
+
+    location / {
+        proxy_pass http://127.0.0.1:3100;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+}

@@ -8,8 +8,7 @@ import { UsersView } from './users-view';
 import { mailerConfigured } from '@/lib/mailer';
 import { PageHeader } from '@/components/ui';
 import { AdminView } from './admin-view';
-import { agendaStatus } from '@/lib/agenda';
-import { AgendaSetupCard } from '../agenda-card';
+import { AgendaCard } from '../agenda-card';
 
 export const metadata = { title: 'Administração de parceiros' };
 
@@ -28,14 +27,13 @@ export default async function AdminPage() {
     orgs: sql<string>`coalesce((select string_agg(o.name, ', ') from ${schema.memberships} m join ${schema.orgs} o on o.id = m.org_id where m.user_id = ${schema.users.id}), '')` })
     .from(schema.users).where(sql`${schema.users.email} not like '%@demo.invalid'`).orderBy(asc(schema.users.email));
   const memberships = await db.select().from(schema.memberships);
-  const agenda = await agendaStatus();
   return (
     <>
       <PageHeader eyebrow="Admin master" title="Administração de parceiros" subtitle="Crie parceiros, defina cotas e acompanhe o uso de todos." />
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
         <span className={`pill ${mailerConfigured() ? 'bg-success-soft text-success' : 'bg-red-50 text-danger'}`}>Office 365 {mailerConfigured() ? 'configurado' : 'não configurado'}</span>
       </div>
-      <div className="mb-6"><AgendaSetupCard awaitingAdmin={agenda.awaitingAdmin} unreachable={agenda.unreachable} message={agenda.message} /></div>
+      <div className="mb-6"><AgendaCard /></div>
       <AdminView orgs={orgs.map(({ o, ...rest }) => ({ id: o.id, name: o.name, seats: o.seats, credits: o.searchCreditsMonth, active: o.active, aiEnabled: o.aiEnabled, imageEnabled: o.imageEnabled, callEnabled: o.callEnabled, linkedinEnabled: o.linkedinEnabled, ...rest }))}
         users={users} />
       <UsersView orgs={orgs.map(({o}) => ({id:o.id,name:o.name}))} users={users.map(u => ({...u, protected:!canChangeUser(ctx.user,u), memberships:memberships.filter(m => m.userId===u.id).map(m=>({orgId:m.orgId,role:m.role}))}))}/>

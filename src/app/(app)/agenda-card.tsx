@@ -1,86 +1,85 @@
-'use client';
+import Link from 'next/link';
+import { CalendarDays, ChevronRight } from 'lucide-react';
+import { getDb } from '@/db';
+import { requireUser } from '@/lib/auth';
+import { listBookings } from '@/lib/agenda-booking';
 
-import { useActionState, useState } from 'react';
-import { CalendarPlus, ExternalLink } from 'lucide-react';
-import { criarAdminAgendaAction } from './actions';
+/**
+ * Card "Agenda" do painel (substitui o card do cal.com).
+ *
+ * Mostra as próximas reservas da operação e dá o atalho para /agenda, onde o
+ * vendedor cria os tipos de reunião, define a disponibilidade e acompanha tudo.
+ */
+export async function AgendaCard() {
+  const ctx = await requireUser();
+  const org = ctx.org;
 
-export function AgendaSetupCard({ awaitingAdmin, unreachable, message }: {
-  awaitingAdmin: boolean;
-  unreachable: boolean;
-  message?: string;
-}) {
-  const [state, action, pending] = useActionState(criarAdminAgendaAction, undefined);
-  const [open, setOpen] = useState(false);
-
-  if (unreachable) {
+  if (!org) {
     return (
       <section className="card p-5">
         <h2 className="flex items-center gap-2 font-semibold">
-          <CalendarPlus className="h-4 w-4 text-accent" /> Agenda (cal.diy)
+          <CalendarDays className="h-4 w-4 text-accent" /> Agenda
         </h2>
         <p className="mt-2 text-sm text-muted">
-          {message || 'A agenda não está respondendo. O serviço fica na VPS, em 127.0.0.1:3102.'}
+          A agenda agora é interna do Prospectra: cada operação cria seus tipos de reunião, define os
+          horários disponíveis e acompanha as reservas. Escolha um parceiro no topo para ver as
+          reservas dele.
         </p>
       </section>
     );
   }
 
-  if (!awaitingAdmin) {
-    return (
-      <section className="card p-5">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <CalendarPlus className="h-4 w-4 text-accent" /> Agenda (cal.diy)
-        </h2>
-        <p className="mt-2 text-sm text-muted">A agenda já tem administrador. Abra para gerenciar os agendamentos.</p>
-        <a className="btn-primary mt-3 inline-flex items-center gap-1.5" href="https://agenda.argusprime.com.br" target="_blank" rel="noreferrer">
-          Abrir agenda <ExternalLink className="h-4 w-4" />
-        </a>
-      </section>
-    );
-  }
+  const db = await getDb();
+  const now = new Date();
+  const bookings = await listBookings(
+    db,
+    { orgId: org.id, userId: ctx.user.id },
+    { from: new Date(now.getTime() - 60 * 60 * 1000), limit: 4 },
+  );
 
   return (
     <section className="card p-5">
-      <h2 className="flex items-center gap-2 font-semibold">
-        <CalendarPlus className="h-4 w-4 text-accent" /> Agenda (cal.diy)
-      </h2>
-      <p className="mt-2 text-sm text-muted">
-        A agenda está no ar e ainda não tem administrador. Crie o primeiro acesso aqui — ele vale
-        só para esta operação.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <CalendarDays className="h-4 w-4 text-accent" /> Agenda
+        </h2>
+        <Link href="/agenda" className="inline-flex items-center gap-1 text-sm font-medium text-accent">
+          Abrir agenda <ChevronRight className="h-4 w-4" />
+        </Link>
+      </div>
 
-      {!open ? (
-        <button className="btn-primary mt-3" onClick={() => setOpen(true)}>Criar acesso da agenda</button>
+      {bookings.length === 0 ? (
+        <p className="mt-2 text-sm text-muted">
+          Nenhuma reserva marcada até agora. Em <strong>/agenda</strong> você cria o tipo de reunião,
+          define os horários e gera o link para enviar ao lead.
+        </p>
       ) : (
-        <form action={action} className="mt-3 space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">Nome completo</span>
-              <input className="input w-full" name="fullName" minLength={3} maxLength={80} required />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">Usuário</span>
-              <input className="input w-full" name="username" minLength={1} maxLength={40} placeholder="sem acentos nem espaços" required />
-            </label>
-          </div>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">E-mail</span>
-            <input className="input w-full" type="email" name="email" required />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">Senha</span>
-            <input className="input w-full" type="password" name="password" minLength={15} required />
-            <span className="mt-1 block text-xs text-muted">Mínimo de 15 caracteres, com número e letras maiúsculas e minúsculas.</span>
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" disabled={pending}>{pending ? 'Criando…' : 'Criar administrador'}</button>
-            <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>Cancelar</button>
-          </div>
-        </form>
+        <ul className="mt-3 divide-y divide-border">
+          {bookings.map((b) => (
+            <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+              <span className="min-w-0">
+                <span className="font-medium">{b.attendeeName?.trim() || 'Participante'}</span>{' '}
+                <span className="text-muted">· {formatWhen(b.scheduledAt, b.timezone)}</span>
+              </span>
+              <span className={`pill ${b.status === 'confirmed' ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'}`}>
+                {b.status === 'confirmed' ? 'Confirmada' : 'Aguardando confirmação'}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
-
-      {state?.ok && <p className="mt-3 text-sm text-muted" role="status">{state.ok}</p>}
-      {state?.error && <p className="mt-3 text-sm text-danger" role="status">{state.error}</p>}
     </section>
   );
+}
+
+/** Data e hora em pt-BR, no fuso do tipo de reunião. */
+function formatWhen(date: Date | null, timezone: string | null): string {
+  if (!date) return 'a definir';
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: timezone?.trim() || 'America/Sao_Paulo',
+  });
 }

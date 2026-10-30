@@ -29,7 +29,6 @@ import { upsertSchedule, parseMinute } from '@/lib/support-schedule';
 import { createAttributeDef, deleteAttributeDef } from '@/lib/lead-attributes';
 import { createWebhook, updateWebhook, deleteWebhook } from '@/lib/webhooks';
 import { recordAudit } from '@/lib/audit';
-import { createAgendaAdmin } from '@/lib/agenda';
 
 type State = { error?: string; ok?: string } | undefined;
 
@@ -712,33 +711,4 @@ export async function deleteWebhookAction(id: string) {
   await deleteWebhook(ctx.org.id, id);
   await recordAudit(ctx.org.id, { actorUserId: ctx.user.id, action: 'webhook.deleted', entity: 'webhook_endpoint', entityId: id });
   revalidatePath('/atendimento');
-}
-
-// ---------- Agenda (cal.diy): primeiro administrador ----------
-
-export async function criarAdminAgendaAction(_: State, form: FormData): Promise<State> {
-  await requireAdmin();
-  const username = String(form.get('username') ?? '').trim().toLowerCase();
-  const fullName = String(form.get('fullName') ?? '').trim();
-  const email = String(form.get('email') ?? '').trim().toLowerCase();
-  const password = String(form.get('password') ?? '');
-  if (fullName.length < 3) return { error: 'Informe o nome completo.' };
-  if (!/^[a-z0-9-]+$/.test(username)) return { error: 'O usuário aceita apenas letras minúsculas, números e hífen.' };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'E-mail inválido.' };
-  if (password.length < 15 || !/[0-9]/.test(password) || !/[a-z]/.test(password) || !/[A-Z]/.test(password)) {
-    return { error: 'A senha precisa de 15+ caracteres, com número e maiúsculas e minúsculas.' };
-  }
-  const result = await createAgendaAdmin({ username, fullName, email, password });
-  if (!result.ok) return { error: result.error };
-  const ctx = await requireOrg();
-  await recordAudit(ctx.org.id, {
-    actorUserId: ctx.user.id,
-    action: 'agenda.admin_created',
-    entity: 'agenda',
-    entityId: username,
-    payload: { email },
-  });
-  revalidatePath('/admin');
-  revalidatePath('/painel');
-  return { ok: 'Administrador da agenda criado. Já dá para entrar em agenda.argusprime.com.br.' };
 }

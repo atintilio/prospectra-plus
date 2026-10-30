@@ -131,11 +131,15 @@ export async function confirmMeeting(db: DB, scope: Scope, meetingId: string, sc
       return { ...m, newlyConfirmed: false };
     }
     const [updated] = await tx.update(schema.meetings).set({ status: 'confirmed', scheduledAt }).where(eq(schema.meetings.id, m.id)).returning();
-    const [lead] = await tx.select().from(schema.leads).where(and(eq(schema.leads.id, m.leadId), eq(schema.leads.orgId, scope.orgId)));
-    if (lead && (CONFIRMABLE_STAGES as readonly string[]).includes(lead.stage)) {
+    // Uma reserva vinda da agenda pode não ter lead vinculado — nesse caso o
+    // estágio do lead não muda, mas o evento da reunião é registrado.
+    const lead = m.leadId
+      ? (await tx.select().from(schema.leads).where(and(eq(schema.leads.id, m.leadId), eq(schema.leads.orgId, scope.orgId))))[0]
+      : undefined;
+    if (lead && m.leadId && (CONFIRMABLE_STAGES as readonly string[]).includes(lead.stage)) {
       await tx.update(schema.leads).set({ stage: 'meeting', lastActivityAt: new Date() }).where(eq(schema.leads.id, m.leadId));
     }
-    await tx.insert(schema.events).values({ orgId: scope.orgId, userId: scope.userId, leadId: m.leadId, type: 'meeting_booked' });
+    await tx.insert(schema.events).values({ orgId: scope.orgId, userId: scope.userId, leadId: m.leadId ?? null, type: 'meeting_booked' });
     return { ...updated, newlyConfirmed: true };
   });
 }
@@ -147,13 +151,18 @@ export async function confirmMeetingAndInvite(
 ): Promise<{ meeting: Meeting; inviteState: 'sent' | 'missing_email' | 'unknown' | 'already_confirmed' }> {
   const meeting = await confirmMeeting(db, scope, meetingId, scheduledAt);
   if (!meeting.newlyConfirmed) return { meeting, inviteState: 'already_confirmed' };
-  const [lead] = await db.select({ name: schema.leads.fullName, email: schema.leads.email })
-    .from(schema.leads).where(and(eq(schema.leads.id, meeting.leadId), eq(schema.leads.orgId, scope.orgId)));
-  const leadEmail = lead?.email?.trim();
+  // O participante vem do lead vinculado; numa reserva da agenda vem do próprio
+  // participante informado no formulário público.
+  const lead = meeting.leadId
+    ? (await db.select({ name: schema.leads.fullName, email: schema.leads.email })
+        .from(schema.leads).where(and(eq(schema.leads.id, meeting.leadId), eq(schema.leads.orgId, scope.orgId))))[0]
+    : undefined;
+  const attendeeName = meeting.attendeeName?.trim() || lead?.name?.trim() || 'Participante';
+  const leadEmail = (meeting.attendeeEmail?.trim() || lead?.email?.trim()) || undefined;
   const organizerEmail = sellerEmail.trim();
   if (!leadEmail || !organizerEmail) return { meeting, inviteState: 'missing_email' };
-  const title = `Reunião Prospectra com ${lead.name}`;
-  const ics = buildIcs({ uid: meeting.id, title, start: scheduledAt, organizerEmail, attendeeName: lead.name, attendeeEmail: leadEmail });
+  const title = `Reunião Prospectra com ${attendeeName}`;
+  const ics = buildIcs({ uid: meeting.id, title, start: scheduledAt, organizerEmail, attendeeName, attendeeEmail: leadEmail });
   const when = scheduledAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
   try {
     await sendInvite([leadEmail, organizerEmail], title, `Reunião confirmada para ${when} (horário de Brasília). O convite está em anexo.`, ics);
