@@ -18,7 +18,7 @@ const approvalSchema=z.object({leadId:z.string().uuid(),phone:phoneSchema,qualif
 const conversationWhere=(scope:Scope)=>and(eq(schema.harveyConversations.orgId,scope.orgId),eq(schema.harveyConversations.userId,scope.userId));
 async function access(db:DB,scope:Scope){
  const [row]=await db.select({org:schema.orgs,user:schema.users}).from(schema.memberships).innerJoin(schema.orgs,eq(schema.orgs.id,schema.memberships.orgId)).innerJoin(schema.users,eq(schema.users.id,schema.memberships.userId)).where(and(eq(schema.memberships.orgId,scope.orgId),eq(schema.memberships.userId,scope.userId)));
- if(!row||!row.org.active||row.org.isDemo||row.user.status!=='active')throw Error('Operação sem acesso ativo.');
+ if(!row||!row.org.active||row.user.status!=='active')throw Error('Operação sem acesso ativo.');
  return row;
 }
 export async function saveCommercialProfile(db:DB,scope:Scope,raw:unknown){

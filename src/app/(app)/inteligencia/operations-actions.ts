@@ -9,7 +9,7 @@ export async function saveProfileAction(raw:unknown){
  catch(e){return {error:e instanceof Error&&!(e instanceof SyntaxError)?'Não foi possível salvar. Revise os campos e seu acesso.':'Não foi possível salvar.'};}
 }
 export async function approveHarveyAction(raw:unknown){
- try{const ctx=await requireOrg();const db=await getDb();const conversation=await approveConversation(db,{orgId:ctx.org.id,userId:ctx.user.id},raw);after(async()=>{try{await runHarveyQueue(db,{maxJobs:1,conversationId:conversation.id});}catch{console.error('Approved commercial delivery remains in durable queue.');}});revalidatePath('/inteligencia');revalidatePath('/leads');return {ok:true};}
+ try{const ctx=await requireOrg();const db=await getDb();const conversation=await approveConversation(db,{orgId:ctx.org.id,userId:ctx.user.id},raw);if(!ctx.org.isDemo)after(async()=>{try{await runHarveyQueue(db,{maxJobs:1,conversationId:conversation.id});}catch{console.error('Approved commercial delivery remains in durable queue.');}});revalidatePath('/inteligencia');revalidatePath('/leads');return {ok:ctx.org.isDemo?'Demonstração: fluxo aprovado e primeira mensagem simulada.':true};}
  catch(e){return {error:e instanceof Error&&!e.message.startsWith('[')&&e.message.length<200?e.message:'Revise o lead, o telefone, a qualificação e a aprovação.'};}
 }
 export async function stopHarveyAction(id:string){

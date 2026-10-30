@@ -12,6 +12,8 @@ async function context(){
 }
 export async function whatsappAction(action:'status'|'connect'|'disconnect'):Promise<WhatsAppStatus>{
  try {
+  const demo=await requireOrg();
+  if(demo.org.isDemo)return {state:action==='disconnect'?'disconnected':'connected',phone:'5511999999999',checkedAt:new Date().toISOString(),message:'Demonstração: WhatsApp simulado; nenhum número real foi conectado.'};
   const {scope,api}=await context();
   if(action==='connect'){
    const result=await api.connect(scope);
@@ -25,6 +27,8 @@ export async function whatsappAction(action:'status'|'connect'|'disconnect'):Pro
 }
 export async function sendWhatsAppAction(input:unknown):Promise<{ok?:string;error?:string;state?:string}>{
  try {
+  const demo=await requireOrg();
+  if(demo.org.isDemo)return {ok:'Demonstração: mensagem simulada e registrada; nada foi enviado.',state:'sent'};
   const {ctx,scope,api}=await context();
   const result=await sendWhatsAppCommand(await getDb(),scope,input,ctx.user.dailyMessages,(s,p,t)=>api.sendText(s,p,t));
   if(result.state==='sent')return {ok:'Mensagem aceita pelo WhatsApp. Isso ainda não confirma leitura ou entrega ao destinatário.',state:'sent'};
