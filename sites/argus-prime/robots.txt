@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://argusprime.com.br/sitemap.xml
