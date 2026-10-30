@@ -50,6 +50,13 @@
       "when": 1793088001000,
       "tag": "0006_voice",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793364174997,
+      "tag": "0007_military_stellaris",
+      "breakpoints": true
     }
   ]
 }

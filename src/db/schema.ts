@@ -21,6 +21,7 @@ export const users = pgTable('users', {
 export const orgs = pgTable('orgs', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  planId: uuid('plan_id'),
   seats: integer('seats').notNull().default(5),
   searchCreditsMonth: integer('search_credits_month').notNull().default(300),
   driver: text('driver', { enum: ['assisted', 'unipile'] }).notNull().default('assisted'),
@@ -29,6 +30,17 @@ export const orgs = pgTable('orgs', {
   isDemo: boolean('is_demo').notNull().default(false),
   createdAt: createdAt(),
 });
+
+// Estrutura configurável de planos e limites (sem preço fixado neste momento).
+export const plans = pgTable('plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  seats: integer('seats').notNull().default(5),
+  searchCreditsMonth: integer('search_credits_month').notNull().default(300),
+  features: jsonb('features').$type<Record<string, boolean>>().notNull().default(sql`'{}'::jsonb`),
+  active: boolean('active').notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('plans_name_uq').on(t.name)]);
 
 export const memberships = pgTable('memberships', {
   orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
@@ -93,6 +105,7 @@ export const campaigns = pgTable('campaigns', {
   orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
   ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   assignedTo: uuid('assigned_to').references(() => users.id, { onDelete: 'set null' }),
+  linkedinAccountId: uuid('linkedin_account_id'),
   name: text('name').notNull(),
   status: text('status', { enum: ['draft', 'active', 'paused', 'finished'] }).notNull().default('draft'),
   steps: jsonb('steps').$type<CampaignStep[]>().notNull().default(sql`'[]'::jsonb`),
@@ -127,6 +140,8 @@ export const actions = pgTable('actions', {
   body: text('body').notNull().default(''),
   dueDate: date('due_date').notNull(),
   status: text('status', { enum: ['pending', 'done', 'skipped'] }).notNull().default('pending'),
+  dispatchState: text('dispatch_state', { enum: ['none', 'sent', 'unknown'] }).notNull().default('none'),
+  providerId: text('provider_id'),
   executedAt: timestamp('executed_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
@@ -221,3 +236,97 @@ export const voiceJobs=pgTable('voice_jobs',{
  state:text('state',{enum:['queued','running','sent','unknown','failed','waiting_transport']}).notNull(),
  createdAt:createdAt(),startedAt:timestamp('started_at',{withTimezone:true}),
 },t=>[index('voice_jobs_scope_idx').on(t.orgId,t.userId,t.createdAt),index('voice_jobs_queue_idx').on(t.state,t.createdAt)]);
+
+// ---------- Go LinkedIn ----------
+// Conta(s) LinkedIn do usuário, sempre vinculada a orgId + userId.
+// O MVP usa uma conta por usuário; o modelo permite várias no futuro.
+export const LINKEDIN_ACCOUNT_STATUSES = ['waiting', 'connected', 'expired', 'blocked', 'disconnected'] as const;
+export type LinkedInStatus = (typeof LINKEDIN_ACCOUNT_STATUSES)[number];
+export const linkedinAccounts = pgTable('linkedin_accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  label: text('label').notNull().default('Principal'),
+  providerId: text('provider_id'),
+  status: text('status', { enum: LINKEDIN_ACCOUNT_STATUSES }).notNull().default('waiting'),
+  // Sessão do LinkedIn (cookie/token) — cifrada no servidor com AES-256-GCM; nunca em texto puro.
+  sessionEnc: text('session_enc'),
+  demo: boolean('demo').notNull().default(false),
+  lastError: text('last_error'),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  connectedAt: timestamp('connected_at', { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [index('linkedin_accounts_user_idx').on(t.orgId, t.userId)]);
+
+// ---------- Agenda ----------
+export const MEETING_STATUSES = ['requested', 'confirmed', 'cancelled'] as const;
+export type MeetingStatus = (typeof MEETING_STATUSES)[number];
+export const meetings = pgTable('meetings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'set null' }),
+  // Token da URL pública de agendamento/gerenciamento da reunião.
+  publicId: text('public_id').notNull(),
+  title: text('title').notNull().default('Reunião'),
+  requesterName: text('requester_name').notNull(),
+  requesterEmail: text('requester_email').notNull(),
+  slot: timestamp('slot', { withTimezone: true }).notNull(),
+  durationMin: integer('duration_min').notNull().default(30),
+  status: text('status', { enum: MEETING_STATUSES }).notNull().default('requested'),
+  // Estado do convite .ics e do envio por e-mail (para exibir erros na Agenda).
+  icsState: text('ics_state', { enum: ['none', 'queued', 'sent', 'error'] }).notNull().default('none'),
+  icsError: text('ics_error'),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex('meetings_public_id_uq').on(t.publicId),
+  index('meetings_org_slot_idx').on(t.orgId, t.slot),
+]);
+
+// ---------- Helpin (suporte/inbox) ----------
+export const helpinConversations = pgTable('helpin_conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'set null' }),
+  subject: text('subject').notNull().default(''),
+  contactName: text('contact_name').notNull().default(''),
+  channel: text('channel', { enum: ['helpin', 'whatsapp', 'email'] }).notNull().default('helpin'),
+  status: text('status', { enum: ['open', 'closed'] }).notNull().default('open'),
+  assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (t) => [index('helpin_conv_org_status_idx').on(t.orgId, t.status, t.lastMessageAt)]);
+
+export const helpinMessages = pgTable('helpin_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  conversationId: uuid('conversation_id').notNull().references(() => helpinConversations.id, { onDelete: 'cascade' }),
+  // "contact" = lead/cliente; "agent" = equipe. Na demo, o envio do agente é simulado.
+  sender: text('sender', { enum: ['contact', 'agent'] }).notNull(),
+  body: text('body').notNull(),
+  simulated: boolean('simulated').notNull().default(false),
+  createdAt: createdAt(),
+}, (t) => [index('helpin_msg_conv_idx').on(t.conversationId, t.createdAt)]);
+
+// ---------- Configurações por organização ----------
+export const orgSettings = pgTable('org_settings', {
+  orgId: uuid('org_id').primaryKey().references(() => orgs.id, { onDelete: 'cascade' }),
+  senderEmail: text('sender_email'),
+  atendimentoStart: text('atendimento_start').notNull().default('09:00'),
+  atendimentoEnd: text('atendimento_end').notNull().default('18:00'),
+  autoReply: text('auto_reply').notNull().default(''),
+  // Recursos ligados/desligados por organização (ex.: whatsapp, voice, inteligencia, golinkedin).
+  features: jsonb('features').$type<Record<string, boolean>>().notNull().default(sql`'{}'::jsonb`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------- Documentos ----------
+export const documents = pgTable('documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  url: text('url').notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  createdAt: createdAt(),
+}, (t) => [index('documents_org_idx').on(t.orgId, t.createdAt)]);
