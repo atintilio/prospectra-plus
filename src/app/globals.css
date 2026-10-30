@@ -77,19 +77,6 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 @utility th { @apply px-4 py-2.5 text-left text-xs font-medium text-muted; }
 @utility td { @apply px-4 py-3 text-sm; }
 
-/* Logo flutuante do login */
-@keyframes logo-float {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
-  50% { transform: translate3d(0, -22px, 0) rotate(2.5deg); }
-}
-@keyframes logo-shadow {
-  0%, 100% { transform: scale(1); opacity: .35; }
-  50% { transform: scale(.82); opacity: .18; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .logo-float, .logo-shadow { animation: none !important; }
-}
-
 /* Navigation motion: existing identity, no artificial navigation delay. */
 @keyframes prospectra-page-enter {
  from { opacity: 0; transform: translate3d(0, 8px, 0); }
