@@ -73,3 +73,9 @@ print(urllib.request.urlopen(r,timeout=30).status)"
 
 > **Atenção**: `CRON_SECRET` precisa ser **igual** em `app.env`, `harvey-worker.env` e
 > `cron.env`. Divergência = 403 silencioso no endpoint.
+
+> **Atenção**: `VOICESTUDIO_API_KEY` (no `app.env`) precisa ser **igual** ao
+> `OMNIVOICE_API_KEY` do `/opt/prospectra-voice/.env` — que é a mesma chave que o nginx
+> aceita na borda (`Authorization: Bearer <chave>`). Encontrei a chave do `app.env`
+> divergente em 30/10: funcionava só porque o backend pula a checagem para clientes em
+> loopback. Alinhado em 30/10 ✅ (`app.env.bak` guarda a versão anterior).
