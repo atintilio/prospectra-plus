@@ -1,9 +1,5 @@
 @import "tailwindcss";
 @import "@fontsource/libre-baskerville/400-italic.css";
-/* Quantico era importado do Google Fonts: o bundler descartava o @import url e a
-   fonte caía no fallback (Arial Narrow). Agora é servida pelo próprio app. */
-@import "@fontsource/quantico/400.css";
-@import "@fontsource/quantico/700.css";
 
 /* Identidade Prospectra: base LeadFlow (branco, azul elétrico) + logo azul/roxo/prata */
 :root {
@@ -33,40 +29,6 @@
 
 html, body { background: var(--bg); color: var(--text); }
 body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
-
-.auth-page { --targo-bg:#f2f1f0; --targo-ink:#2b3033; --targo-muted:#6b6f72; --targo-cyan:#15bcdf; min-height:100svh; background:var(--targo-bg); color:var(--targo-ink); font-family:'Quantico','Arial Narrow',sans-serif; }
-.auth-hero { min-height:100svh; position:relative; overflow:hidden; background:var(--targo-bg); }
-.auth-hero-video { position:absolute; z-index:0; top:0; right:-20%; width:99%; height:auto; pointer-events:none; object-fit:contain; }
-.auth-hero-scrim { position:absolute; inset:0 auto 0 0; width:70%; background:linear-gradient(90deg,#f2f1f0 0%,#f2f1f0 55%,rgba(242,241,240,.85) 78%,rgba(242,241,240,0) 100%); }
-.auth-nav { position:relative; z-index:2; display:flex; align-items:center; flex-wrap:wrap; gap:clamp(20px,5vw,56px); padding:clamp(20px,3vw,38px) clamp(20px,4vw,48px) 0; }
-.auth-brand { display:inline-flex; align-items:center; gap:10px; color:#111; font-size:clamp(22px,5vw,30px); letter-spacing:-.5px; text-decoration:none; }
-.auth-brand-mark { display:grid; place-items:center; width:38px; height:38px; border-radius:50%; background:#111; }
-.auth-brand-mark i { width:20px; height:8px; border-radius:50%; background:#fff; transform:rotate(-25deg); }
-.auth-links { display:flex; gap:34px; margin-left:clamp(8px,4vw,40px); }
-.auth-links a,.auth-contact { color:#3a3a3a; font-size:clamp(12px,2.4vw,15px); font-weight:700; letter-spacing:.06em; text-decoration:none; white-space:nowrap; }
-.auth-contact { margin-left:auto; padding:14px 26px; color:#fff; background:rgba(21,188,223,.78); clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px)); }
-.auth-menu-toggle { display:none; border:0; background:transparent; padding:8px; }
-.auth-menu-toggle span { display:block; width:22px; height:2px; margin:5px 0; background:#fff; }
-.auth-hero-grid { position:relative; z-index:1; display:grid; grid-template-columns:minmax(0,1fr) minmax(320px,420px); align-items:center; gap:clamp(24px,6vw,90px); min-height:calc(100svh - 92px); padding:clamp(40px,9vw,120px) clamp(20px,9vw,118px) min(clamp(24px,4vw,44px),5vh); }
-.auth-hero-copy h1,.auth-about h2 { margin:0; font-size:min(clamp(34px,7.6vw,80px),9.2vh); font-weight:700; letter-spacing:.01em; line-height:.98; text-transform:uppercase; }
-.auth-hero-copy h1 span,.auth-about h2 span { display:inline-block; margin-left:min(238px,28vw); }
-.auth-accent,.auth-about h2 span { color:var(--targo-cyan); }
-.auth-kicker { margin:0 0 22px; color:var(--targo-muted); font-size:12px; font-weight:700; letter-spacing:.14em; }
-.auth-cta { display:inline-flex; align-items:center; gap:18px; margin:30px 0 0 min(238px,28vw); padding:18px 34px; border:1px solid #0fa3c2; background:var(--targo-cyan); color:#1a1c1e; font-size:clamp(13px,2.2vw,16px); font-weight:700; letter-spacing:.14em; text-decoration:none; clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px)); box-shadow:0 0 0 1px rgba(21,188,223,.35),0 10px 30px -12px rgba(15,163,194,.6); }
-.auth-cta b { width:22px; height:1px; background:#1a1c1e; }
-.auth-cta:hover { background:#3fd0ef; }
-.auth-login-card { width:100%; padding:clamp(24px,4vw,34px); background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.9); box-shadow:0 20px 60px -20px rgba(21,93,252,.28); backdrop-filter:blur(18px); }
-.auth-login-card h2 { font-size:26px; text-transform:uppercase; letter-spacing:.01em; }
-.auth-about { display:flex; flex-wrap:wrap; align-items:center; gap:40px; padding:clamp(60px,10vw,140px) 0 clamp(30px,5vw,70px) clamp(20px,9vw,118px); background:linear-gradient(180deg,#f2f1f0 0%,#f7f6f8 18%,#f7f6f8 100%); }
-.auth-about-copy { flex:1 1 420px; min-width:300px; }
-.auth-about h2 { font-size:clamp(34px,6.5vw,72px); }
-.auth-about-copy p { max-width:520px; margin:32px 0 0 min(160px,18vw); color:var(--targo-muted); font-family:var(--font-sans); font-size:clamp(14px,1.6vw,17px); line-height:1.7; }
-.auth-about-copy .auth-cta { margin-left:min(160px,18vw); }
-.auth-about-media { position:relative; flex:1 1 360px; min-width:280px; align-self:stretch; display:flex; justify-content:flex-end; }
-.auth-about-media video { width:100%; max-width:644px; height:auto; object-fit:contain; align-self:center; }
-.auth-about-media div { position:absolute; inset:0 0 0 auto; width:100%; max-width:644px; background:var(--targo-cyan); mix-blend-mode:hue; pointer-events:none; }
-.auth-footer { padding:20px clamp(20px,9vw,118px); background:#f7f6f8; color:var(--targo-muted); font:12px var(--font-sans); }
-@media (max-width:700px) { .auth-hero-video { top:0; left:-12%; right:auto; width:119%; } .auth-hero-scrim { display:none; } .auth-links { display:none; order:5; width:100%; flex-direction:column; gap:18px; padding:18px 0 4px; } .auth-links-open { display:flex; } .auth-contact { display:none; } .auth-menu-toggle { display:block; margin-left:auto; } .auth-hero-grid { display:block; min-height:0; margin-top:360px; padding:0 20px 28px; } .auth-hero-copy h1 { font-size:clamp(34px,10vw,56px); } .auth-hero-copy h1 span { margin-left:min(160px,28vw); } .auth-hero-copy .auth-cta { margin-left:min(160px,28vw); } .auth-login-card { margin-top:32px; } .auth-about { display:block; padding:80px 20px 50px; } .auth-about-copy p,.auth-about-copy .auth-cta { margin-left:min(120px,18vw); } .auth-about-media { min-width:0; margin:56px -20px 0 0; } }
 
 @utility card { @apply rounded-2xl border border-border bg-white; }
 @utility btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright disabled:opacity-50 disabled:pointer-events-none cursor-pointer; }
@@ -103,13 +65,6 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
  50% { opacity: 1; }
 }
 .prospectra-page-enter { animation: prospectra-page-enter 500ms cubic-bezier(.22,1,.36,1) both; }
-.prospectra-shell { background:linear-gradient(135deg,#f8fafc 0%,#f7f6f8 100%); }
-.prospectra-sidebar { box-shadow:8px 0 30px -28px rgba(15,23,42,.45); }
-.prospectra-topbar { box-shadow:0 8px 24px -22px rgba(15,23,42,.5); }
-.prospectra-main > * { animation:prospectra-content-enter 560ms cubic-bezier(.22,1,.36,1) both; }
-@keyframes prospectra-content-enter { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-.prospectra-nav-item { position:relative; }
-.prospectra-nav-item:active { transform:translateX(2px) scale(.99); }
 .prospectra-loading { animation: prospectra-loading 800ms cubic-bezier(.22,1,.36,1) infinite; }
 button, a.btn-primary, a.btn-outline, a.btn-ghost, a.btn-danger {
  transition-property: transform, background-color, color, opacity, border-color;
@@ -122,7 +77,7 @@ nav a { transition: color 300ms cubic-bezier(.22,1,.36,1), background-color 300m
  nav a:hover { transform: translateX(2px); }
 }
 @media (prefers-reduced-motion: reduce) {
- .prospectra-page-enter, .prospectra-loading, .prospectra-main > * { animation: none; }
+ .prospectra-page-enter, .prospectra-loading { animation: none; }
  button, nav a, a.btn-primary, a.btn-outline, a.btn-ghost, a.btn-danger { transition: none; }
  button:active:not(:disabled), a.btn-primary:active, a.btn-outline:active, nav a:hover { transform: none; }
 }

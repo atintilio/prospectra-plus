@@ -1,38 +1,43 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-
-const heroVideo = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260823_050407_500d0339-ab28-41c1-9688-132a74a3b5aa.mp4';
-const aboutVideo = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260823_063501_2e2c8971-de1e-473a-8611-a0c9ae7ee186.mp4';
-
-function useVideoRetry() {
-  useEffect(() => {
-    const play = () => document.querySelectorAll<HTMLVideoElement>('[data-autoplay]').forEach((video) => { video.muted = true; void video.play().catch(() => undefined); });
-    play();
-    const timer = window.setInterval(play, 1000);
-    document.addEventListener('click', play, { once: true });
-    document.addEventListener('touchstart', play, { once: true });
-    return () => { window.clearInterval(timer); document.removeEventListener('click', play); document.removeEventListener('touchstart', play); };
-  }, []);
-}
+import { LiquidMetal } from '@/components/liquid-metal';
+import { AnimatedLogo } from '@/components/animated-logo';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  useVideoRetry();
-  const closeMenu = () => setMenuOpen(false);
-  return <main className="auth-page">
-    <section className="auth-hero" id="home">
-      <video className="auth-hero-video" data-autoplay autoPlay muted loop playsInline preload="auto" src={heroVideo} aria-hidden="true" />
-      <div className="auth-hero-scrim" aria-hidden="true" />
-      <header className="auth-nav">
-        <a className="auth-brand" href="#home"><span className="auth-brand-mark"><i /></span><span>prospectra</span></a>
-        <nav className={menuOpen ? 'auth-links auth-links-open' : 'auth-links'} aria-label="Navegação principal"><a href="#home" onClick={closeMenu}>INÍCIO</a><a href="#about" onClick={closeMenu}>SOBRE</a><a href="#contact" onClick={closeMenu}>CONTATO</a></nav>
-        <button className="auth-menu-toggle" type="button" aria-expanded={menuOpen} aria-label="Abrir menu" onClick={() => setMenuOpen((open) => !open)}><span /><span /><span /></button>
-        <a className="auth-contact" href="#contact">FALE CONOSCO <span aria-hidden="true">↗</span></a>
-      </header>
-      <div className="auth-hero-grid"><div className="auth-hero-copy"><p className="auth-kicker">PROSPECÇÃO ASSISTIDA POR IA</p><h1>ESCALE<br />A<br />PLATAFORMA<br /><span>DO</span><br /><span>SEU</span><br /><span className="auth-accent">NEGÓCIO</span></h1><a className="auth-cta" href="#about">COMEÇAR <b aria-hidden="true" /></a></div><div className="auth-login-card">{children}</div></div>
-    </section>
-    <section className="auth-about" id="about"><div className="auth-about-copy"><h2>SOBRE<br /><span>O PROSPECTRA</span></h2><p>O Prospectra transforma relacionamento em oportunidade. Da busca inteligente às cadências personalizadas, sua equipe encontra os contatos certos, entende o contexto e conduz cada conversa até a reunião.</p><a className="auth-cta" href="#contact">SAIBA MAIS <b aria-hidden="true" /></a></div><div className="auth-about-media"><video data-autoplay autoPlay muted loop playsInline preload="auto" src={aboutVideo} aria-label="Demonstração visual do Prospectra" /><div aria-hidden="true" /></div></section>
-    <footer id="contact" className="auth-footer">© Argus Prime · Prospectra</footer>
-  </main>;
+  return (
+    <main className="relative min-h-dvh overflow-hidden bg-white">
+      {/* Gotas de metal líquido azul ao fundo */}
+      <div className="pointer-events-none absolute inset-0">
+        <LiquidMetal />
+      </div>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,.85)_0%,rgba(255,255,255,.35)_45%,rgba(255,255,255,0)_75%)]" />
+
+      <div className="relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-6 py-6">
+        <header className="flex items-center justify-between">
+          <span className="text-xl font-semibold tracking-tight text-text">Prospectra</span>
+          <span className="hidden rounded-full border border-border bg-white/70 px-3 py-1 text-xs text-muted backdrop-blur sm:inline">Uma ferramenta Argus Prime</span>
+        </header>
+
+        <div className="my-auto grid items-center gap-10 py-10 lg:grid-cols-[1.1fr_420px]">
+          <div className="text-center lg:text-left">
+            <AnimatedLogo className="relative mb-4 h-40 w-40 sm:h-48 sm:w-48 lg:absolute lg:-left-10 lg:top-10 lg:mb-0 lg:h-64 lg:w-64" />
+            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[.18em] text-muted backdrop-blur">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Prospecção assistida por IA
+            </p>
+            <h1 className="text-5xl font-semibold leading-[1.02] tracking-[-0.03em] text-text sm:text-6xl lg:text-7xl">
+              Conexões que viram{' '}
+              <span className="bg-gradient-to-b from-[#2b7fff] via-[#155dfc] to-[#0b2f8a] bg-clip-text font-serif font-normal italic text-transparent">negócios</span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-md text-base leading-relaxed text-muted lg:mx-0">
+              Busca com IA, cadências no LinkedIn com mensagens personalizadas e um painel que mostra de onde vêm suas reuniões.
+            </p>
+          </div>
+
+          <div className="mx-auto w-full max-w-[420px] rounded-3xl border border-white/80 bg-white/75 p-8 shadow-[0_20px_60px_-20px_rgba(21,93,252,.35)] backdrop-blur-xl">
+            {children}
+          </div>
+        </div>
+
+        <footer className="text-center text-xs text-muted lg:text-left">© Argus Prime · Prospectra</footer>
+      </div>
+    </main>
+  );
 }

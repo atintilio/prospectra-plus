@@ -19,10 +19,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const roleLabel = ctx.user.platformRole === 'admin' ? 'Admin master' : ({ owner: 'Dono', manager: 'Gestor', sdr: 'SDR', closer: 'Closer' } as const)[ctx.role ?? 'sdr'];
 
   return (
-    <div className="prospectra-shell flex min-h-dvh">
+    <div className="flex min-h-dvh">
       <Sidebar isDemo={isDemo} isAdmin={ctx.user.platformRole === 'admin'} canManage={ctx.role === 'owner' || ctx.role === 'manager'} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="prospectra-topbar sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b border-border bg-white/90 px-4 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b border-border bg-white/90 px-4 backdrop-blur md:px-8">
           <div className="md:hidden" />
           <OrgSwitcher orgs={orgs} current={ctx.org?.id ?? null} />
           <div className="ml-auto flex items-center gap-3">
@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/ambiente" className="underline underline-offset-2">Voltar ao ambiente de produção</Link>
           </div>
         )}
-        <main className="prospectra-main flex-1 px-4 py-6 pb-24 md:px-8 md:pb-8">{children}</main>
+        <main className="flex-1 px-4 py-6 pb-24 md:px-8 md:pb-8">{children}</main>
       </div>
     </div>
   );

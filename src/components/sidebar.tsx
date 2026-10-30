@@ -34,12 +34,12 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
   const active = (href: string) => path === href || path.startsWith(`${href}/`);
   return (
     <>
-      <aside className="prospectra-sidebar sticky top-0 hidden h-dvh w-[244px] shrink-0 flex-col border-r border-border bg-white px-3 py-5 md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-[244px] shrink-0 flex-col border-r border-border bg-white px-3 py-5 md:flex">
         <Link href="/painel" className="px-3"><Logo size={34} /></Link>
         <nav className="mt-8 flex flex-col gap-1">
           {items.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}
-              className={`prospectra-nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active(href) ? 'bg-surface-accent text-accent' : 'text-muted hover:bg-surface hover:text-text'}`}>
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active(href) ? 'bg-surface-accent text-accent' : 'text-muted hover:bg-surface hover:text-text'}`}>
               <Icon className="h-[18px] w-[18px]" /> {label}
             </Link>
           ))}
