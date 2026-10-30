@@ -409,10 +409,10 @@ export async function replySupportAction(conversationId: string, body: string): 
   try {
     const [c] = await db.select().from(schema.supportConversations).where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, ctx.org.id)));
     const cfg = akgConfig();
-    if (c?.channel === 'whatsapp' && c.visitorPhone && cfg) await new AkgGateway(cfg).sendText({ orgId: ctx.org.id, userId: ctx.user.id }, c.visitorPhone, body);
+    if (!ctx.org.isDemo && c?.channel === 'whatsapp' && c.visitorPhone && cfg) await new AkgGateway(cfg).sendText({ orgId: ctx.org.id, userId: ctx.user.id }, c.visitorPhone, body);
   } catch { /* entrega pelo WhatsApp é best-effort */ }
   revalidatePath('/suporte');
-  return { ok: 'Resposta enviada.' };
+  return { ok: ctx.org.isDemo ? 'Demonstração: resposta simulada e registrada; nada foi enviado.' : 'Resposta enviada.' };
 }
 
 export async function setSupportStatusAction(conversationId: string, status: 'open' | 'closed') {
