@@ -1,9 +1,10 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import {
   CalendarCheck,
   CalendarDays,
+  CalendarOff,
   CalendarPlus,
   Check,
   Clock,
@@ -20,9 +21,11 @@ import { Card, Empty } from '@/components/ui';
 import {
   confirmarReservaAction,
   cancelarReservaAction,
+  criarBloqueioAction,
   criarTipoReuniaoAction,
   enviarLinkWhatsappAction,
   gerarLinkAction,
+  removerBloqueioAction,
   salvarDisponibilidadeAction,
   salvarTipoReuniaoAction,
 } from './actions';
@@ -69,6 +72,14 @@ export type AgendaLinkView = {
 };
 
 export type AgendaLeadView = { id: string; fullName: string; phone: string };
+
+/** Bloqueio de agenda (período + motivo). */
+export type AgendaBlackoutView = {
+  id: string;
+  period: string;
+  reason: string;
+  past: boolean;
+};
 
 const WEEKDAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
@@ -134,12 +145,16 @@ export function AgendaView({
   bookings,
   links,
   leads,
+  blackouts,
+  timezone,
 }: {
   eventTypes: AgendaEventTypeView[];
   availability: Record<string, AgendaWindowView[]>;
   bookings: AgendaBookingView[];
   links: AgendaLinkView[];
   leads: AgendaLeadView[];
+  blackouts: AgendaBlackoutView[];
+  timezone: string;
 }) {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [selecionadoId, setSelecionadoId] = useState<string>(eventTypes[0]?.id ?? '');
@@ -263,6 +278,25 @@ export function AgendaView({
           </div>
         </Card>
       </div>
+
+      <Card title="Compromissos e bloqueios" icon={CalendarOff}>
+        <p className="text-sm text-muted">
+          Bloqueie um período — outro compromisso, reunião interna, férias — para que esses horários saiam da agenda
+          pública. Horários em {timezone}.
+        </p>
+        <BlackoutForm timezone={timezone} />
+        {blackouts.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">
+            Nenhum bloqueio cadastrado: a agenda oferece todos os horários que estão dentro da disponibilidade.
+          </p>
+        ) : (
+          <ul className="mt-4 divide-y divide-border">
+            {blackouts.map((blackout) => (
+              <BlackoutRow key={blackout.id} blackout={blackout} />
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <Card title="Próximas reservas" icon={CalendarCheck}>
         {bookings.length === 0 ? (
@@ -649,6 +683,90 @@ function LinksSection({
         </div>
       )}
     </div>
+  );
+}
+
+/* --------------------------------------------------------------- bloqueios */
+
+function BlackoutForm({ timezone }: { timezone: string }) {
+  const [state, action, pending] = useActionState(criarBloqueioAction, undefined);
+  const formRef = useRef<HTMLFormElement>(null);
+  // O fuso atual da agenda precisa estar na lista: senão o select mostraria
+  // outra coisa e o bloqueio nasceria no fuso errado.
+  const timezones = TIMEZONES.includes(timezone) ? TIMEZONES : [timezone, ...TIMEZONES];
+
+  // Depois de criar, o formulário volta limpo para o próximo bloqueio.
+  useEffect(() => {
+    if (state?.ok) formRef.current?.reset();
+  }, [state]);
+
+  return (
+    <form ref={formRef} action={action} className="mt-4 space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">Início</span>
+          <input className="input" type="datetime-local" name="startAt" required disabled={pending} />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">Fim</span>
+          <input className="input" type="datetime-local" name="endAt" required disabled={pending} />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">Motivo (opcional)</span>
+          <input
+            className="input"
+            name="reason"
+            maxLength={200}
+            placeholder="Reunião interna, férias, viagem…"
+            disabled={pending}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">Fuso dos horários</span>
+          <select className="input" name="timezone" defaultValue={timezone} disabled={pending}>
+            {timezones.map((tz) => (
+              <option key={tz} value={tz}>{tz.replace('America/', '').replace('_', ' ')} ({tz})</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button className="btn-primary" disabled={pending}>
+          <CalendarOff className="h-4 w-4" /> {pending ? 'Bloqueando…' : 'Bloquear período'}
+        </button>
+        {state?.ok && <span className="text-sm text-success" role="status">{state.ok}</span>}
+        {state?.error && <span className="text-sm text-danger" role="alert">{state.error}</span>}
+      </div>
+    </form>
+  );
+}
+
+function BlackoutRow({ blackout }: { blackout: AgendaBlackoutView }) {
+  const [state, action, pending] = useActionState(removerBloqueioAction, undefined);
+
+  return (
+    <li className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-2 font-medium">
+          {blackout.period}
+          {blackout.past && <span className="pill bg-surface text-muted">Já passou</span>}
+        </p>
+        <p className="mt-1 text-sm text-muted">{blackout.reason || 'Sem motivo informado'}</p>
+        {(state?.ok || state?.error) && (
+          <span className={`mt-1 block text-sm ${state?.error ? 'text-danger' : 'text-success'}`} role="status">
+            {state?.error ?? state?.ok}
+          </span>
+        )}
+      </div>
+
+      <form action={action}>
+        <input type="hidden" name="id" value={blackout.id} />
+        <button className="btn-ghost" disabled={pending}>
+          <Trash2 className="h-4 w-4" /> {pending ? 'Removendo…' : 'Remover'}
+        </button>
+      </form>
+    </li>
   );
 }
 

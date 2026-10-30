@@ -35,11 +35,11 @@ export default async function IntelligencePage() {
       status={!ctx.org.aiEnabled ? 'A IA está desligada nesta operação.' : !aiConfigured() ? 'O provedor de IA ainda não está configurado.' : 'IA disponível para gerar rascunhos sob revisão.'} /></details>
     <section className="card mt-6 space-y-4 p-5" aria-labelledby="analysis-title">
       <h2 id="analysis-title" className="text-lg font-semibold">Qualidade e completude dos dados</h2>
-      <p className="text-sm">Pontuação heurística parcial de 0 a 100. A prioridade comercial depende de dados de contato e fontes adicionais; esta análise não confirma intenção de compra, e-mail ou telefone.</p>
+      <p className="text-sm">Leitura de 0 a 100 dos dados que você já tem no CRM, com a IA como cérebro quando ela está disponível. A análise entra na fila e o resultado sai em ciclos de poucos minutos. A prioridade comercial depende de dados de contato e fontes adicionais; esta análise não confirma intenção de compra, e-mail ou telefone.</p>
       <AnalysisForm leads={leads} enabled={ctx.org.isDemo||process.env.INTELLIGENCE_WORKER_ENABLED==='true'} commandId={crypto.randomUUID()}/>
       {analyses.length>0&&<ul className="space-y-2">{analyses.map(job=><li key={job.id} className="rounded-lg border p-3 text-sm">
         <strong>{leads.find(lead=>lead.id===job.leadId)?.fullName??'Lead indisponível'}</strong>{' — '}
-        {job.state==='completed'&&job.result?`Pontuação parcial ${job.result.score}/100 · ${job.result.priorityAvailable===true?`Prioridade ${priorityNames[job.result.priority]??job.result.priority}`:'Dados insuficientes para classificar a prioridade'}`:({queued:'Na fila',running:'Processando',failed:'Não concluído',cancelled:'Cancelado',completed:'Resultado indisponível'}[job.state])}
+        {job.state==='completed'&&job.result?`Pontuação ${job.result.score}/100 · ${job.result.priorityAvailable===true?`Prioridade ${priorityNames[job.result.priority]??job.result.priority}`:'Dados insuficientes para classificar a prioridade'}`:({queued:'Na fila — o resultado sai em poucos minutos',running:'Processando agora',failed:'Não concluído',cancelled:'Cancelado',completed:'Resultado indisponível'}[job.state])}
         {job.result&&<details><summary>Fatores da pontuação</summary><ul>{Object.entries(job.result.factors).map(([factor,value])=><li key={factor}>{factorNames[factor]??factor}: {job.result?.unavailableFactors?.includes(factor)?'Dado indisponível':value}</li>)}</ul></details>}
       </li>)}</ul>}
     </section>

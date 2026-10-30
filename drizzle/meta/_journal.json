@@ -169,6 +169,13 @@
       "when": 1793359811353,
       "tag": "0023_agenda_nativa",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793392297381,
+      "tag": "0024_large_leopardon",
+      "breakpoints": true
     }
   ]
 }

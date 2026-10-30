@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { getDb, schema, type DB } from '@/db';
 import type { Scope } from '@/lib/whatsapp/akg';
 import { computeSlots, type AgendaSlot } from '@/lib/agenda-slots';
+import { notifyBooking } from '@/lib/agenda-notify';
 
 /**
  * Agenda nativa do Prospectra — tipos de reunião, links rastreados, reservas
@@ -484,6 +485,8 @@ export async function bookPublic(
     attendeeEmail?: string | null;
     attendeePhone?: string | null;
     notes?: string;
+    /** Transporte de WhatsApp injetado (a lib não chama o gateway sozinha). */
+    sendWhatsApp?: (recipient: string, text: string) => Promise<void>;
   },
 ): Promise<{ ok: true; meeting: AgendaBooking; cancelUrl: string } | { ok: false; error: string; code: AgendaBookingCode }> {
   const database = await resolveDb(db);
@@ -609,7 +612,52 @@ export async function bookPublic(
     throw error;
   }
 
-  return { ok: true, meeting, cancelUrl: `${AGENDA_PUBLIC_URL}/agendamento/cancelar?token=${cancelToken}` };
+  const cancelUrl = `${AGENDA_PUBLIC_URL}/agendamento/cancelar?token=${cancelToken}`;
+
+  // Avisos da reserva (convite .ics, aviso ao vendedor, WhatsApp do
+  // participante). A reserva já está gravada: falha de notificação NUNCA
+  // desfaz o agendamento — no máximo o estado 'unknown' é registrado.
+  try {
+    const [seller] = await database
+      .select({
+        email: schema.users.email,
+        name: schema.users.name,
+        sellerPhone: schema.commercialProfiles.sellerPhone,
+      })
+      .from(schema.users)
+      .leftJoin(
+        schema.commercialProfiles,
+        and(
+          eq(schema.commercialProfiles.orgId, eventType.orgId),
+          eq(schema.commercialProfiles.userId, eventType.userId),
+        ),
+      )
+      .where(eq(schema.users.id, eventType.userId))
+      .limit(1);
+    await notifyBooking(database, {
+      meetingId: meeting.id,
+      orgId: eventType.orgId,
+      sellerEmail: seller?.email ?? '',
+      sellerName: seller?.name ?? null,
+      sellerUserId: eventType.userId,
+      sellerPhone: seller?.sellerPhone ?? null,
+      attendeeName,
+      attendeeEmail: meeting.attendeeEmail,
+      attendeePhone: meeting.attendeePhone,
+      start,
+      durationMin: eventType.durationMin,
+      timezone: eventType.timezone,
+      location: eventType.location,
+      cancelUrl,
+      sendInvite: eventType.sendInvite,
+      notifySeller: eventType.notifySeller,
+      sendWhatsApp: args.sendWhatsApp,
+    });
+  } catch (error) {
+    console.error('[agenda-booking] falha ao notificar a reserva', meeting.id, error);
+  }
+
+  return { ok: true, meeting, cancelUrl };
 }
 
 /** Cancela uma reserva pelo token público (somente `confirmed`/`requested`). */

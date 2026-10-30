@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { AGENDA_PUBLIC_URL, listAvailability, listBookings, listEventTypes } from '@/lib/agenda-booking';
 import { PageHeader } from '@/components/ui';
 import {
   AgendaView,
+  type AgendaBlackoutView,
   type AgendaBookingView,
   type AgendaEventTypeView,
   type AgendaLeadView,
@@ -121,6 +122,38 @@ export default async function AgendaPage() {
     phone: lead.phone,
   }));
 
+  // Bloqueios (outro compromisso, férias): a tabela já é respeitada pelo
+  // cálculo de horários — aqui só é listada para a tela.
+  const blackoutRows = await db
+    .select({
+      id: schema.agendaBlackouts.id,
+      startAt: schema.agendaBlackouts.startAt,
+      endAt: schema.agendaBlackouts.endAt,
+      reason: schema.agendaBlackouts.reason,
+    })
+    .from(schema.agendaBlackouts)
+    .where(eq(schema.agendaBlackouts.orgId, ctx.org.id))
+    .orderBy(asc(schema.agendaBlackouts.startAt))
+    .limit(200);
+
+  // Fuso usado para exibir os bloqueios: o do primeiro tipo de reunião.
+  const agendaTimezone = eventTypes[0]?.timezone?.trim() || 'America/Sao_Paulo';
+
+  // Os que ainda vão acontecer vêm primeiro; os que já passaram vão para o fim.
+  const orderedBlackouts = [...blackoutRows].sort((a, b) => {
+    const aPast = a.endAt.getTime() < now.getTime();
+    const bPast = b.endAt.getTime() < now.getTime();
+    if (aPast !== bPast) return aPast ? 1 : -1;
+    return aPast ? b.startAt.getTime() - a.startAt.getTime() : a.startAt.getTime() - b.startAt.getTime();
+  });
+
+  const blackoutViews: AgendaBlackoutView[] = orderedBlackouts.map((row) => ({
+    id: row.id,
+    period: `${formatWhen(row.startAt, agendaTimezone)} → ${formatWhen(row.endAt, agendaTimezone)}`,
+    reason: row.reason,
+    past: row.endAt.getTime() < now.getTime(),
+  }));
+
   return (
     <>
       <PageHeader
@@ -134,6 +167,8 @@ export default async function AgendaPage() {
         bookings={bookingViews}
         links={linkViews}
         leads={leadViews}
+        blackouts={blackoutViews}
+        timezone={agendaTimezone}
       />
     </>
   );

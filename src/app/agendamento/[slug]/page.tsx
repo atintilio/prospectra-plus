@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { and, eq } from 'drizzle-orm';
 import { Clock, MapPin, User } from 'lucide-react';
-import { getDb } from '@/db';
+import { getDb, schema } from '@/db';
 import { listPublicEvent, listPublicSlots } from '@/lib/agenda-booking';
 import { Logo } from '@/components/logo';
 import { BookingView, type PublicAgendaEvent, type PublicSlot } from './booking-view';
@@ -52,7 +53,22 @@ export default async function AgendaBookingPage({
     const db = await getDb();
     const eventResult = await listPublicEvent(db, slug);
     if (eventResult.ok) {
-      event = eventResult.eventType;
+      // Fuso do evento: a tela pública usa para comparar com o fuso de quem
+      // agenda (detectado no cliente).
+      const [eventRow] = await db
+        .select({ timezone: schema.agendaEventTypes.timezone })
+        .from(schema.agendaEventTypes)
+        .where(
+          and(
+            eq(schema.agendaEventTypes.slug, slug.trim().toLowerCase()),
+            eq(schema.agendaEventTypes.isActive, true),
+          ),
+        )
+        .limit(1);
+      event = {
+        ...eventResult.eventType,
+        timezone: eventRow?.timezone?.trim() || 'America/Sao_Paulo',
+      };
       const slotsResult = await listPublicSlots(db, slug);
       if (slotsResult.ok) slots = slotsResult.slots;
     }
@@ -126,7 +142,8 @@ export default async function AgendaBookingPage({
         <BookingView key={event.slug} slug={event.slug} token={token} event={event} initialSlots={slots} />
 
         <p className="mt-8 text-center text-xs text-muted">
-          Agenda do Prospectra — os horários são exibidos no fuso do evento.
+          Agenda do Prospectra — os horários são exibidos no fuso do evento e, quando é diferente, também no fuso de
+          quem agenda.
         </p>
       </div>
     </main>

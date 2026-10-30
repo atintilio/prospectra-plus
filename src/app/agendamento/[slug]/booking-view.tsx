@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { AlertCircle, CalendarCheck, CheckCircle2 } from 'lucide-react';
 
 /**
@@ -33,6 +33,8 @@ export type PublicAgendaEvent = {
   location: string;
   requiresConfirmation: boolean;
   hostName: string;
+  /** Fuso IANA do evento (ex.: "America/Sao_Paulo"). */
+  timezone: string;
 };
 
 type BookingForm = {
@@ -70,6 +72,28 @@ function dayHeading(day: string): string {
   const [weekday, date] = day.split(', ');
   const long = WEEKDAY_LONG[(weekday ?? '').toLowerCase()] ?? weekday ?? '';
   return date ? `${long}, ${date}` : long;
+}
+
+/** Data (dd/mm) do rótulo do slot no fuso do evento. */
+function eventDateOf(label: string): string {
+  return splitLabel(label).day.split(', ')[1] ?? '';
+}
+
+/**
+ * Horário e data de um instante no fuso informado (pt-BR).
+ * Devolve strings vazias quando o fuso não é reconhecido pelo navegador.
+ */
+export function formatInTimeZone(iso: string, timeZone: string): { time: string; date: string } {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return { time: '', date: '' };
+  try {
+    return {
+      time: new Intl.DateTimeFormat('pt-BR', { timeZone, hour: '2-digit', minute: '2-digit' }).format(date),
+      date: new Intl.DateTimeFormat('pt-BR', { timeZone, day: '2-digit', month: '2-digit' }).format(date),
+    };
+  } catch {
+    return { time: '', date: '' };
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -137,7 +161,40 @@ export function BookingView({
   const [form, setForm] = useState<BookingForm>(EMPTY_FORM);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ cancelUrl: string; label: string } | null>(null);
+  const [done, setDone] = useState<{ cancelUrl: string; label: string; visitorLabel: string | null } | null>(null);
+
+  /**
+   * Fuso de quem agenda. Só existe no cliente: no servidor não há "fuso do
+   * visitante", então a detecção acontece depois da hidratação (useEffect) e
+   * o HTML do servidor continua mostrando apenas o fuso do evento.
+   */
+  const [visitorTimeZone, setVisitorTimeZone] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (zone) setVisitorTimeZone(zone);
+    } catch {
+      // Navegador sem Intl completo: continua só com o fuso do evento.
+    }
+  }, []);
+
+  // O horário extra só aparece quando o fuso de quem agenda é outro.
+  const showVisitorTime = Boolean(visitorTimeZone && visitorTimeZone !== event.timezone);
+
+  /**
+   * Rótulo do slot no fuso de quem agenda (null quando é o mesmo fuso).
+   * `differs` diz se o horário local é realmente diferente do horário do
+   * evento (fusos com o mesmo offset não repetem o mesmo horário na tela).
+   */
+  function visitorLabelOf(slot: PublicSlot): { label: string; differs: boolean } | null {
+    if (!showVisitorTime || !visitorTimeZone) return null;
+    const info = formatInTimeZone(slot.startIso, visitorTimeZone);
+    if (!info.time) return null;
+    const dateDiffers = info.date !== eventDateOf(slot.label);
+    const timeDiffers = info.time !== splitLabel(slot.label).time;
+    // Quando o dia muda (fuso muito adiantado), o horário local vem com a data.
+    return { label: dateDiffers ? `${info.date} ${info.time}` : info.time, differs: dateDiffers || timeDiffers };
+  }
 
   /**
    * Assinatura dos horários recebidos do servidor: se ela mudar, a grade
@@ -213,7 +270,11 @@ export function BookingView({
         if (payload && payload.ok === false && payload.code === 'slot_taken') await refreshSlots();
         return;
       }
-      setDone({ cancelUrl: payload.cancelUrl, label: selectedSlot.label });
+      setDone({
+        cancelUrl: payload.cancelUrl,
+        label: selectedSlot.label,
+        visitorLabel: visitorLabelOf(selectedSlot)?.label ?? null,
+      });
     } catch {
       setError('Não foi possível concluir o agendamento. Verifique sua conexão e tente novamente.');
     } finally {
@@ -232,6 +293,11 @@ export function BookingView({
         <p className="mt-2 text-sm text-muted">
           {event.title} — {done.label}. Enviamos os detalhes para o contato informado.
         </p>
+        {done.visitorLabel && visitorTimeZone && (
+          <p className="mt-1 text-sm text-muted">
+            No seu fuso ({visitorTimeZone}): {done.visitorLabel}.
+          </p>
+        )}
         {event.requiresConfirmation && (
           <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning">
             O vendedor ainda vai confirmar o horário. Você recebe um aviso assim que ele confirmar.
@@ -266,6 +332,13 @@ export function BookingView({
           <CalendarCheck className="h-5 w-5 text-accent" /> Escolha o horário
         </h2>
 
+        {showVisitorTime && visitorTimeZone && (
+          <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-xs text-muted">
+            Os horários abaixo são do fuso do evento ({event.timezone}). Você está em {visitorTimeZone}: cada horário
+            mostra também o horário local.
+          </p>
+        )}
+
         {groups.length === 0 ? (
           <p className="mt-3 rounded-lg bg-surface px-3 py-3 text-sm text-muted">
             Não há horários livres no momento. Peça um novo link com a nossa equipe ou tente mais tarde.
@@ -278,6 +351,7 @@ export function BookingView({
                 <div className="mt-2 flex flex-wrap gap-2">
                   {daySlots.map((slot) => {
                     const active = slot.startIso === selected;
+                    const visitor = visitorLabelOf(slot);
                     return (
                       <button
                         key={slot.startIso}
@@ -289,7 +363,10 @@ export function BookingView({
                         aria-pressed={active}
                         className={active ? 'btn-primary' : 'btn-outline'}
                       >
-                        {splitLabel(slot.label).time}
+                        <span className="flex flex-col items-center leading-tight">
+                          <span>{splitLabel(slot.label).time}</span>
+                          {visitor?.differs && <span className="text-[11px] font-normal opacity-80">{visitor.label}</span>}
+                        </span>
                       </button>
                     );
                   })}
@@ -307,6 +384,11 @@ export function BookingView({
             ? `Horário escolhido: ${selectedSlot.label}.`
             : 'Escolha um horário acima para confirmar a reserva.'}
         </p>
+        {selectedSlot && showVisitorTime && visitorTimeZone && (
+          <p className="mt-1 text-xs text-muted">
+            No seu fuso ({visitorTimeZone}): {visitorLabelOf(selectedSlot)?.label}.
+          </p>
+        )}
 
         <div className="mt-4 space-y-4">
           <label className="block">

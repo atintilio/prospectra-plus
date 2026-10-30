@@ -298,6 +298,10 @@ export const meetings=pgTable('meetings',{
  confirmedAt:timestamp('confirmed_at',{withTimezone:true}),
  cancelledAt:timestamp('cancelled_at',{withTimezone:true}),
  reminderSentAt:timestamp('reminder_sent_at',{withTimezone:true}),
+ // Resultado do convite e do aviso: nada é reenviado às cegas.
+ inviteState:text('invite_state',{enum:['sent','missing_email','unknown','not_required']}),
+ inviteSentAt:timestamp('invite_sent_at',{withTimezone:true}),
+ sellerNotifiedAt:timestamp('seller_notified_at',{withTimezone:true}),
  createdAt:createdAt(),
 },t=>[
  uniqueIndex('meetings_one_open_per_lead').on(t.orgId,t.leadId).where(sql`status in ('requested','confirmed')`),
@@ -329,6 +333,10 @@ export const agendaEventTypes=pgTable('agenda_event_types',{
  location:text('location').notNull().default(''),
  requiresConfirmation:boolean('requires_confirmation').notNull().default(false),
  isActive:boolean('is_active').notNull().default(true),
+ // Lembretes e avisos da reserva (paridade com o que a agenda de antes fazia).
+ reminderMinutesBefore:integer('reminder_minutes_before').notNull().default(60),
+ notifySeller:boolean('notify_seller').notNull().default(true),
+ sendInvite:boolean('send_invite').notNull().default(true),
  createdAt:createdAt(),
  updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
 },t=>[

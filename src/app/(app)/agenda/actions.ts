@@ -6,6 +6,7 @@ import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { confirmMeeting } from '@/lib/scheduling';
 import { createEventType, createLink, setAvailability, updateEventType } from '@/lib/agenda-booking';
+import { zonedTimeToUtc } from '@/lib/agenda-slots';
 import { AkgGateway, akgConfig, assertWhatsAppAccess } from '@/lib/whatsapp/akg';
 import type { AgendaActionState } from './agenda-view';
 
@@ -18,6 +19,12 @@ import type { AgendaActionState } from './agenda-view';
  */
 
 const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
+
+/** Bloqueio com mais de 1 ano à frente não faz sentido para a agenda. */
+const MAX_BLACKOUT_AHEAD_MS = 366 * 24 * 60 * 60 * 1000;
+
+/** Tolerância de 1 minuto: o formulário manda hora cheia, o relógio corre. */
+const BLACKOUT_PAST_TOLERANCE_MS = 60 * 1000;
 
 /** Janela de horário da disponibilidade (minutos desde a meia-noite). */
 type Window = { dayOfWeek: number; startMinute: number; endMinute: number };
@@ -262,6 +269,84 @@ export async function enviarLinkWhatsappAction(_: AgendaActionState, form: FormD
 
   revalidatePath('/agenda');
   return { ok: `Link enviado no WhatsApp de ${lead.fullName}.`, url };
+}
+
+// -------------------------------------------------------------- bloqueios
+
+/**
+ * Converte o valor do `datetime-local` ("2026-11-12T14:00", hora do fuso
+ * escolhido na tela) no instante UTC correspondente.
+ */
+function parseZonedInput(value: string, timezone: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  if (!Number.isFinite(year) || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (!Number.isFinite(hour) || hour > 23 || !Number.isFinite(minute) || minute > 59) return null;
+  const date = zonedTimeToUtc({ year, month, day, hour, minute, timezone });
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Cria um bloqueio de agenda (compromisso, férias, reunião interna). */
+export async function criarBloqueioAction(_: AgendaActionState, form: FormData): Promise<AgendaActionState> {
+  const ctx = await requireOrg();
+  const timezone = String(form.get('timezone') ?? '').trim() || DEFAULT_TIMEZONE;
+  const reason = String(form.get('reason') ?? '').trim().slice(0, 200);
+
+  const startAt = parseZonedInput(String(form.get('startAt') ?? ''), timezone);
+  if (!startAt) return { error: 'Informe a data e a hora de início do bloqueio.' };
+  const endAt = parseZonedInput(String(form.get('endAt') ?? ''), timezone);
+  if (!endAt) return { error: 'Informe a data e a hora de fim do bloqueio.' };
+  if (endAt.getTime() <= startAt.getTime()) {
+    return { error: 'O fim do bloqueio precisa ser depois do início.' };
+  }
+  const now = Date.now();
+  if (startAt.getTime() < now - BLACKOUT_PAST_TOLERANCE_MS) {
+    return { error: 'Não é possível criar um bloqueio no passado.' };
+  }
+  if (endAt.getTime() > now + MAX_BLACKOUT_AHEAD_MS) {
+    return { error: 'O bloqueio não pode passar de 1 ano à frente.' };
+  }
+
+  try {
+    const db = await getDb();
+    await db.insert(schema.agendaBlackouts).values({
+      orgId: ctx.org.id,
+      startAt,
+      endAt,
+      reason,
+    });
+    revalidatePath('/agenda');
+    return { ok: 'Bloqueio criado. Esse período saiu da agenda pública.' };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Não foi possível criar o bloqueio.' };
+  }
+}
+
+/** Remove um bloqueio: os horários voltam a ficar disponíveis. */
+export async function removerBloqueioAction(_: AgendaActionState, form: FormData): Promise<AgendaActionState> {
+  const ctx = await requireOrg();
+  const id = String(form.get('id') ?? '').trim();
+  if (!id) return { error: 'Bloqueio não informado.' };
+
+  try {
+    const db = await getDb();
+    // O filtro por operação impede remover o bloqueio de outra org.
+    const deleted = await db
+      .delete(schema.agendaBlackouts)
+      .where(and(eq(schema.agendaBlackouts.id, id), eq(schema.agendaBlackouts.orgId, ctx.org.id)))
+      .returning({ id: schema.agendaBlackouts.id });
+    if (!deleted.length) return { error: 'Bloqueio não encontrado nesta operação.' };
+
+    revalidatePath('/agenda');
+    return { ok: 'Bloqueio removido. Os horários voltaram a ficar disponíveis.' };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Não foi possível remover o bloqueio.' };
+  }
 }
 
 // ------------------------------------------------------------------ reservas

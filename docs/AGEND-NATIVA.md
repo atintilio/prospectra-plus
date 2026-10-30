@@ -4,10 +4,16 @@
 > Prospectra**: mesmo banco (Neon), mesma sessão, mesma operação, lead vinculado à
 > reserva. O domínio `agenda.argusprime.com.br` agora serve o app do Prospectra.
 >
-> **Estado em 30/10/2026:** vhost do domínio já trocado na VPS (cal.com só perdeu o
-> vhost público; o serviço dele continua rodando em `127.0.0.1:3102`). O código
-> (schema, libs, APIs e telas) está no `main`; falta **publicar a release** para as
-> rotas `/agenda` e `/agendamento/*` existirem no ar.
+> **Estado em 30/10/2026:** agenda nativa **publicada e no ar** (release `2d3111e` +
+> `13ef694`): vhost do domínio trocado na VPS (cal.com só perdeu o vhost público; o
+> serviço dele continua rodando em `127.0.0.1:3102`), rotas `/agenda` e
+> `/agendamento/*` no ar, 32/32 rotas do smoke test em 200 e fluxo público validado
+> ponta a ponta (8/8). A suíte de testes do núcleo está em **46 arquivos / 215 testes**.
+>
+> **Paridade de features:** a agenda tem que ter as mesmas features de antes. O que
+> faltava (convite `.ics` por e-mail, aviso ao vendedor, confirmação no WhatsApp do
+> participante, lembrete automático antes da reunião, bloqueios de compromissos e fuso
+> do visitante) está em implementação — ver a seção 9.
 
 ---
 
@@ -322,3 +328,69 @@ nginx -t && systemctl reload nginx
 | `infra/prospectra/nginx/agenda.argusprime.com.br.nginx` | Vhost do domínio |
 | `infra/agenda/README.md` | Deploy do cal.com (histórico — sai de cena) |
 | `drizzle/0023_agenda_nativa.sql` | Migração do schema da agenda |
+
+---
+
+## 9. Paridade de features (cal.com → agenda nativa)
+
+A agenda nativa tem que se comportar **igual** à agenda de antes. Esta é a conta de
+features, item por item:
+
+| Feature | Antes (cal.com) | Agora (nativa) | Onde |
+|---|---|---|---|
+| Página pública de marcação | ✅ | ✅ | `/agendamento/[slug]` |
+| Grade de horários | ✅ | ✅ | `src/lib/agenda-slots.ts` |
+| Janela de disponibilidade semanal | ✅ | ✅ | `agenda_availability` |
+| Antecedência, intervalo entre reuniões (buffer) | ✅ | ✅ | tipo de reunião |
+| Exceções/bloqueios (ferias, compromissos) | ✅ | ✅ | `agenda_blackouts` + tela `/agenda` |
+| Link público rastreado, vinculado ao lead | ✅ | ✅ | `agenda_links` |
+| Reserva pública **sem login** | ✅ | ✅ | `/api/agenda/book` |
+| Reserva visível para o time, no CRM | ✅ | ✅ | `meetings` + `/agenda` |
+| Horário reservado some da grade | ✅ | ✅ | recálculo no servidor + índice único |
+| Cancelamento pelo participante | ✅ | ✅ | `/agendamento/cancelar` |
+| Um contato não fica com 2 reuniões em aberto | ✅ | ✅ | `meetings_one_open_per_lead` |
+| Fuso do evento (com horário de verão) | ✅ | ✅ | `Intl`, sem dependência externa |
+| Fuso de quem agenda, na tela pública | ✅ | ✅ | detecção no cliente |
+| **Convite `.ics` por e-mail na reserva** | ✅ | ✅ | `src/lib/agenda-notify.ts` |
+| **Aviso ao vendedor de que o lead agendou** | ✅ | ✅ | `src/lib/agenda-notify.ts` |
+| **Confirmação no WhatsApp do participante** | ✅ | ✅ | `src/lib/agenda-notify.ts` |
+| **Lembrete automático antes da reunião** | ✅ | ✅ | `src/lib/agenda-reminders.ts` (roda no cron) |
+| **Ler a agenda externa do vendedor para bloquear horários** | ✅ | ⚠️ **depende do dono** | ver abaixo |
+
+### 9.1 O item que depende do dono: agenda externa (Google/Office 365)
+
+Para o sistema **ler os compromissos do calendário do vendedor** (e tirar esses horários da
+grade), o app registration do Office 365 precisa da permissão `Calendars.Read` (app
+permission, com consentimento do admin do tenant).
+
+Teste feito em 30/10/2026 na VPS: o token do Microsoft Graph é emitido normalmente, mas
+`GET /users/<vendedor>/calendarView` devolve **403** com a lista de permissões exigidas
+(`Calendars.Read`, `Calendars.Read.All`, ...). Hoje o app tem apenas `Mail.Send` — por isso
+o e-mail funciona e o calendário, não.
+
+O que fazer (no portal do Azure, app registration do Office 365):
+
+1. **API permissions** → Add a permission → **Microsoft Graph** → **Application
+   permissions** → `Calendars.Read` → Add.
+2. **Consent admin**: pedir o consentimento do administrador do tenant (botão *Grant admin
+   consent*).
+3. Nenhuma mudança de código é necessária: é só permissão do tenant.
+
+**Enquanto isso**, a agenda bloqueia horários por duas vias que já funcionam:
+
+- reservas já marcadas no Prospectra (com buffer);
+- **bloqueios manuais** (compromissos/férias) cadastrados na tela `/agenda`.
+
+### 9.2 Estado do envio (sem reenviar às cegas)
+
+A reserva pública grava o resultado de cada notificação em `meetings`:
+
+| Coluna | Significado |
+|---|---|
+| `invite_state` | `sent` (convite `.ics` enviado), `missing_email` (participante sem e-mail), `unknown` (falhou — tenta de novo na próxima), `not_required` (tipo de reunião sem convite) |
+| `invite_sent_at` | Quando o convite foi enviado |
+| `seller_notified_at` | Quando o vendedor foi avisado |
+| `reminder_sent_at` | Quando o lembrete saiu (garante **um** lembrete por reserva) |
+
+Regra: **falha de notificação nunca desfaz a reserva**. O lead já agendou; o problema é de
+aviso, não de reserva — o estado fica registrado e a rodada do cron tenta de novo.

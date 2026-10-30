@@ -19,9 +19,15 @@ it('roteia comercial, marketing e assuntos ambíguos',()=>{
 expect(routeHandoff('commercial')).toEqual(['atintilio@argusprime.com.br']);
 expect(routeHandoff('growth')).toEqual(['mloro@argusprime.com.br']);
 expect(routeHandoff('unknown')).toEqual(['atintilio@argusprime.com.br','mloro@argusprime.com.br']);});
-it('exige configuração e modelo gratuito',async()=>{
+it('exige configuração e usa o modelo gratuito do provedor',async()=>{
 vi.stubEnv('OPENROUTER_API_KEY','');await expect(generateCommercial(ctx,input)).rejects.toThrow('AI_NOT_CONFIGURED');
-vi.stubEnv('OPENROUTER_API_KEY','test');vi.stubEnv('AI_MODEL','paid/model');await expect(generateCommercial(ctx,input)).rejects.toThrow('AI_FREE_MODEL_REQUIRED');});
+// modelo pago configurado: o Harvey usa o gratuito do provedor em vez de quebrar
+vi.stubEnv('OPENROUTER_API_KEY','test');vi.stubEnv('AI_MODEL','paid/model');
+const bodies:string[]=[];vi.stubGlobal('fetch',async(_url:string,init?:RequestInit)=>{bodies.push(String(init?.body));return Response.json({choices:[{message:{content:JSON.stringify(plan)}}]});});
+await generateCommercial(ctx,input);expect((JSON.parse(bodies[0]) as {model:string}).model).toBe('openrouter/free');
+// provedor sem modelo gratuito conhecido: a exigência continua valendo
+vi.stubEnv('AI_BASE_URL','https://api.exemplo.com/v1/chat/completions');
+await expect(generateCommercial(ctx,input)).rejects.toThrow('AI_FREE_MODEL_REQUIRED');});
 it('gera rascunho fundamentado e passagem humana',async()=>{
 vi.stubEnv('OPENROUTER_API_KEY','test');vi.stubEnv('AI_MODEL','openrouter/free');
 vi.stubGlobal('fetch',async()=>Response.json({choices:[{message:{content:JSON.stringify({...plan,intent:'interested'})}}]}));

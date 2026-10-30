@@ -12,6 +12,6 @@ export function AnalysisForm({leads,enabled,commandId}:{leads:Array<{id:string;f
    </select>
   </label>
   <button type="submit" disabled={!enabled||pending||!leads.length} className="btn btn-primary">{pending?'Solicitando…':'Analisar dados do lead'}</button>
-  <p role="status" className="text-sm">{state.message||(!enabled?'Executor indisponível. Nenhuma análise ou busca externa será simulada.':'Análise dos dados já cadastrados, sem consumo de IA ou envio de mensagens.')}</p>
+  <p role="status" className="text-sm">{state.message||(!enabled?'Executor indisponível: a análise deste lead fica desativada nesta operação.':'Análise dos dados já cadastrados, sem envio de mensagens. O resultado sai em ciclos de poucos minutos.')}</p>
  </form>;
 }

@@ -5,9 +5,16 @@
 > (sem trava de CI) — produção: `prospectra.argusprime.com.br`. Enums de passo/evento
 > são `text` (sem migração ao adicionar valor). Migrações: editar schema → `pnpm db:generate`.
 
-> **Atualizado em 30/10/2026** — Helpin fase 6 entregue (schema + atributos + SLA + horário +
+> **Atualizado em 30/10/2026 (noite)** — Helpin fase 6 entregue (schema + atributos + SLA + horário +
 > auto-resposta + CSAT + relatórios + webhooks + auditoria). Ver "O que entrou nesta entrega".
 > **Agenda nativa entregue no mesmo dia** (o cal.com saiu de cena) — ver "Entrega de 30/10 (noite)".
+> **Visual revertido** (`9db5dd5`): o redesign global foi desfeito — a landing voltou ao
+> metal líquido + logo 3D e o shell perdeu gradiente/animação. **Regra do dono: mudança que
+> afeta todas as telas precisa de aval ANTES.**
+> **Paridade da agenda + IA consertada** (30/10 noite): convite `.ics`, aviso ao vendedor,
+> WhatsApp do participante, lembrete automático, bloqueios de compromissos, fuso de quem
+> agenda; e a IA ganhou fallback de modelo (a conta z.ai está sem saldo) + o executor que
+> faltava na inteligência comercial.
 
 ## Já no `main` / produção (não refazer)
 - App, login, CRM/leads, **importação de leads** (CSV/URLs), cadência assistida (Fila do dia).
