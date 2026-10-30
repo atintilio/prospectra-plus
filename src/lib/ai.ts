@@ -181,8 +181,33 @@ async function callModel(
 }
 
 /**
+ * Disjuntor por modelo: quando a conta do provedor está sem saldo (1113), o
+ * modelo principal não vai voltar sozinho — só com recarga. Pular a chamada
+ * durante alguns minutos economiza latência (cada tentativa custa segundos) e
+ * quota; quando a conta for recarregada, o modelo volta sozinho.
+ */
+const MODEL_COOLDOWN_MS = 10 * 60 * 1000;
+const modelCooldown = new Map<string, { until: number; code: string }>();
+
+/** Limpa a pausa dos modelos (troca de chave/provedor ou reinício de teste). */
+export function resetAiCooldowns(): void {
+  modelCooldown.clear();
+}
+
+/** Código do modelo em indisponibilidade conhecida, ou null se ele pode ser tentado. */
+function cooldownOf(model: string): string | null {
+  const entry = modelCooldown.get(model);
+  if (!entry) return null;
+  if (Date.now() >= entry.until) {
+    modelCooldown.delete(model);
+    return null;
+  }
+  return entry.code;
+}
+
+/**
  * Chama o provedor com a cadeia de modelos: só troca de modelo em falha de conta (1113)
- * ou rate limit (1302/429). Se todos falharem, o erro diz o que houve (AI_UNAVAILABLE_1113...).
+ * ou rate limit (1302/1305/429). Se todos falharem, o erro diz o que houve (AI_UNAVAILABLE_1113...).
  */
 async function chatWithModels(system: string, user: string, models: string[], maxTokens: number, temperature: number): Promise<string> {
   const provider = aiProvider();
@@ -191,12 +216,22 @@ async function chatWithModels(system: string, user: string, models: string[], ma
   if (!models.length) throw new Error('AI_NO_MODEL');
   let firstFailure: AiProviderError | undefined;
   for (const model of models) {
+    const cooling = cooldownOf(model);
+    if (cooling) {
+      console.warn(`[ai] modelo ${model} está em indisponibilidade conhecida (${cooling}); pulando.`);
+      if (!firstFailure) firstFailure = new AiProviderError(cooling, 'modelo em indisponibilidade conhecida', 0, true);
+      continue;
+    }
     try {
-      return await callModel(provider, key, model, system, user, maxTokens, temperature);
+      const text = await callModel(provider, key, model, system, user, maxTokens, temperature);
+      modelCooldown.delete(model);
+      return text;
     } catch (error) {
       const failure = error instanceof AiProviderError ? error : networkFailure(error);
       if (!firstFailure) firstFailure = failure;
       console.warn(`[ai] modelo ${model} falhou (${failure.code}${failure.detail ? `: ${failure.detail}` : ''}); ${failure.retryable ? 'tentando o próximo modelo' : 'sem troca de modelo'}.`);
+      // Falha de conta não se resolve sozinha: guarda o modelo por um tempo.
+      if (ACCOUNT_ERROR_CODES.has(failure.code)) modelCooldown.set(model, { until: Date.now() + MODEL_COOLDOWN_MS, code: failure.code });
       if (!failure.retryable) throw failure;
     }
   }

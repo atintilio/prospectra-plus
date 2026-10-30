@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { aiComplete, aiFreeModelChain, aiModelChain } from '@/lib/ai';
+import { aiComplete, aiFreeModelChain, aiModelChain, resetAiCooldowns } from '@/lib/ai';
 import { generateCommercial, type CommercialInput } from '@/lib/harvey';
 
 // Fallback de modelo: a z.ai devolve o erro no CORPO da resposta ({"error":{"code":"1113"}}),
@@ -38,6 +38,8 @@ const ok = (content: string) => Response.json({ choices: [{ message: { content }
 const zaiError = (code: string, message: string) => Response.json({ error: { code, message } });
 
 beforeEach(() => {
+  // o disjuntor guarda o estado por processo: limpa entre testes
+  resetAiCooldowns();
   delete process.env.AI_API_KEY;
   delete process.env.OPENROUTER_API_KEY;
   delete process.env.AI_BASE_URL;
@@ -210,4 +212,19 @@ it('o Harvey mantém o prompt e o formato de saída intactos', async () => {
   expect(system.content).toContain('Responda somente JSON estrito');
   expect(system.content).toContain('offerIndex');
   expect(calls[0].body.messages[1].content).toContain('"sellerName":"Ana"');
+});
+
+it('apos uma falha de saldo, o modelo fica em pausa e nao e chamado de novo', async () => {
+  vi.stubEnv('AI_BASE_URL', ZAI_ENDPOINT);
+  vi.stubEnv('AI_API_KEY', 'zai-key');
+  vi.stubEnv('AI_MODEL', 'glm-4.7');
+  const calls = mockProvider((call) => (call.body.model === 'glm-4.7'
+    ? zaiError('1113', 'Insufficient balance or no resource package. Please recharge.')
+    : ok('resposta do fallback')));
+  expect(await aiComplete('sistema', 'usuario')).toBe('resposta do fallback');
+  expect(calls.map((call) => call.body.model)).toEqual(['glm-4.7', 'glm-4.7-flash']);
+  // Segunda chamada: o glm-4.7 esta em pausa (sem saldo), vai direto ao fallback.
+  const segunda = await aiComplete('sistema', 'usuario');
+  expect(segunda).toBe('resposta do fallback');
+  expect(calls.map((call) => call.body.model)).toEqual(['glm-4.7', 'glm-4.7-flash', 'glm-4.7-flash']);
 });
