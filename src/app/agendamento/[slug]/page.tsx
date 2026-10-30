@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { Clock, MapPin, User } from 'lucide-react';
 import { getDb } from '@/db';
 import { listPublicEvent, listPublicSlots } from '@/lib/agenda-booking';
@@ -61,25 +62,28 @@ export default async function AgendaBookingPage({
 
   // Evento inexistente (ou inativo): a página não quebra, explica o que houve.
   if (!event) {
-    return (
-      <main className="min-h-dvh px-4 py-10">
-        <div className="mx-auto w-full max-w-2xl">
-          <header className="mb-8 flex items-center justify-between gap-3">
-            <Logo />
-            <span className="text-xs text-muted">Agendamento</span>
-          </header>
-          <section className="card p-6 text-center sm:p-8">
-            <h1 className="text-2xl font-semibold tracking-tight">Agendamento não encontrado</h1>
-            <p className="mx-auto mt-2 max-w-md text-sm text-muted">
-              {loadError
-                ? 'Não foi possível carregar a agenda agora. Tente novamente em alguns instantes.'
-                : 'O link que você abriu não existe mais ou este evento foi desativado. Peça um novo link com a nossa equipe.'}
-            </p>
-            <a className="btn-primary mt-6" href="/agendamento">Voltar para a agenda</a>
-          </section>
-        </div>
-      </main>
-    );
+    // Falha temporária de banco: explica e deixa o Lead tentar de novo.
+    if (loadError) {
+      return (
+        <main className="min-h-dvh px-4 py-10">
+          <div className="mx-auto w-full max-w-2xl">
+            <header className="mb-8 flex items-center justify-between gap-3">
+              <Logo />
+              <span className="text-xs text-muted">Agendamento</span>
+            </header>
+            <section className="card p-6 text-center sm:p-8">
+              <h1 className="text-2xl font-semibold tracking-tight">Não foi possível carregar a agenda</h1>
+              <p className="mx-auto mt-2 max-w-md text-sm text-muted">
+                Tente novamente em alguns instantes. Se o problema continuar, peça um novo link com a nossa equipe.
+              </p>
+              <a className="btn-primary mt-6" href="/agendamento">Voltar para a agenda</a>
+            </section>
+          </div>
+        </main>
+      );
+    }
+    // Link inexistente ou evento desativado: resposta 404 de verdade.
+    notFound();
   }
 
   const locationIsLink = event.location.startsWith('http');

@@ -119,8 +119,9 @@ removida do `/etc/prospectra-plus/app.env` depois de publicar a release.
 
 **Testes**: `tests/agenda-slots.test.ts` ✅ e `tests/agenda-booking.test.ts` ✅.
 
-> ⚠️ **Falta publicar a release** — a release que está na VPS é a `a84c904` (sem as rotas da
-> agenda), então `/agenda` e `/agendamento/*` respondem **404** até você publicar o `main`.
+> ✅ **Release publicada (30/10)** — o `main` está no ar na VPS (`2d3111e`, migrations aplicadas
+> no Neon). `/agenda` (com sessão) e `/agendamento/*` (público) respondem, e
+> `agenda.argusprime.com.br` já serve o app nativo.
 
 
 ## Próximos passos — CÓDIGO (Codex)

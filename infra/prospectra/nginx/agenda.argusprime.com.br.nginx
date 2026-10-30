@@ -33,6 +33,12 @@ server {
     location ^~ /auth/setup { return 403; }
     location ^~ /api/auth/setup { return 403; }
 
+    # A raiz do domínio é pública: quem chega sem link recebe a explicação de
+    # como usar o agendamento (não o login do Prospectra).
+    location = / {
+        return 302 /agendamento;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:3100;
         proxy_set_header Host $host;

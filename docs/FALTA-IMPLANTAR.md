@@ -173,9 +173,9 @@ comando). O serviço `prospectra-agenda` (cal.com) **continua rodando** em `127.
 a migrar**. O desligamento definitivo do serviço é decisão do dono, depois de validar a
 agenda nativa (passo a passo em `docs/AGEND-NATIVA.md`, seções 4 e 5).
 
-> ⚠️ **Falta a publicação da release.** O código está no `main`, mas a release que está
-> na VPS (`a84c904`) ainda não tem as rotas da agenda — por isso `/agenda` e
-> `/agendamento/*` respondem **404** até você publicar.
+> ✅ **Release publicada (30/10).** O código está no `main` e no ar: a release `2d3111e`
+> está em produção na VPS, com as migrations aplicadas no Neon. `/agenda` (com sessão) e
+> `/agendamento/*` (público) respondem, e `agenda.argusprime.com.br` já serve o app.
 
 ---
 
@@ -252,7 +252,7 @@ agenda nativa (passo a passo em `docs/AGEND-NATIVA.md`, seções 4 e 5).
 | **Voz: custo de CPU** | ~3 min de CPU por take em 2 vCPU | Gerar só na VPS; nunca em Vercel Functions |
 | **Voz: patches do motor** | O upstream do `moss-tts-nano` não funciona sem os patches; reinstalar o pacote ou limpar o cache do HF quebra a voz | Ver `docs/voice-studio.md` — backups `.orig`/`.bak` na VPS |
 | **Cal.com ainda rodando em 3102** | O serviço `prospectra-agenda` continua ativo na VPS (memória/CPU), mesmo sem vhost público e com banco vazio | Desligar **depois** de validar a agenda nativa — `systemctl disable --now prospectra-agenda` (decisão do dono, `docs/AGEND-NATIVA.md` §5) |
-| **Agenda nativa ainda não publicada** | O vhost já aponta para o app, mas a release em produção é a `a84c904` (sem as rotas da agenda) → `/agenda` e `/agendamento/*` respondem 404 | Publicar a release do `main` antes de usar a agenda; o cutover do domínio já está feito e é reversível |
+| **Agenda nativa: desligar o cal.com** | O serviço `prospectra-agenda` (cal.com) continua ativo na VPS, agora sem vhost público e com banco vazio | Desligar **depois** de usar a agenda nativa — `systemctl disable --now prospectra-agenda` (decisão do dono, `docs/AGEND-NATIVA.md` §5) |
 
 ---
 
