@@ -100,6 +100,7 @@ export async function runScheduler(db: DB, opts: { orgId?: string; now?: Date; g
 }
 
 const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent' };
+export { ACTION_EVENT };
 
 /** Conclui (ou pula) uma ação da fila e agenda o próximo passo da cadência. */
 export async function completeAction(db: DB, orgId: string, userId: string, actionId: string, outcome: 'done' | 'skipped', body?: string, now = new Date()) {
