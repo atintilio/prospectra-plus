@@ -18,9 +18,12 @@ const TYPES: Record<StepType, { label: string; icon: typeof Send }> = {
   invite: { label: 'Convite de conexão', icon: UserPlus }, message: { label: 'Mensagem', icon: Send },
 };
 
-type Initial = { name: string; aiBrief: string; assignedTo: string | null; steps: CampaignStep[] };
+type Initial = { name: string; aiBrief: string; assignedTo: string | null; linkedinAccountId: string | null; steps: CampaignStep[] };
+type AccountOption = { id: string; label: string; userName: string; status: string; demo: boolean };
 
-export function CampaignEditor({ id, initial, members, aiOn }: { id: string | null; initial: Initial; members: { id: string; name: string; email: string }[]; aiOn: boolean }) {
+export function CampaignEditor({ id, initial, members, aiOn, accounts = [] }: {
+  id: string | null; initial: Initial; members: { id: string; name: string; email: string }[]; aiOn: boolean; accounts?: AccountOption[];
+}) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string>();
@@ -97,6 +100,16 @@ export function CampaignEditor({ id, initial, members, aiOn }: { id: string | nu
             <select id="assigned" className="input" value={form.assignedTo ?? ''} onChange={(e) => setForm({ ...form, assignedTo: e.target.value || null })}>
               {members.map((m) => <option key={m.id} value={m.id}>{m.name || m.email}</option>)}
             </select></div>
+          <div><label className="label" htmlFor="account">Conta LinkedIn</label>
+            <select id="account" className="input" value={form.linkedinAccountId ?? ''}
+              onChange={(e) => setForm({ ...form, linkedinAccountId: e.target.value || null })}>
+              <option value="">Sem conta específica (modo assistido)</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.label} · {a.userName}{a.demo ? ' (demo)' : ''} — {a.status === 'connected' ? 'conectada' : a.status === 'waiting' ? 'aguardando' : a.status === 'expired' ? 'expirada' : a.status === 'blocked' ? 'bloqueada' : 'desconectada'}</option>
+              ))}
+            </select>
+            {!accounts.length && <p className="mt-1 text-xs text-muted">Nenhuma conta vinculada ainda. Conecte em <strong>Go LinkedIn</strong>.</p>}
+          </div>
           <div><label className="label" htmlFor="brief">Contexto para a IA</label>
             <textarea id="brief" rows={5} className="input text-sm" value={form.aiBrief} onChange={(e) => setForm({ ...form, aiBrief: e.target.value })}
               placeholder="O que você oferece, para quem, tom de voz, o que evitar. Ex.: recuperação de créditos tributários para indústrias do Lucro Real; tom consultivo, sem citar preços." /></div>

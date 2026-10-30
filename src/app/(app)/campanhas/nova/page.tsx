@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { aiConfigured } from '@/lib/ai';
@@ -12,10 +12,14 @@ export default async function NovaCampanha() {
   const db = await getDb();
   const members = await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email }).from(schema.memberships)
     .innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId)).where(eq(schema.memberships.orgId, ctx.org.id));
+  const accounts = await db.select({ id: schema.linkedinAccounts.id, label: schema.linkedinAccounts.label, userName: schema.users.name, status: schema.linkedinAccounts.status, demo: schema.linkedinAccounts.demo })
+    .from(schema.linkedinAccounts)
+    .innerJoin(schema.users, eq(schema.users.id, schema.linkedinAccounts.userId))
+    .where(eq(schema.linkedinAccounts.orgId, ctx.org.id));
   return (
     <>
       <PageHeader title="Nova campanha" subtitle="Monte a sequência. Os textos usam variáveis e a IA adapta cada um ao lead." />
-      <CampaignEditor id={null} initial={{ name: '', aiBrief: '', assignedTo: ctx.user.id, steps: DEFAULT_STEPS }} members={members} aiOn={aiConfigured()} />
+      <CampaignEditor id={null} initial={{ name: '', aiBrief: '', assignedTo: ctx.user.id, linkedinAccountId: null, steps: DEFAULT_STEPS }} members={members} aiOn={aiConfigured()} accounts={accounts} />
     </>
   );
 }

@@ -144,6 +144,7 @@ const campaignSchema = z.object({
   name: z.string().trim().min(2, 'Dê um nome à campanha.').max(80),
   aiBrief: z.string().max(1200),
   assignedTo: z.string().uuid().nullable(),
+  linkedinAccountId: z.string().uuid().nullable(),
   steps: z.array(stepSchema).min(1, 'Adicione pelo menos um passo.').max(12),
 });
 
@@ -158,7 +159,14 @@ export async function saveCampaignAction(id: string | null, input: unknown): Pro
     const [m] = await db.select().from(schema.memberships).where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.memberships.userId, data.assignedTo)));
     if (!m) return { error: 'Responsável inválido.' };
   }
-  const values = { name: data.name, aiBrief: data.aiBrief, assignedTo: data.assignedTo, steps: data.steps as CampaignStep[] };
+  const executorId = data.assignedTo ?? ctx.user.id;
+  if (data.linkedinAccountId) {
+    const [acc] = await db.select().from(schema.linkedinAccounts).where(and(eq(schema.linkedinAccounts.id, data.linkedinAccountId), eq(schema.linkedinAccounts.orgId, ctx.org.id)));
+    if (!acc) return { error: 'Conta LinkedIn inválida para esta organização.' };
+    if (acc.userId !== executorId) return { error: 'A conta LinkedIn precisa pertencer a quem executa a campanha.' };
+    if (acc.status !== 'connected') return { error: 'A conta LinkedIn escolhida não está conectada. Verifique em Go LinkedIn.' };
+  }
+  const values = { name: data.name, aiBrief: data.aiBrief, assignedTo: data.assignedTo, linkedinAccountId: data.linkedinAccountId, steps: data.steps as CampaignStep[] };
   if (id) {
     await db.update(schema.campaigns).set(values).where(and(eq(schema.campaigns.id, id), eq(schema.campaigns.orgId, ctx.org.id)));
     revalidatePath(`/campanhas/${id}`); revalidatePath('/campanhas');
