@@ -57,7 +57,9 @@ export function CampaignEditor({ id, initial, members, aiOn, features }: { id: s
               onDragOver={(e) => { if (dragIndex !== null && dragIndex !== i) e.preventDefault(); }}
               onDrop={() => { if (dragIndex !== null) { reorder(dragIndex, i); setDragIndex(null); } }}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="cursor-grab text-muted" draggable onDragStart={() => setDragIndex(i)} onDragEnd={() => setDragIndex(null)} aria-label="Arrastar para reordenar"><GripVertical className="h-4 w-4" /></span>
+                <span className="group flex cursor-grab items-center gap-1 text-muted" draggable onDragStart={() => setDragIndex(i)} onDragEnd={() => setDragIndex(null)} aria-label="Arrastar para reordenar" title="Arraste para reordenar">
+                  <GripVertical className="h-4 w-4" /><span className="hidden text-[11px] font-medium sm:inline">Arraste para reordenar</span>
+                </span>
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-accent text-sm font-semibold text-accent">{i + 1}</span>
                 <select className="input w-auto font-medium" value={s.type} onChange={(e) => setStep(i, { type: e.target.value as StepType })} aria-label="Tipo do passo">
                   {Object.entries(TYPES).filter(([k]) => stepTypeEnabled(features, k) || k === s.type).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
