@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly Harvey recovery fallback
+
+[Timer]
+OnActiveSec=1h
+OnUnitActiveSec=1h
+AccuracySec=5m
+Unit=prospectra-harvey-recovery.service
+
+[Install]
+WantedBy=timers.target

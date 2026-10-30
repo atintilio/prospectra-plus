@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Prospectra Plus cron endpoint every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=1s
+Unit=prospectra-plus-cron.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=Trigger Prospectra Plus cron endpoint locally
+Requires=prospectra-plus.service
+After=prospectra-plus.service
+ConditionPathIsDirectory=/opt/prospectra-plus
+
+[Service]
+Type=oneshot
+User=501
+Group=staff
+EnvironmentFile=/etc/prospectra-plus/app.env
+ExecStartPre=/usr/bin/node --input-type=module -e "if(!process.env.CRON_SECRET)process.exit(1)"
+ExecStart=/usr/bin/python3 /usr/local/libexec/prospectra-plus-cron-trigger.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+TimeoutStartSec=55s

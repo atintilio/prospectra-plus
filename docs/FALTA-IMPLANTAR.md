@@ -130,6 +130,16 @@ Schema (migration aditiva `drizzle/0021_helpin_fase6_sla_atributos.sql` ✅) + m
 
 ---
 
+## 2.8 Achados da auditoria de 30/10 (o que já foi corrigido)
+
+| Achado | Correção |
+|---|---|
+| `prospectra-harvey-recovery` falhando **todo dia** com HTTP 403 | O Cloudflare bloqueia o User-Agent padrão do Python (`Python-urllib/3.x`). O script agora manda `User-Agent: Prospectra-Recovery/1.0` ✅ — recovery "succeeded" |
+| Units e scripts da VPS **fora do repo** (infra não reproduzível) | Versionados em `infra/prospectra/systemd/` e `infra/prospectra/scripts/` ✅, com o README de instalação ✅ |
+| `CRON_SECRET` precisa ser igual em 3 arquivos | `app.env`, `harvey-worker.env` e `cron.env` — divergência = 403 silencioso ✅ |
+
+---
+
 ## 3. O que falta e de quem depende
 
 | # | Item | O que falta | Depende de |

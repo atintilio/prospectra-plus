@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -uo pipefail
+. /etc/prospectra/cron.env
+curl -fsS -m 60 -H "Authorization: Bearer ${CRON_SECRET}" https://prospectra.argusprime.com.br/api/cron >> /var/log/prospectra-tick.log 2>&1

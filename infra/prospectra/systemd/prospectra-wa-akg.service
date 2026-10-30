@@ -1,0 +1,25 @@
+[Unit]
+Description=Prospectra WhatsApp AKG Gateway
+After=network-online.target mariadb.service
+Wants=network-online.target
+Requires=mariadb.service
+
+[Service]
+Type=simple
+User=prospectra-wa
+Group=prospectra-wa
+WorkingDirectory=/opt/prospectra-wa-akg
+EnvironmentFile=/opt/prospectra-wa-akg/.env
+ExecStart=/usr/bin/node /opt/prospectra-wa-akg/node_modules/tsx/dist/cli.mjs src/server/index.ts
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+SyslogIdentifier=prospectra-wa-akg
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,24 @@
+[Unit]
+Description=Harvey hourly recovery and reminder tick
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/prospectra-plus/harvey-worker.env
+
+[Service]
+Type=oneshot
+DynamicUser=true
+EnvironmentFile=/etc/prospectra-plus/harvey-worker.env
+UnsetEnvironment=HARVEY_WEBHOOK_SECRET
+ExecStart=/usr/bin/python3 /usr/local/libexec/prospectra-harvey-recovery.py
+TimeoutStartSec=55s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=64M
+CPUQuota=10%

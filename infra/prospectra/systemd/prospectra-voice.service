@@ -1,0 +1,35 @@
+[Unit]
+Description=Prospectra VoiceStudio (private speech generation)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=prospectra-voice
+Group=prospectra-voice
+WorkingDirectory=/opt/prospectra-voice/backend
+EnvironmentFile=/opt/prospectra-voice/.env
+Environment=OMNIVOICE_SERVER_MODE=1
+Environment=ONEDNN_MAX_CPU_ISA=SSE4_2
+Environment=DNNL_MAX_CPU_ISA=SSE4_2
+Environment=OMP_NUM_THREADS=1
+Environment=MKL_NUM_THREADS=1
+Environment=UV_CACHE_DIR=/opt/prospectra-voice/data/uv-cache
+Environment=OMNIVOICE_BUNDLED_UV=/opt/prospectra-voice-bootstrap/bin/uv
+ExecStart=/opt/prospectra-voice/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 3900 --workers 1
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+MemoryMax=3000M
+CPUQuota=80%
+TasksMax=128
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/opt/prospectra-voice/data
+
+[Install]
+WantedBy=multi-user.target
