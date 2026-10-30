@@ -24,6 +24,11 @@ import { canChangeUser } from '@/lib/admin-policy';
 import { deleteAuditedLeads, flushDeletionReports } from '@/lib/deletion-audit';
 import { ensureDemo } from '@/lib/demo';
 import { addSearchResults, searchDemoLeads, seedFeed, simulateCycle } from '@/lib/demo-sim';
+import { updateSlaPolicy } from '@/lib/support-sla';
+import { upsertSchedule, parseMinute } from '@/lib/support-schedule';
+import { createAttributeDef, deleteAttributeDef } from '@/lib/lead-attributes';
+import { createWebhook, updateWebhook, deleteWebhook } from '@/lib/webhooks';
+import { recordAudit } from '@/lib/audit';
 
 type State = { error?: string; ok?: string } | undefined;
 
@@ -592,3 +597,118 @@ export async function deleteArticleAction(id: string) {
   revalidatePath('/ajuda');
 }
 
+
+// ── Helpin fase 6: SLA, horário de atendimento, atributos e webhooks ──────
+
+export async function saveSlaPolicyAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  if (!canManage(ctx.role)) return { error: 'Apenas gestores podem mudar o SLA.' };
+  const first = Number(form.get('firstResponseMinutes'));
+  const resolution = Number(form.get('resolutionMinutes'));
+  const businessHoursOnly = form.get('businessHoursOnly') === 'on';
+  try {
+    const policy = await updateSlaPolicy(ctx.org.id, {
+      firstResponseMinutes: Number.isFinite(first) ? first : undefined,
+      resolutionMinutes: Number.isFinite(resolution) ? resolution : undefined,
+      businessHoursOnly,
+    });
+    await recordAudit(ctx.org.id, {
+      actorUserId: ctx.user.id, action: 'sla_policy.updated', entity: 'support_sla_policy', entityId: policy.id,
+      payload: { firstResponseMinutes: policy.firstResponseMinutes, resolutionMinutes: policy.resolutionMinutes, businessHoursOnly: policy.businessHoursOnly },
+    });
+    revalidatePath('/atendimento');
+    return { ok: 'SLA salvo.' };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Não foi possível salvar o SLA.' };
+  }
+}
+
+export async function saveScheduleAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  if (!canManage(ctx.role)) return { error: 'Apenas gestores podem mudar o horário.' };
+  const timezone = String(form.get('timezone') ?? '').trim();
+  const weekdays = form.getAll('weekdays').map((d) => Number(d));
+  const open = parseMinute(String(form.get('openMinute') ?? ''));
+  const close = parseMinute(String(form.get('closeMinute') ?? ''));
+  const autoReplyEnabled = form.get('autoReplyEnabled') === 'on';
+  const autoReplyMessage = String(form.get('autoReplyMessage') ?? '').trim();
+  if (!timezone) return { error: 'Informe o fuso horário.' };
+  if (open === null || close === null) return { error: 'Informe os horários no formato HH:MM.' };
+  if (weekdays.length === 0) return { error: 'Escolha ao menos um dia de atendimento.' };
+  try {
+    const schedule = await upsertSchedule(ctx.org.id, { timezone, weekdays, openMinute: open, closeMinute: close, autoReplyEnabled, autoReplyMessage });
+    await recordAudit(ctx.org.id, {
+      actorUserId: ctx.user.id, action: 'schedule.updated', entity: 'support_schedule', entityId: schedule.id,
+      payload: { timezone: schedule.timezone, weekdays: schedule.weekdays, autoReplyEnabled: schedule.autoReplyEnabled },
+    });
+    revalidatePath('/atendimento');
+    return { ok: 'Horário de atendimento salvo.' };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Não foi possível salvar o horário.' };
+  }
+}
+
+export async function saveAttributeDefAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  if (!canManage(ctx.role)) return { error: 'Apenas gestores podem alterar os campos.' };
+  const name = String(form.get('name') ?? '').trim();
+  const type = String(form.get('type') ?? 'text') as 'text' | 'number' | 'date' | 'bool' | 'select';
+  const options = String(form.get('options') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+  const required = form.get('required') === 'on';
+  try {
+    const def = await createAttributeDef(ctx.org.id, { name, type, options, required });
+    await recordAudit(ctx.org.id, {
+      actorUserId: ctx.user.id, action: 'lead_attribute.created', entity: 'lead_attribute_def', entityId: def.id,
+      payload: { name: def.name, key: def.key, type: def.type },
+    });
+    revalidatePath('/leads/atributos');
+    return { ok: `Campo "${def.name}" criado.` };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Não foi possível criar o campo.' };
+  }
+}
+
+export async function deleteAttributeDefAction(id: string) {
+  const ctx = await requireOrg();
+  if (!canManage(ctx.role)) return;
+  await deleteAttributeDef(ctx.org.id, id);
+  await recordAudit(ctx.org.id, { actorUserId: ctx.user.id, action: 'lead_attribute.deleted', entity: 'lead_attribute_def', entityId: id });
+  revalidatePath('/leads/atributos');
+}
+
+export async function saveWebhookAction(_: State, form: FormData): Promise<State> {
+  const ctx = await requireOrg();
+  if (!canManage(ctx.role)) return { error: 'Apenas gestores podem cadastrar webhooks.' };
+  const url = String(form.get('url') ?? '').trim();
+  const events = form.getAll('events').map((e) => String(e));
+  try {
+    const hook = await createWebhook(ctx.org.id, { url, events });
+    await recordAudit(ctx.org.id, {
+      actorUserId: ctx.user.id, action: 'webhook.created', entity: 'webhook_endpoint', entityId: hook.id,
+      payload: { url: hook.url, events: hook.events },
+    });
+    revalidatePath('/atendimento');
+    return { ok: `Webhook criado. Assinatura: ${hook.secret}` };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Não foi possível criar o webhook.' };
+  }
+}
+
+export async function toggleWebhookAction(id: string) {
+  const ctx = await requireOrg();
+  if (!canManage(ctx.role)) return;
+  const db = await getDb();
+  const [hook] = await db.select().from(schema.webhookEndpoints)
+    .where(and(eq(schema.webhookEndpoints.id, id), eq(schema.webhookEndpoints.orgId, ctx.org.id)));
+  if (!hook) return;
+  await updateWebhook(ctx.org.id, id, { active: !hook.active });
+  revalidatePath('/atendimento');
+}
+
+export async function deleteWebhookAction(id: string) {
+  const ctx = await requireOrg();
+  if (!canManage(ctx.role)) return;
+  await deleteWebhook(ctx.org.id, id);
+  await recordAudit(ctx.org.id, { actorUserId: ctx.user.id, action: 'webhook.deleted', entity: 'webhook_endpoint', entityId: id });
+  revalidatePath('/atendimento');
+}

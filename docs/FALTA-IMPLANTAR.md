@@ -1,13 +1,13 @@
-# Prospectra+ — o que falta implantar (estado real em 29/10/2026)
+# Prospectra+ — o que falta implantar (estado real em 30/10/2026)
 
 O texto anterior (27/10) dizia que não havia acesso SSH à VPS, que a voz não estava no
 ar e que a agenda não existia. **Nada disso é mais verdade**: o acesso SSH funciona
 deste ambiente, a voz está **no ar e validada ponta a ponta** e a agenda está **em build**
 na VPS.
 
-Estado do repositório: `main` em `928e91e` — PRs #48..#58 e #30 mergeados, **zero PRs
-abertas**. Detalhes operacionais da voz em `docs/voice-studio.md`; do gateway WhatsApp em
-`docs/wa-akg.md`.
+Estado do repositório: `main` com as PRs #48..#58, #30 e a **Helpin fase 6** mergeados.
+Detalhes operacionais da voz em `docs/voice-studio.md`; do gateway WhatsApp em
+`docs/wa-akg.md`; o estado para continuar o trabalho está em `docs/HANDOFF-CODEX.md`.
 
 ---
 
@@ -20,10 +20,11 @@ abertas**. Detalhes operacionais da voz em `docs/voice-studio.md`; do gateway Wh
 | WA-AKG (gateway WhatsApp) | **NO AR** | `https://crm.argusprime.com.br/prospectra-whatsapp` — 401 sem `x-api-key` |
 | Heartbeat (cron) | **NO AR** | `/usr/local/bin/prospectra-tick` + `/etc/cron.d/prospectra-tick`, a cada 5 min |
 | Gate de imagem/ligação | **IMPLEMENTADO** | `orgs.image_enabled` / `orgs.call_enabled`, default `false`, liberados em `/admin` |
-| Agenda (cal.diy) | **EM BUILD** | DNS e vhost prontos; o serviço ainda não sobe (502) |
+| Agenda (cal.diy) | **NO AR** | `https://agenda.argusprime.com.br` → 307 para `/auth/setup` (403 público por segurança ✅) |
 | WhatsApp (número real) | **AGUARDA PAREAMENTO** | Falta escanear o QR do número na tela **WhatsApp** do app |
 | Voz automática | **AGUARDA VALIDAÇÃO** | `VOICE_AUTOMATION_ENABLED=false` na Vercel até você validar a voz à mão |
 | LinkedIn automático | **AGUARDA DECISÃO** | Código e worker na VPS prontos; não ativar sem decisão explícita (termos de uso) |
+| Helpin fase 6 | **NO AR** | Atributos, SLA, horário + auto-resposta, CSAT, relatórios, webhooks e auditoria ✅ |
 | CRM (Argus) | **FORA DE ESCOPO** | Re-deploy do CRM em andamento por você; nada do Prospectra+ depende disso |
 
 ---
@@ -97,6 +98,24 @@ Já configuradas em produção (só os nomes; valores não saem daqui):
 `VOICESTUDIO_ENGINE`, `VOICE_AUTOMATION_ENABLED`, `CRON_SECRET`, `HARVEY_WEBHOOK_SECRET`,
 `PUBLIC_APP_URL`, `MASTER_USER_EMAIL`, `OFFICE365_SENDER_EMAIL`, `BLOB_READ_WRITE_TOKEN`.
 
+### 2.7 Helpin — fase 6 (30/10)
+
+Schema (migration aditiva `drizzle/0021_helpin_fase6_sla_atributos.sql` ✅) + módulos em
+`src/lib/` + APIs + três telas novas, todas em pt-BR e responsivas:
+
+| Entrega | Onde | Como funciona |
+|---|---|---|
+| Atributos personalizados | `/leads/atributos` | Campos por operação (texto/número/data/sim-não/lista) gravados em `leads.attributes` |
+| SLA | `/atendimento` | Prazo de 1ª resposta e de resolução; conta só o horário comercial se você marcar |
+| Horário + auto-resposta | `/atendimento` | Dias, hora de abertura/fechamento e fuso; fora do horário entra a mensagem automática |
+| CSAT | widget | O cliente avalia de 1 a 5 ao fim da conversa; entra no relatório |
+| Relatórios | `/relatorios` | Volume, 1ª resposta, SLA, resolução, CSAT, agentes e times |
+| Webhooks | `/atendimento` | 5 eventos com assinatura HMAC-SHA256 (`X-Prospectra-Signature`) |
+| Auditoria | `/atendimento` | Trilha das ações sensíveis da operação |
+
+**Como verificar**: `/api/health` ✅, `/api/cron` ✅, `/api/support/reports` (sessão) ✅,
+`/atendimento` ✅, `/relatorios` ✅, `/leads/atributos` ✅.
+
 ---
 
 ## 3. O que falta e de quem depende
@@ -105,7 +124,7 @@ Já configuradas em produção (só os nomes; valores não saem daqui):
 |---|------|-------------|------------|
 | 1 | **WhatsApp real** | Parear o número (QR na tela **WhatsApp** do app) e validar envio/recebimento/respostas/encaminhamento | **Você** escaneando o QR |
 | 2 | **Voz automática** | Validar a voz à mão e então ligar `VOICE_AUTOMATION_ENABLED=true` na Vercel | **Você** (decisão) |
-| 3 | **Agenda (cal.diy)** | Concluir o build em andamento e subir o serviço `prospectra-agenda` em `127.0.0.1:3102` | Build na VPS (em andamento) |
+| 3 | **Agenda (cal.diy)** | Build e serviço prontos ✅ — falta **criar o primeiro admin** (o vhost bloqueia `/auth/setup` com 403 por segurança: remover a trava por 2 min ou túnel SSH) | **Você** |
 | 4 | **Agendamento de reuniões** | Apontar `MEETING_SCHEDULER_URL` na Vercel para a agenda; o provedor de e-mail (Gmail/Office365/Zimbra) você configura | Agenda no ar |
 | 5 | **LinkedIn automático** | Decidir se ativa; provisionar `LINKEDIN_AUTOMATION_ENABLED`, `LINKEDIN_WORKER_URL` e `LINKEDIN_WORKER_KEY`; rodar `infra/linkedin` com `LI_AT` e `PROXY_URL`; revalidar os seletores no site vivo | **Você** (decisão — termos de uso) |
 | 6 | **Worker de inteligência** | `INTELLIGENCE_WORKER_ENABLED` não está configurada na Vercel; o executor Python precisa ser validado na VPS | Validação na VPS |

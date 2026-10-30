@@ -4,6 +4,10 @@ import { z } from 'zod';
 import { schema, type DB } from '@/db';
 import type { Scope } from '@/lib/whatsapp/akg';
 import type { Role } from '@/lib/auth';
+import { getSlaPolicy, deadlineFrom } from '@/lib/support-sla';
+import { getSchedule, withinSchedule } from '@/lib/support-schedule';
+import { dispatchWebhook } from '@/lib/webhooks';
+import { recordAudit } from '@/lib/audit';
 
 type InboxScope = Scope & { role: Role };
 const isManager = (scope: InboxScope) => scope.role === 'owner' || scope.role === 'manager';
@@ -53,6 +57,7 @@ export async function intakeWebMessage(
   const email = input.visitorEmail ? emailSchema.parse(input.visitorEmail) : '';
   const result = await db.transaction(async (tx) => {
     let convId = input.conversationId;
+    let isNew = false;
     if (convId) {
       const [c] = await tx.select({ id: schema.supportConversations.id }).from(schema.supportConversations)
         .where(and(eq(schema.supportConversations.id, convId), eq(schema.supportConversations.orgId, input.orgId)));
@@ -63,14 +68,53 @@ export async function intakeWebMessage(
         .values({ orgId: input.orgId, audience: 'customer', channel: 'web', subject: body.slice(0, 80), visitorName: name, visitorEmail: email })
         .returning({ id: schema.supportConversations.id });
       convId = c.id;
+      isNew = true;
     } else {
       await tx.update(schema.supportConversations).set({ status: 'open', lastMessageAt: new Date() }).where(eq(schema.supportConversations.id, convId));
     }
     await tx.insert(schema.supportMessages).values({ conversationId: convId, author: 'visitor', body });
-    return { conversationId: convId };
+    return { conversationId: convId, isNew };
   });
   if (email) await linkConversationToLead(db, input.orgId, result.conversationId, { email }).catch(() => null);
-  return result;
+  await applySlaAndAutoReply(db, input.orgId, result.conversationId, result.isNew);
+  await notifyWebhooks(input.orgId, 'conversation.created', {
+    conversationId: result.conversationId, channel: 'web', subject: body.slice(0, 80),
+  });
+  return { conversationId: result.conversationId };
+}
+
+/**
+ * SLA + auto-resposta de uma conversa nova.
+ * Falha aqui não pode derrubar a entrada da mensagem — tudo é best-effort.
+ */
+async function applySlaAndAutoReply(db: DB, orgId: string, conversationId: string, isNew: boolean): Promise<void> {
+  if (!isNew) return;
+  try {
+    const [policy, schedule] = await Promise.all([getSlaPolicy(orgId, db), getSchedule(orgId, db)]);
+    const dueAt = deadlineFrom(policy, new Date(), schedule);
+    await db.update(schema.supportConversations)
+      .set({ slaDueAt: dueAt })
+      .where(eq(schema.supportConversations.id, conversationId));
+
+    if (schedule.autoReplyEnabled && schedule.autoReplyMessage.trim() && !withinSchedule(schedule, new Date())) {
+      await db.insert(schema.supportMessages)
+        .values({ conversationId, author: 'system', body: schedule.autoReplyMessage.trim() });
+      await db.update(schema.supportConversations)
+        .set({ autoReplied: true })
+        .where(eq(schema.supportConversations.id, conversationId));
+    }
+  } catch (err) {
+    console.error('[support] SLA/auto-resposta não aplicado', err);
+  }
+}
+
+/** Avisa os webhooks da operação sem jamais propagar erro de entrega. */
+async function notifyWebhooks(orgId: string, event: Parameters<typeof dispatchWebhook>[1], payload: Record<string, unknown>): Promise<void> {
+  try {
+    await dispatchWebhook(orgId, event, payload);
+  } catch (err) {
+    console.error('[support] webhook falhou', event, err);
+  }
 }
 
 /** Chamado interno: usuário do Prospectra+ ↔ suporte Argus. */
@@ -99,11 +143,21 @@ export async function replyToConversation(db: DB, scope: InboxScope, conversatio
     await tx.insert(schema.supportMessages).values({ conversationId, author: 'agent', authorUserId: scope.userId, body: text });
     await tx.update(schema.supportConversations).set({ status: 'open', lastMessageAt: new Date(), assignedTo: c.assignedTo ?? scope.userId }).where(eq(schema.supportConversations.id, conversationId));
   });
+  await recordAudit(scope.orgId, {
+    actorUserId: scope.userId, action: 'support.replied', entity: 'support_conversation', entityId: conversationId,
+  });
+  await notifyWebhooks(scope.orgId, 'conversation.replied', { conversationId });
 }
 
 export async function setConversationStatus(db: DB, scope: InboxScope, conversationId: string, status: 'open' | 'closed'): Promise<void> {
-  await db.update(schema.supportConversations).set({ status })
+  await db.update(schema.supportConversations)
+    .set({ status, resolvedAt: status === 'closed' ? new Date() : null })
     .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope)));
+  await recordAudit(scope.orgId, {
+    actorUserId: scope.userId, action: 'support.status_changed', entity: 'support_conversation', entityId: conversationId,
+    payload: { status },
+  });
+  if (status === 'closed') await notifyWebhooks(scope.orgId, 'conversation.closed', { conversationId });
 }
 
 export async function assignConversation(db: DB, scope: InboxScope, conversationId: string, assigneeId: string | null): Promise<void> {
@@ -273,11 +327,12 @@ export async function intakeWhatsappMessage(
   const r = await db.transaction(async (tx) => {
     const [dup] = await tx.select({ conversationId: schema.supportMessages.conversationId }).from(schema.supportMessages)
       .where(eq(schema.supportMessages.providerId, providerId));
-    if (dup) return { conversationId: dup.conversationId, deduped: true }; // retry do gateway
+    if (dup) return { conversationId: dup.conversationId, deduped: true, isNew: false }; // retry do gateway
 
     let [conv] = await tx.select().from(schema.supportConversations)
       .where(and(eq(schema.supportConversations.orgId, input.orgId), eq(schema.supportConversations.visitorPhone, phone), eq(schema.supportConversations.status, 'open')))
       .orderBy(desc(schema.supportConversations.lastMessageAt)).limit(1);
+    const isNew = !conv;
     if (!conv) {
       [conv] = await tx.insert(schema.supportConversations)
         .values({ orgId: input.orgId, audience: 'customer', channel: 'whatsapp', subject: body.slice(0, 80), visitorName: name, visitorPhone: phone })
@@ -285,12 +340,18 @@ export async function intakeWhatsappMessage(
     }
     const [inserted] = await tx.insert(schema.supportMessages)
       .values({ conversationId: conv.id, author: 'visitor', body, providerId }).onConflictDoNothing().returning({ id: schema.supportMessages.id });
-    if (!inserted) return { conversationId: conv.id, deduped: true }; // corrida: outro processo já gravou
+    if (!inserted) return { conversationId: conv.id, deduped: true, isNew: false }; // corrida: outro processo já gravou
     await tx.update(schema.supportConversations).set({ status: 'open', lastMessageAt: new Date() }).where(eq(schema.supportConversations.id, conv.id));
-    return { conversationId: conv.id, deduped: false };
+    return { conversationId: conv.id, deduped: false, isNew };
   });
   if (!r.deduped) await linkConversationToLead(db, input.orgId, r.conversationId, { phone }).catch(() => null);
-  return r;
+  if (!r.deduped) {
+    await applySlaAndAutoReply(db, input.orgId, r.conversationId, r.isNew);
+    await notifyWebhooks(input.orgId, 'conversation.created', {
+      conversationId: r.conversationId, channel: 'whatsapp', subject: body.slice(0, 80),
+    });
+  }
+  return { conversationId: r.conversationId, deduped: r.deduped };
 }
 
 // ---- Suporte interno (audience 'product') roteado ao Argus: acesso de admin, cross-org ----
