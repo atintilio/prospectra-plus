@@ -1,11 +1,7 @@
 import Image from 'next/image';
 
 export function LogoMark({ size = 36 }: { size?: number }) {
-  return (
-    <span className="inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
-      <Image src="/logo.png" alt="" width={size} height={size} priority />
-    </span>
-  );
+  return <Image src="/argus-prime-logo.png" alt="Argus Prime" width={size * 2} height={size} priority className="h-auto w-auto max-w-[150px] object-contain" />;
 }
 
 export function Logo({ size = 36, dark = false }: { size?: number; dark?: boolean }) {

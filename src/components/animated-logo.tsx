@@ -5,8 +5,8 @@ export function AnimatedLogo({ className = 'h-40 w-40' }: { className?: string }
   return (
     <div className={`fixed left-4 top-4 z-40 ${className}`} aria-label="Logo Prospectra">
       <Image
-        src="/logo-hero.png"
-        alt="Prospectra"
+        src="/argus-prime-logo-negativo.png"
+        alt="Argus Prime"
         width={900}
         height={900}
         priority
