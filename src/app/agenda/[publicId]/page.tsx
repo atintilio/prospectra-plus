@@ -2,8 +2,7 @@ import { CalendarCheck, CalendarX2, Download } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/db';
 import { getMeetingByToken } from '@/lib/agenda';
-import { FormMessage, Submit } from '@/components/form';
-import { publicCancelAction, publicConfirmAction } from './actions';
+import { PublicMeetingControls } from './controls';
 
 export const metadata = { title: 'Reunião — Prospectra' };
 export const dynamic = 'force-dynamic';
@@ -33,20 +32,7 @@ export default async function PublicMeetingPage({ params }: { params: Promise<{ 
           <Download className="h-4 w-4" /> Baixar convite (.ics)
         </a>
       </div>
-      {m.status === 'cancelled' ? (
-        <p className="card p-4 text-center text-sm text-muted">Esta reunião foi cancelada.</p>
-      ) : (
-        <div className="card grid grid-cols-2 gap-3 p-4">
-          <form action={publicConfirmAction}>
-            <input type="hidden" name="publicId" value={m.publicId} />
-            <Submit className="btn-primary w-full justify-center" pendingText="Confirmando…"><CalendarCheck className="mr-1 inline h-4 w-4" /> Confirmar presença</Submit>
-          </form>
-          <form action={publicCancelAction}>
-            <input type="hidden" name="publicId" value={m.publicId} />
-            <Submit className="btn-outline w-full justify-center text-danger" pendingText="Cancelando…"><CalendarX2 className="mr-1 inline h-4 w-4" /> Cancelar</Submit>
-          </form>
-        </div>
-      )}
+      <PublicMeetingControls publicId={m.publicId} cancelled={m.status === 'cancelled'} />
     </main>
   );
 }
