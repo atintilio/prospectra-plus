@@ -15,7 +15,7 @@ Detalhes operacionais da voz em `docs/voice-studio.md`; do gateway WhatsApp em
 
 | Item | Estado | Observação |
 |---|---|---|
-| Prospectra+ (web) | **NO AR** | `https://prospectra.argusprime.com.br` — `/api/health` e `/login` respondem 200 |
+| Prospectra+ (web) | **NO AR (VPS nativa)** | `https://prospectra.argusprime.com.br` → nginx na VPS → `127.0.0.1:3100` (`systemd prospectra-plus`) — `/api/health` e `/login` respondem 200 |
 | Voz (Voice Studio) | **NO AR** | `https://voice.argusprime.com.br` — 401 sem chave, 200 com `VOICESTUDIO_API_KEY`; motor MOSS-TTS-Nano |
 | WA-AKG (gateway WhatsApp) | **NO AR** | `https://crm.argusprime.com.br/prospectra-whatsapp` — 401 sem `x-api-key` |
 | Heartbeat (cron) | **NO AR** | `/usr/local/bin/prospectra-tick` + `/etc/cron.d/prospectra-tick`, a cada 5 min |
@@ -33,9 +33,21 @@ Detalhes operacionais da voz em `docs/voice-studio.md`; do gateway WhatsApp em
 
 ### 2.1 Prospectra+ (web)
 
-`https://prospectra.argusprime.com.br` — deploy de produção na Vercel. `/api/health` e
-`/login` respondem 200. App, login, CRM/leads, importação de leads, cadência assistida,
-IA de texto, DISC, campanha multicanal e Helpin nativo estão publicados.
+`https://prospectra.argusprime.com.br` — **implantação nativa na VPS** (a Vercel continua
+publicando, mas o tráfego vai para a VPS ✅). Nginx → `127.0.0.1:3100` (`systemd
+prospectra-plus`), release em `/opt/prospectra-plus-release-<sha>` com symlink
+`/opt/prospectra-plus-current`. O env fica em `/etc/prospectra-plus/app.env` (600) ✅.
+
+Publicar uma versão:
+
+```bash
+# na VPS: o repo precisa do .git
+cd /opt/prospectra-plus && git fetch origin main
+/usr/local/bin/prospectra-plus-release <sha>     # migra, compila, troca symlink, valida
+```
+
+`/api/health` e `/login` respondem 200 ✅. App, login, CRM/leads, importação de leads,
+cadência assistida, IA de texto, DISC, campanha multicanal e Helpin nativo estão publicados ✅.
 
 ### 2.2 Voz — Voice Studio
 
