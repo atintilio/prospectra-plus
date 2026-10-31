@@ -1,18 +1,18 @@
 import Image from 'next/image';
 
-/** Logo 3D flutuante: sem moldura, fundo transparente, com sombra suave no "chão". */
+/** Símbolo Prospectra+ transparente para fundos claros ou escuros. */
 export function AnimatedLogo({ className = 'h-40 w-40' }: { className?: string }) {
   return (
-    <div className={`mx-auto lg:mx-0 ${className}`} aria-label="Logo Prospectra">
+    <div className={`fixed left-4 top-4 z-40 ${className}`} role="img" aria-label="Símbolo Prospectra+">
       <Image
-        src="/logo-hero.png"
-        alt="Prospectra"
+        src="/prospectra-mark-optimized.webp"
+        alt=""
         width={900}
-        height={900}
+        height={986}
         priority
-        className="logo-float relative z-10 h-full w-full select-none object-contain drop-shadow-[0_0_40px_rgba(59,100,255,.45)] [animation:logo-float_7s_ease-in-out_infinite]"
+        className="relative z-10 h-full w-full select-none object-contain drop-shadow-[0_0_28px_rgba(74,127,255,.38)]"
       />
-      <div className="logo-shadow pointer-events-none absolute -bottom-3 left-1/2 h-5 w-3/5 -translate-x-1/2 rounded-[50%] bg-[#0b2f8a]/40 blur-xl [animation:logo-shadow_7s_ease-in-out_infinite]" />
+      <div className="pointer-events-none absolute -bottom-1 left-1/2 h-3 w-3/5 -translate-x-1/2 rounded-[50%] bg-[#0b2f8a]/25 blur-lg" />
     </div>
   );
 }

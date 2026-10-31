@@ -4,6 +4,7 @@ import { getDb, schema } from '@/db';
 import { requireUser } from '@/lib/auth';
 import { Sidebar } from '@/components/sidebar';
 import { OrgSwitcher } from '@/components/org-switcher';
+import { AmbientVideo } from '@/components/ambient-video';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireUser();
@@ -17,30 +18,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (isDemo && ctx.org) orgs.splice(0, orgs.length, { id: ctx.org.id, name: ctx.org.name });
   const initials = (ctx.user.name || ctx.user.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('');
   const roleLabel = ctx.user.platformRole === 'admin' ? 'Admin master' : ({ owner: 'Dono', manager: 'Gestor', sdr: 'SDR', closer: 'Closer' } as const)[ctx.role ?? 'sdr'];
-
   return (
-    <div className="flex min-h-dvh">
+    <div className="prospectra-shell relative flex min-h-dvh overflow-hidden">
+      <AmbientVideo className="prospectra-ambient" />
+      <div className="prospectra-ambient-scrim" aria-hidden="true" />
       <Sidebar isDemo={isDemo} isAdmin={ctx.user.platformRole === 'admin'} canManage={ctx.role === 'owner' || ctx.role === 'manager'} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b border-border bg-white/90 px-4 backdrop-blur md:px-8">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <header className="prospectra-topbar sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b px-4 md:px-8">
           <div className="md:hidden" />
-          <OrgSwitcher orgs={orgs} current={ctx.org?.id ?? null} />
+          <div><OrgSwitcher orgs={orgs} current={ctx.org?.id ?? null} /></div>
           <div className="ml-auto flex items-center gap-3">
             <Link href="/ambiente" className="btn-outline hidden sm:inline-flex">Trocar ambiente</Link>
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium leading-tight">{ctx.user.name || ctx.user.email}</p>
-              <p className="text-xs text-muted">{roleLabel}</p>
-            </div>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-sm font-semibold text-white">{initials}</span>
+            <div className="hidden text-right sm:block"><p className="text-sm font-medium leading-tight">{ctx.user.name || ctx.user.email}</p><p className="font-mono text-[10px] uppercase tracking-[.12em] text-muted">{roleLabel}</p></div>
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-white">{initials}</span>
           </div>
         </header>
-        {isDemo && (
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-violet-600 px-4 py-2 text-center text-sm font-medium text-white">
-            Ambiente de demonstração: todos os dados são fictícios e nada é enviado de verdade.
-            <Link href="/ambiente" className="underline underline-offset-2">Voltar ao ambiente de produção</Link>
-          </div>
-        )}
-        <main className="flex-1 px-4 py-6 pb-24 md:px-8 md:pb-8">{children}</main>
+        {isDemo && <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-violet-600 px-4 py-2 text-center text-sm font-medium text-white">Ambiente de demonstração: todos os dados são fictícios e nada é enviado de verdade.<Link href="/ambiente" className="underline underline-offset-2">Voltar ao ambiente de produção</Link></div>}
+        <main className="prospectra-main flex-1 px-4 py-7 pb-24 md:px-8 md:pb-8">{children}</main>
       </div>
     </div>
   );

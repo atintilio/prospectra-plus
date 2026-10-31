@@ -9,8 +9,8 @@ export default function LoginPage() {
   const [state, action] = useActionState(loginAction, undefined);
   return (
     <>
-      <h2 className="text-2xl font-semibold tracking-tight">Entrar</h2>
-      <p className="mt-1.5 text-sm text-muted">Acesse sua conta de parceiro.</p>
+      <h2 className="text-2xl font-semibold tracking-tight">Bom ter você de volta.</h2>
+      <p className="mt-1.5 text-sm text-muted">Acesse sua operação e veja quais conversas pedem atenção.</p>
       <form action={action} className="mt-8 space-y-4">
         <div>
           <label className="label" htmlFor="email">E-mail</label>
