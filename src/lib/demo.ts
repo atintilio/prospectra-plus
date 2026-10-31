@@ -166,5 +166,67 @@ export async function ensureDemo(db: DB, user: { id: string; name: string }): Pr
     evs.push({ orgId: org.id, userId: l.ownerId, type, leadId: l.id, campaignId: campA.id, at: new Date(now.getTime() - daysAgo * 86400_000 - 3600_000) });
   }
   for (let i = 0; i < evs.length; i += 500) await db.insert(schema.events).values(evs.slice(i, i + 500));
+  await seedDemoInbox(db, org.id, user.id, mates[0].id, leads);
   return org.id;
+}
+
+/** Caixa de conversas pré-carregadas da demo (WhatsApp + Helpin): abre e já demonstra. */
+export async function seedDemoInbox(db: DB, orgId: string, ownerId: string, managerId: string, leads: { id: string; fullName: string }[]): Promise<void> {
+  const minutesAgo = (min: number) => new Date(Date.now() - min * 60_000);
+  async function conversation(input: {
+    subject: string; contactName: string; channel: 'whatsapp' | 'helpin'; status: 'open' | 'closed';
+    leadId: string | null; assigneeId: string | null; lastMessageAt: Date;
+  }, msgs: Array<{ sender: 'contact' | 'agent'; body: string; sim?: boolean }>) {
+    const [c] = await db.insert(schema.helpinConversations).values({
+      orgId, subject: input.subject, contactName: input.contactName, channel: input.channel, status: input.status,
+      leadId: input.leadId, assigneeId: input.assigneeId, lastMessageAt: input.lastMessageAt,
+    }).returning();
+    for (const m of msgs) {
+      await db.insert(schema.helpinMessages).values({
+        orgId, conversationId: c.id, sender: m.sender, body: m.body, simulated: m.sim ?? m.sender === 'agent',
+      });
+    }
+    return c;
+  }
+  const byName = (name: string) => leads.find((l) => l.fullName === name)?.id ?? null;
+
+  await conversation({
+    subject: 'Dúvida sobre proposta · Mariana', contactName: 'Mariana Duarte', channel: 'whatsapp', status: 'open',
+    leadId: byName('Mariana Duarte'), assigneeId: ownerId, lastMessageAt: minutesAgo(8),
+  }, [
+    { sender: 'contact', body: 'Aceitei seu convite! Vi que vocês trabalham com recuperação de impostos para indústrias. A gente lida com muito crédito acumulado aqui.', sim: false },
+    { sender: 'agent', body: 'Olá, Mariana! Que ótimo. Posso te mostrar em 15 minutos como recuperamos esse imposto sem custo antecipado. Para você, funciona amanhã às 10h?' },
+    { sender: 'contact', body: '10h fica ótimo. Vou chamar meu contador sócio pra participar.', sim: false },
+    { sender: 'agent', body: 'Perfeito. Vou enviar o link da reunião pelo sistema e o convite da agenda aparece para vocês dois.' },
+  ]);
+
+  await conversation({
+    subject: 'Primeiro contato · Camila', contactName: 'Camila Ferraz', channel: 'whatsapp', status: 'open',
+    leadId: byName('Camila Ferraz'), assigneeId: null, lastMessageAt: minutesAgo(26),
+  }, [
+    { sender: 'contact', body: 'Olá! Vocês atendem escritórios contábeis em Minas Gerais?', sim: false },
+  ]);
+
+  await conversation({
+    subject: 'Follow-up depois da reunião', contactName: 'Eduardo Matsuda', channel: 'whatsapp', status: 'open',
+    leadId: byName('Eduardo Matsuda'), assigneeId: managerId, lastMessageAt: minutesAgo(42),
+  }, [
+    { sender: 'contact', body: 'Fechado a reunião de quinta. Pode mandar antes o material da parceria com contabilidade?', sim: false },
+    { sender: 'agent', body: 'Mando hoje mesmo, Eduardo. Documentos e cenário de exemplo, tudo pronto em português claro.' },
+  ]);
+
+  await conversation({
+    subject: 'Suporte · acesso ao painel', contactName: 'Patrícia Lemos', channel: 'helpin', status: 'open',
+    leadId: byName('Patrícia Lemos'), assigneeId: null, lastMessageAt: minutesAgo(64),
+  }, [
+    { sender: 'contact', body: 'Boa tarde, entrei no painel mas não achei a fila de hoje para minha equipe.', sim: false },
+  ]);
+
+  await conversation({
+    subject: 'Encerrada · documento enviado', contactName: 'Ricardo Bellini', channel: 'helpin', status: 'closed',
+    leadId: byName('Ricardo Bellini'), assigneeId: managerId, lastMessageAt: minutesAgo(600),
+  }, [
+    { sender: 'contact', body: 'Chegou o e-mail do documento, obrigado!', sim: false },
+    { sender: 'agent', body: 'Ótimo, Ricardo! Qualquer ajuste, é só chamar por aqui.' },
+  ]);
 }

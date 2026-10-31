@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, Building2, CalendarDays, FileText, LayoutDashboard, LifeBuoy, Linkedin, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
+import { Bot, Building2, CalendarDays, FileText, LayoutDashboard, LifeBuoy, Linkedin, ListChecks, LogOut, Megaphone, Mic, Settings, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { logoutAction } from '@/app/(auth)/actions';
@@ -19,7 +19,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     { href: '/agenda', label: 'Agenda', icon: CalendarDays },
     { href: '/documentos', label: 'Documentos', icon: FileText },
     { href: '/inteligencia', label: 'Inteligência comercial', icon: Sparkles },
-    ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
+    ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }, { href: '/simulador', label: 'Simulador', icon: Mic }] : []),
     ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
     { href: '/conta', label: 'Minha conta', icon: Settings },
     ...(isAdmin ? [{ href: '/admin', label: 'Administração de parceiros', icon: Building2 }] : []),
