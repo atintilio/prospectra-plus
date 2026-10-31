@@ -46,13 +46,25 @@ if (decision.acao === 'recriar') {
 
 await migrate(drizzle(client), { migrationsFolder: 'drizzle' });
 if (process.env.BLOB_READ_WRITE_TOKEN) {
-  const { get } = await import('@vercel/blob');
-  const blob = await get('prospectra/auth.json', { access: 'private', useCache: false });
-  if (!blob) throw new Error('Account migration source unavailable; deployment stopped.');
-  const source = JSON.parse(await new Response(blob.stream).text());
-  if (!Array.isArray(source.users)) throw new Error('Invalid account migration source.');
-  const total = await client.begin(async tx => syncUsers(async (query, params) => Array.from(await tx.unsafe(query, params)), source.users, process.env.MASTER_USER_EMAIL));
-  console.log(`[migrate] ${total} contas incorporadas; credenciais e bloqueios existentes preservados.`);
+  try {
+    const { get } = await import('@vercel/blob');
+    const blob = await get('prospectra/auth.json', { access: 'private', useCache: false });
+    if (!blob) throw new Error('Account migration source unavailable; deployment stopped.');
+    const source = JSON.parse(await new Response(blob.stream).text());
+    if (!Array.isArray(source.users)) throw new Error('Invalid account migration source.');
+    const total = await client.begin(async tx => syncUsers(async (query, params) => Array.from(await tx.unsafe(query, params)), source.users, process.env.MASTER_USER_EMAIL));
+    console.log(`[migrate] ${total} contas incorporadas; credenciais e bloqueios existentes preservados.`);
+  } catch (error) {
+    // A VPS às vezes fica sem rota para o Vercel Blob. Se as contas já estão no
+    // banco, a rede cair nao é motivo para abortar o deploy — só é quando não
+    // existe conta nenhuma que a falha precisa derrubar a publicação.
+    const email = (process.env.MASTER_USER_EMAIL || '').toLowerCase();
+    const [master] = email
+      ? await client`select id from users where lower(email) = ${email} limit 1`
+      : [];
+    if (!master) throw error;
+    console.warn(`[migrate] AVISO: blob indisponível (${error.message}); as contas do banco foram preservadas.`);
+  }
 }
 await client.end();
 console.log('[migrate] banco atualizado.');
