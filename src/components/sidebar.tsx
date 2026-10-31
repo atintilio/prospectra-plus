@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, Building2, LayoutDashboard, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
+import { Bot, Building2, CalendarDays, FileText, LayoutDashboard, LifeBuoy, Linkedin, ListChecks, LogOut, Megaphone, Settings, Users, UserSearch, MessageCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { logoutAction } from '@/app/(auth)/actions';
@@ -14,6 +14,10 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     { href: '/leads', label: 'Leads', icon: UserSearch },
     { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
     { href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
+    { href: '/golinkedin', label: 'Go LinkedIn', icon: Linkedin },
+    { href: '/helpin', label: 'Helpin', icon: LifeBuoy },
+    { href: '/agenda', label: 'Agenda', icon: CalendarDays },
+    { href: '/documentos', label: 'Documentos', icon: FileText },
     { href: '/inteligencia', label: 'Inteligência comercial', icon: Sparkles },
     ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
     ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
