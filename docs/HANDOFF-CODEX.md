@@ -5,6 +5,17 @@
 > (sem trava de CI) — produção: `prospectra.argusprime.com.br`. Enums de passo/evento
 > são `text` (sem migração ao adicionar valor). Migrações: editar schema → `pnpm db:generate`.
 
+> ⚠️ **31/10/2026 — o `main` do GitHub foi sobrescrito por outra linha de trabalho.**
+> Em 31/10 ~01:30 UTC o `origin/main` passou de `79ab6cf` (esta linha) para `5473dc7`, que é uma
+> **reimplementação paralela** ("Open Claude MVP": 21 commits, 7 migrations, telas `golinkedin`,
+> `helpin`, `simulador`, `configuracoes`, `documentos`). **Esta linha (agenda nativa, Helpin fase 6,
+> IA com fallback, executor de inteligência, WhatsApp, voz, demo completa) NÃO está mais no `main`
+> do GitHub** — mas continua **no ar na VPS** (release `7d2401d`).
+> As duas linhas estão preservadas no GitHub:
+> - esta linha → `backup/prospectra-plus-2026-10-31` (tip: `7d2401d`)
+> - reimplementação → `backup/openclaude-mvp-2026-10-31` (tip: `5473dc7`)
+> **NÃO faça force-push no `main` antes de o dono decidir qual linha fica como principal.**
+
 > **Atualizado em 30/10/2026 (noite)** — Helpin fase 6 entregue (schema + atributos + SLA + horário +
 > auto-resposta + CSAT + relatórios + webhooks + auditoria). Ver "O que entrou nesta entrega".
 > **Agenda nativa entregue no mesmo dia** (o cal.com saiu de cena) — ver "Entrega de 30/10 (noite)".
@@ -25,6 +36,39 @@
 - **Heartbeat** do cron: `.github/workflows/tick.yml` (chama `/api/cron` a cada 5 min).
 - **Helpin nativo**: inbox (web+WhatsApp+interno), 2 públicos (customer/product), central de ajuda, merge de CRM, **etiquetas**, **notas internas + @menções** (nunca vazam pro cliente), **times de atendimento** (rotear + visibilidade por time). Papéis: owner/manager/sdr/closer.
 - **Helpin fase 6 (30/10)**: atributos personalizados, SLA, horário + auto-resposta, CSAT, relatórios, webhooks e auditoria — detalhes abaixo.
+
+## Entrega de 31/10 (madrugada) — **ambiente de demonstração completo**
+
+A demonstração tinha dados em **7 tabelas** (CRM, campanhas, fila, eventos) e **31 vazias**: agenda,
+voz, suporte, inteligência, comercial e automações apareciam em branco na apresentação. Agora a
+demo semeia o cenário fictício inteiro (Atlas Consultoria), do começo ao fim.
+
+**Módulos de seed** (um arquivo por módulo, todos fictícios e sem rede):
+- `src/lib/demo-agenda.ts` — 2 tipos de reunião, 22 janelas de disponibilidade, 2 links rastreados,
+  3 reservas (confirmada / aguardando aprovação / cancelada) e 1 bloqueio de calendário.
+- `src/lib/demo-voice.ts` — perfil de voz, 1 envio concluído, 1 job na fila, registro de consentimento.
+- `src/lib/demo-support.ts` — 2 times, 6 conversas (web/WhatsApp/interno), 19 mensagens, SLA em
+  risco e violado, CSAT 5 e 3, horário, pré-chat, 4 artigos de ajuda, 3 docs e 3 tarefas.
+- `src/lib/demo-intel.ts` — perfil comercial, 4 perfis de comunicação (DISC), 3 jobs de inteligência
+  (2 concluídos + 1 na fila), 2 conversas do Harvey, inbound em conferência, caixa do vendedor,
+  2 automações, auditoria, webhook e atributos de lead.
+
+**Orquestração**: `src/lib/demo.ts` chama os quatro módulos com o mesmo contexto (operação, equipe,
+leads, `now` e gerador determinístico). `src/lib/demo-reset.ts` recria a demo do zero (apaga a
+org de demonstração em cascata — **a produção nunca é tocada** — e semeia de novo).
+
+**Recriar a demo**: botão **“Recriar do zero”** em `/ambiente`, rota `POST /api/demo/reset` (só
+admin) e `scripts/demo-reset.ts` (linha de comando). Roteiro de apresentação em `docs/DEMO.md`.
+
+**Validação na VPS** (31/10): `POST /api/demo/reset` → 200; **31/31 tabelas** da demo com dado
+(4 perfis de comunicação, 19 mensagens de suporte); as 16 telas da demo respondem 200 **com
+conteúdo** (agenda, suporte, atendimento, inteligência, comunicação, voz, painel, ajuda).
+Suíte local: **56 arquivos / 293 testes** verdes.
+
+**Correções que vieram da conferência**: `provider_id` das mensagens de suporte passou a levar o
+id da operação (o índice único é global e engolia a mensagem de uma segunda demo); responsáveis e
+menções do suporte apontam para o dono da demo (a tela lista só membros **ativos**); a escolha de
+lead nos seeds virou determinística (ordem por id) para a demo continuar idempotente.
 
 ## O que entrou nesta entrega (30/10/2026)
 

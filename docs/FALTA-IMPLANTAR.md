@@ -29,6 +29,7 @@ o trabalho está em `docs/HANDOFF-CODEX.md`.
 | WhatsApp (número real) | **AGUARDA PAREAMENTO** | Falta escanear o QR do número na tela **WhatsApp** do app |
 | Voz automática | **AGUARDA VALIDAÇÃO** | `VOICE_AUTOMATION_ENABLED=false` na Vercel até você validar a voz à mão |
 | LinkedIn automático | **AGUARDA DECISÃO** | Código e worker na VPS prontos; não ativar sem decisão explícita (termos de uso) |
+| **Ambiente de demonstração** | **COMPLETO (31/10)** | A demo semeia o cenário fictício inteiro: **31/31 tabelas** com dado (agenda, voz, suporte, inteligência, comercial, automações, auditoria). Botão **“Recriar do zero”** em `/ambiente`, rota `POST /api/demo/reset`, script `scripts/demo-reset.ts`. Roteiro de apresentação em `docs/DEMO.md` |
 | Helpin fase 6 | **NO AR** | Atributos, SLA, horário + auto-resposta, CSAT, relatórios, webhooks e auditoria ✅ |
 | CRM (Argus) | **FORA DE ESCOPO** | Re-deploy do CRM em andamento por você; nada do Prospectra+ depende disso |
 
