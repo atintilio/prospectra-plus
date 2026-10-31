@@ -23,6 +23,7 @@ import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
 import { deleteAuditedLeads, flushDeletionReports } from '@/lib/deletion-audit';
 import { ensureDemo } from '@/lib/demo';
+import { resetDemo } from '@/lib/demo-reset';
 import { addSearchResults, searchDemoLeads, seedFeed, simulateCycle } from '@/lib/demo-sim';
 import { updateSlaPolicy } from '@/lib/support-sla';
 import { upsertSchedule, parseMinute } from '@/lib/support-schedule';
@@ -34,6 +35,20 @@ type State = { error?: string; ok?: string } | undefined;
 
 export async function switchOrgAction(orgId: string) {
   await switchOrg(orgId);
+  revalidatePath('/', 'layout');
+  redirect('/painel');
+}
+
+/** Recria a demonstracao do zero (para apresentar a suite sempre igual). */
+export async function resetDemoAction(): Promise<void> {
+  const ctx = await requireUser();
+  const db = await getDb();
+  try {
+    const orgId = await resetDemo(db, { id: ctx.user.id, name: ctx.user.name });
+    await switchOrg(orgId);
+  } catch (error) {
+    console.error('[demo] falha ao recriar a demonstracao', error);
+  }
   revalidatePath('/', 'layout');
   redirect('/painel');
 }

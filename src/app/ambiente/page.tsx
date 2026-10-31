@@ -1,9 +1,9 @@
-import { FlaskConical, Rocket } from 'lucide-react';
+import { FlaskConical, RotateCcw, Rocket } from 'lucide-react';
 import { and, eq } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import { requireUser } from '@/lib/auth';
 import { Logo } from '@/components/logo';
-import { chooseEnvAction } from '@/app/(app)/actions';
+import { chooseEnvAction, resetDemoAction } from '@/app/(app)/actions';
 import { logoutAction } from '@/app/(auth)/actions';
 
 export const metadata = { title: 'Escolha o ambiente' };
@@ -15,6 +15,9 @@ export default async function AmbientePage() {
     ? await db.select({ name: schema.orgs.name }).from(schema.orgs).where(eq(schema.orgs.isDemo, false)).limit(1)
     : await db.select({ name: schema.orgs.name }).from(schema.memberships).innerJoin(schema.orgs, eq(schema.orgs.id, schema.memberships.orgId))
         .where(and(eq(schema.memberships.userId, ctx.user.id), eq(schema.orgs.isDemo, false), eq(schema.orgs.active, true))).limit(1);
+  const demo = await db.select({ id: schema.orgs.id }).from(schema.memberships)
+    .innerJoin(schema.orgs, eq(schema.orgs.id, schema.memberships.orgId))
+    .where(and(eq(schema.memberships.userId, ctx.user.id), eq(schema.orgs.isDemo, true))).limit(1);
   const first = (ctx.user.name || '').split(' ')[0];
 
   return (
@@ -30,13 +33,20 @@ export default async function AmbientePage() {
           <p className="mt-1 flex-1 text-sm text-muted">Sua operação real{prod[0] ? `: ${prod[0].name}` : ''}. Leads, cadências e fila do dia de verdade.</p>
           <button className="btn-primary mt-6">Entrar em produção</button>
         </form>
-        <form action={chooseEnvAction} className="card flex flex-col p-7 shadow-sm">
-          <input type="hidden" name="env" value="demo" />
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600 text-white"><FlaskConical className="h-6 w-6" /></span>
-          <h2 className="mt-5 text-xl font-semibold">Demonstração</h2>
-          <p className="mt-1 flex-1 text-sm text-muted">Um caso fictício completo para mostrar a parceiros: leads, campanhas, fila, equipe e métricas. Nada é enviado de verdade.</p>
-          <button className="btn-outline mt-6">Abrir demonstração</button>
-        </form>
+        <div className="card flex flex-col p-7 shadow-sm">
+          <form action={chooseEnvAction} className="flex flex-1 flex-col">
+            <input type="hidden" name="env" value="demo" />
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600 text-white"><FlaskConical className="h-6 w-6" /></span>
+            <h2 className="mt-5 text-xl font-semibold">Demonstração</h2>
+            <p className="mt-1 flex-1 text-sm text-muted">Um caso fictício completo para mostrar a parceiros: leads, campanhas, fila, equipe, agenda, suporte e inteligência. Nada é enviado de verdade.</p>
+            <button className="btn-outline mt-6">Abrir demonstração</button>
+          </form>
+          {demo[0] && (
+            <form action={resetDemoAction} className="mt-3">
+              <button type="submit" className="btn-ghost w-full"><RotateCcw className="mr-2 inline h-4 w-4" />Recriar do zero</button>
+            </form>
+          )}
+        </div>
       </div>
       <form action={logoutAction} className="mt-8"><button className="btn-ghost">Sair</button></form>
     </main>
