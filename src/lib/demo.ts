@@ -3,6 +3,10 @@ import { schema, type DB } from '@/db';
 import type { CampaignStep, EventType, LeadStage } from '@/db/schema';
 import { addDays, dayString } from '@/lib/cadence';
 import { hashPassword } from '@/lib/crypto';
+import { seedAgenda } from '@/lib/demo-agenda';
+import { seedVoice } from '@/lib/demo-voice';
+import { seedSupport } from '@/lib/demo-support';
+import { seedIntel } from '@/lib/demo-intel';
 
 export const DEMO_ORG_NAME = 'Demonstração · Atlas Consultoria';
 
@@ -166,5 +170,28 @@ export async function ensureDemo(db: DB, user: { id: string; name: string }): Pr
     evs.push({ orgId: org.id, userId: l.ownerId, type, leadId: l.id, campaignId: campA.id, at: new Date(now.getTime() - daysAgo * 86400_000 - 3600_000) });
   }
   for (let i = 0; i < evs.length; i += 500) await db.insert(schema.events).values(evs.slice(i, i + 500));
+
+  // ── Módulos da suíte (agenda, voz, suporte, inteligência) ─────────────────
+  // Mesmo contexto para todos: mesma operação, mesma equipe, mesmos leads.
+  const ctx = {
+    orgId: org.id,
+    userId: user.id,
+    userIds: mates.map((m) => m.id),
+    leads: leads.map((l) => ({
+      id: l.id,
+      fullName: l.fullName,
+      company: l.company,
+      headline: l.headline,
+      stage: l.stage,
+      ownerId: l.ownerId ?? user.id,
+    })),
+    now,
+    rand,
+  };
+  await seedAgenda(db, ctx);
+  await seedVoice(db, ctx);
+  await seedSupport(db, ctx);
+  await seedIntel(db, ctx);
+
   return org.id;
 }
