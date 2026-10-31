@@ -21,6 +21,35 @@ suporte, inteligência comercial e voz — cada aba com conteúdo.
 
 ---
 
+## A base demo (100 leads para subir)
+
+`docs/base-demo.csv` — 100 leads fictícios prontos para subir em **/leads → Importar leads**.
+No campo **“Nome da lista”** escreva `base demo` (é a etiqueta que aparece no CRM).
+
+O arquivo tem as colunas que o importador do Prospectra lê:
+
+| Coluna | Uso |
+| --- | --- |
+| `linkedin url` | **obrigatória** — é o identificador do lead (e a chave de deduplicação) |
+| `nome`, `cargo`, `empresa`, `cidade` | lidas e mostradas no CRM |
+| `email`, `telefone` | ficam no arquivo para uso fora do app — **a tela de importação ainda não lê essas duas colunas** |
+
+Perfil da lista: CFOs, diretores financeiros, heads de controladoria, gerentes tributários e
+sócios/contadores de escritórios, em 28 cidades (foco no Sul, com resto do país). Empresas e
+pessoas são fictícias; e-mails terminam em `@demo.invalid` e os telefones são de faixa reservada.
+
+Regerar a lista (determinístico — sai sempre igual):
+
+```bash
+node docs/gerar-base-demo.mjs
+```
+
+**Simular depois de subir**: com os leads na base, use **/automacao → “Simular próximo ciclo”**
+(loop de envio → aceite → resposta → comentário, sem tocar o LinkedIn de verdade) ou monte uma
+cadência em **/campanhas** e acompanhe a **/fila**.
+
+---
+
 ## O roteiro (15 minutos)
 
 ### 1. Painel — a operação em uma tela
