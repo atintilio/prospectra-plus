@@ -76,6 +76,22 @@ no CRM Argus, Reversa/Gov ou demais produtos (ver `docs/ESCOPO-E-TOCABILIDADE.md
   `src/lib/campaign-features.ts` usada por imagem e ligação).
 - O interruptor global `LINKEDIN_AUTOMATION_ENABLED` desliga tudo de uma vez.
 
+> **Achado da releitura (01/11):** hoje o gate existe em **uma** camada só.
+> `src/lib/campaign-features.ts` cobre `image` e `call` — os tipos de passo do LinkedIn
+> (`invite`, `message`, `comment`, `react`) **não são gated no editor**, e a fila automática
+> filtra por `orgs.linkedin_enabled` ✅ mas a **fila assistida** (execução manual pelo SDR)
+> precisa ser conferida. Ou seja: o interruptor do LinkedIn está **fino demais** e o editor
+> oferece convites/mensagens para operação que não ativou o recurso.
+>
+> **RF2-bis (obrigatório):** o LinkedIn passa a ser gate de verdade nas **três camadas**:
+> 1. **Editor**: passos `invite`/`message`/`comment`/`react` só aparecem com o gate ligado
+>    (passos já existentes continuam visíveis, como regra do repo).
+> 2. **Cadência**: passo de LinkedIn ainda não alcançado com o recurso desligado é pulado
+>    (não age) — mesmo comportamento de `image`/`call`.
+> 3. **Fila (assistida e automática)**: ação de LinkedIn com o recurso desligado não é executada
+>    e não fica pendente para execução manual.
+> O gate da **demo** continua liberando tudo (é simulação), como já ocorre hoje.
+
 ### RF3 — Execução real
 
 - O executor HTTP existente (`http-executor.ts`) passa a ter destino: `POST {LINKEDIN_WORKER_URL}/dispatch`
@@ -139,6 +155,8 @@ no CRM Argus, Reversa/Gov ou demais produtos (ver `docs/ESCOPO-E-TOCABILIDADE.md
 | AC8 | Worker respondendo `sent` atualiza `linkedin_dispatches` e a fila do dia | integração |
 | AC9 | Logo oficial + `#0A66C2` presentes nas telas do LinkedIn | inspeção visual |
 | AC10 | Suíte completa verde + smoke com sessão real sem regressão | `pnpm test` + smoke |
+| AC11 | Gate do LinkedIn vale nas **3 camadas**: editor não oferece os passos, cadência pula, fila assistida não executa | teste do gate |
+| AC12 | Demo segue liberando LinkedIn (é simulação) | teste do gate |
 
 ## 7. Não-objetivos (YAGNI)
 
@@ -159,9 +177,10 @@ no CRM Argus, Reversa/Gov ou demais produtos (ver `docs/ESCOPO-E-TOCABILIDADE.md
 | **F5** | OIDC real (authorize + callback + popup) | F1 | ⚠️ client_id/secret do dono |
 | **F6** | Marca oficial (logo + `#0A66C2`) nas telas | — | — |
 | **F7** | Prévia visual do fluxo + nome do passo no editor | — | — |
-| **F8** | Documentação: PRD, guia da ferramenta, guia de Decisions, runbook do LinkedIn | — | — |
+| **F8** | Documentação: PRD, guia da ferramenta, guia de decisões, runbook do LinkedIn | — | — |
+| **F9** | **RF2-bis**: gate do LinkedIn nas 3 camadas (editor, cadência, fila assistida) | F1 | — |
 
-F1, F2, F3, F6, F7 e F8 **não dependem de nada externo** e podem sair sem o dono.
+F1, F2, F3, F6, F7, F8 e F9 **não dependem de nada externo** e podem sair sem o dono.
 F4 e F5 só fecham com credenciais do dono — o código é entregue pronto e testado.
 
 ## 9. Riscos
