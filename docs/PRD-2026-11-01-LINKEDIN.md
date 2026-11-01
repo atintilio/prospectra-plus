@@ -173,6 +173,10 @@ no CRM Argus, Reversa/Gov ou demais produtos (ver `docs/ESCOPO-E-TOCABILIDADE.md
 
 - **Canvas de nós** (arrastar blocos em canvas livre): caro, não pedido de forma clara.
   Hoje "arrastar passos" já resolve a ordenação do fluxo. Entra só com pedido explícito.
+  > **Atualização de 01/11/2026:** o dono **pediu explicitamente** o módulo de fluxos
+  > arrastáveis. Ele saiu da lista de não-objetivos e entrou na **fila de construção**
+  > (backlog em `docs/FALTA-IMPLANTAR.md` §3.1). O escopo a construir ainda precisa ser
+  > fechado com o dono — ver as questions abertas do item no backlog.
 - **Scraping** de dados do LinkedIn (perfis, vagas): fora do produto e do risco aceitável.
 - **Envio em massa sem limites**: nada de bypass dos limites diários.
 - **Multiusuário na mesma conta**: uma conta por usuário (RF1).
