@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "prospectra",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-30",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public", "enable_request_signal"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "58105c474e4a4b6d83852386b8a20a01"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "MASTER_USER_EMAIL": "atintilio@argusprime.com.br",
+    "PUBLIC_APP_URL": "https://prospectra.argusprime.com.br",
+    "AGENDA_PUBLIC_URL": "https://agenda.argusprime.com.br",
+    "WA_AKG_BASE_URL": "https://prospectra.argusprime.com.br/whatsapp-gateway",
+    "WA_AKG_SESSION_ID": "prospectra-30592258160abd52e895f911450114df631a2bf9",
+    "VOICESTUDIO_BASE_URL": "https://voice.argusprime.com.br",
+    "VOICESTUDIO_ENGINE": "moss-tts-nano",
+    "AI_BASE_URL": "https://api.z.ai/api/paas/v4",
+    "AI_MODEL": "glm-4.7",
+    "AI_FALLBACK_MODELS": "glm-4.7-flash,glm-4.5-flash",
+    "INTELLIGENCE_WORKER_ENABLED": "true",
+    "VOICE_AUTOMATION_ENABLED": "false",
+    "PROSPERTA_DB_REPAIR": "0"
+  }
+}
