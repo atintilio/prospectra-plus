@@ -13,13 +13,22 @@ const globalForDb = globalThis as unknown as { __prospectraDb?: Promise<DB> };
  * No Node (VPS) vem da env var. No Cloudflare Workers vem do binding
  * HYPERDRIVE (a senha nunca fica no codigo nem no Worker).
  */
+/**
+ * URL do Postgres.
+ *
+ * - Node (VPS): env var `DATABASE_URL`.
+ * - Cloudflare Workers: o runtime nao faz I/O de TCP, entao o postgres.js fica
+ *   pendurado. No Worker a conexao vem pelo driver WebSocket do Neon
+ *   (`@neondatabase/serverless`), que fala `wss://` direto com o Neon.
+ */
 async function resolveUrl(): Promise<string> {
   try {
     const mod = (await import('@opennextjs/cloudflare')) as unknown as {
       getCloudflareContext?: () => { env?: Record<string, { connectionString?: string } | undefined> };
     };
-    const hyper = mod.getCloudflareContext?.()?.env?.HYPERDRIVE;
-    if (hyper?.connectionString) return hyper.connectionString;
+    const env = mod.getCloudflareContext?.()?.env;
+    const url = env?.NEON_DATABASE_URL?.connectionString;
+    if (url) return url;
   } catch {
     // Fora do Cloudflare (Node/VPS): segue com a env var.
   }
@@ -40,8 +49,24 @@ async function create(): Promise<DB> {
     await migrate(db, { migrationsFolder: 'drizzle' });
     return db as unknown as DB;
   }
+  // No Cloudflare Workers: driver WebSocket do Neon (o postgres.js nao tem I/O de TCP la).
+  if (isCloudflareWorker()) {
+    const { Pool, neonConfig } = await import('@neondatabase/serverless');
+    const { drizzle: drizzleNeon } = await import('drizzle-orm/neon-serverless');
+    // No runtime do Worker o WebSocket global e o unico transporte possivel.
+    neonConfig.webSocketConstructor = WebSocket;
+    const pool = new Pool({ connectionString: url });
+    return drizzleNeon(pool, { schema }) as unknown as DB;
+  }
+
   const client = postgres(url, { max: 1, prepare: false, idle_timeout: 20 });
   return drizzlePg(client, { schema });
+}
+
+/** Rodando no Cloudflare Workers? (o runtime nao implementa TCP) */
+function isCloudflareWorker(): boolean {
+  return typeof WebSocket !== 'undefined' && typeof globalThis !== 'undefined'
+    && (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent?.includes('Cloudflare-Workers') === true;
 }
 
 export function getDb(): Promise<DB> {
