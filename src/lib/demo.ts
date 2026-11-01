@@ -65,7 +65,23 @@ function rng(seed: number) { let s = seed; return () => ((s = (s * 1664525 + 101
 /** Cria (uma vez) a base de demonstração do usuário: leads, cadências, fila, equipe e métricas fictícias. */
 export async function ensureDemo(db: DB, user: { id: string; name: string }): Promise<string> {
   const existing = await findDemoOrg(db, user.id);
-  if (existing) return existing;
+  if (existing) {
+    // A demo já existe: o seed do LinkedIn é incremental e idempotente, então
+    // rodá-lo aqui garante a persona "João da Silva" mesmo em uma demo antiga
+    // (criada antes da feature) — sem reset e sem duplicar nada.
+    const demoLeads = await db
+      .select({
+        id: schema.leads.id,
+        fullName: schema.leads.fullName,
+        company: schema.leads.company,
+        headline: schema.leads.headline,
+      })
+      .from(schema.leads)
+      .where(eq(schema.leads.orgId, existing))
+      .limit(2);
+    await seedLinkedIn({ db, orgId: existing, now: new Date(), leads: demoLeads });
+    return existing;
+  }
 
   const now = new Date();
   const rand = rng(42);

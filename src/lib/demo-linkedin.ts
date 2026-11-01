@@ -93,22 +93,30 @@ export async function seedLinkedIn(ctx: {
     .returning();
 
   // 3) A campanha de LinkedIn do João.
-  const [camp] = await db
-    .insert(schema.campaigns)
-    .values({
-      orgId,
-      ownerId: userId,
-      assignedTo: userId,
-      name: 'Prospecção ativa · LinkedIn',
-      status: 'active',
-      steps: STEPS_LINKEDIN,
-      aiBrief: 'Tom consultivo; proposta de diagnóstico rápido da operação.',
-    })
-    .onConflictDoNothing()
-    .returning();
-  const campaignId = camp?.id
-    ?? (await db.select({ id: schema.campaigns.id }).from(schema.campaigns)
-      .where(eq(schema.campaigns.orgId, orgId)).limit(1))[0]?.id;
+  // A campanha é identificada pelo nome: se já existe, reaproveita (o seed roda
+  // também em demos antigas, a cada login — não pode duplicar campanha).
+  const CAMPANY_NAME = 'Prospecção ativa · LinkedIn';
+  const [existingCamp] = await db
+    .select({ id: schema.campaigns.id })
+    .from(schema.campaigns)
+    .where(and(eq(schema.campaigns.orgId, orgId), eq(schema.campaigns.name, CAMPANY_NAME)))
+    .limit(1);
+  let campaignId = existingCamp?.id;
+  if (!campaignId) {
+    const [camp] = await db
+      .insert(schema.campaigns)
+      .values({
+        orgId,
+        ownerId: userId,
+        assignedTo: userId,
+        name: CAMPANY_NAME,
+        status: 'active',
+        steps: STEPS_LINKEDIN,
+        aiBrief: 'Tom consultivo; proposta de diagnóstico rápido da operação.',
+      })
+      .returning();
+    campaignId = camp?.id;
+  }
   if (!campaignId) throw new Error('demo-linkedin: campanha da persona não encontrada');
 
   // 4) A fila do dia do João: duas ações pendentes de LinkedIn.
