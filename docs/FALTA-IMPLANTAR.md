@@ -1,4 +1,4 @@
-# Prospectra+ — o que falta implantar (estado real em 30/10/2026)
+# Prospectra+ — o que falta implantar (estado real em 01/11/2026)
 
 O texto anterior (27/10) dizia que não havia acesso SSH à VPS, que a voz não estava no
 ar e que a agenda não existia. **Nada disso é mais verdade**: o acesso SSH funciona
@@ -28,7 +28,9 @@ o trabalho está em `docs/HANDOFF-CODEX.md`.
 | IA (GLM) | **FALLBACK IMPLEMENTADO** | A conta z.ai está **sem saldo** (`1113`): `glm-4.7` não responde, `glm-4.7-flash` está em rate limit (`1302`). Agora a chamada cai sozinha para `glm-4.7-flash` → `glm-4.5-flash` (grátis) e o Harvey usa o provedor configurado (antes exigia OpenRouter e nunca funcionou). **Recarregar a z.ai** devolve o 4.7 como cérebro |
 | WhatsApp (número real) | **AGUARDA PAREAMENTO** | Falta escanear o QR do número na tela **WhatsApp** do app |
 | Voz automática | **AGUARDA VALIDAÇÃO** | `VOICE_AUTOMATION_ENABLED=false` na Vercel até você validar a voz à mão |
-| LinkedIn automático | **AGUARDA DECISÃO** | Código e worker na VPS prontos; não ativar sem decisão explícita (termos de uso) |
+| LinkedIn automático | **ENTREGUE (01/11) — FALTA CREDENCIAL** | Tela de **conectar conta** (OIDC por usuário) em `/linkedin`, API `GET|DELETE /api/integrations/linkedin/connect` + `/start` + `/callback`, marca oficial `#0A66C2`, **gate em 3 camadas** (editor, cadência, execução automática) com `orgs.linkedin_enabled`. Na **demo** a persona **"João da Silva"** aparece com conta simulada, campanha e fila próprias. **Falta**: `LINKEDIN_CLIENT_ID/SECRET/REDIRECT_URI` (credencial do dono) e o worker com `li_at`/proxy para envio real. PRD em `docs/PRD-2026-11-01-LINKEDIN.md` |
+| Guia da ferramenta | **ENTREGUE (01/11)** | `docs/GUIA.md` + `docs/guia/01..04`: produto/rotas, dados/deploy/runbook, decisões e expectativas, marca do LinkedIn |
+| Escopo e não-intervenção | **ENTREGUE (01/11)** | `docs/ESCOPO-E-TOCABILIDADE.md`: o que é do Prospectra, o que é intocável (CRM, Reversa/Gov, site, e-mail, cal.diy) e as regras operacionais |
 | **Ambiente de demonstração** | **COMPLETO (31/10)** | A demo semeia o cenário fictício inteiro: **31/31 tabelas** com dado (agenda, voz, suporte, inteligência, comercial, automações, auditoria). Botão **“Recriar do zero”** em `/ambiente`, rota `POST /api/demo/reset`, script `scripts/demo-reset.ts`. Roteiro de apresentação em `docs/DEMO.md` |
 | Helpin fase 6 | **NO AR** | Atributos, SLA, horário + auto-resposta, CSAT, relatórios, webhooks e auditoria ✅ |
 | CRM (Argus) | **FORA DE ESCOPO** | Re-deploy do CRM em andamento por você; nada do Prospectra+ depende disso |
