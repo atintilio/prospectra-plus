@@ -24,6 +24,7 @@
 | [PRD · LinkedIn](../PRD-2026-11-01-LINKEDIN.md) | Do piloto simulado à automação real: requisitos, fases, critérios de aceite, riscos |
 | [Escopo e não-intervenção](../ESCOPO-E-TOCABILIDADE.md) | O que é do Prospectra, o que é intocável, regras operacionais e auditoria |
 | [Falta implantar](../FALTA-IMPLANTAR.md) | Estado de cada item implantado, pendente e bloqueado |
+| [Como gerar credenciais](../COMO-GERAR-CREDENCIAIS.md) | Passo a passo para gerar os tokens do Cloudflare/Vercel e o app OIDC do LinkedIn |
 | [Agenda nativa](../AGEND-NATIVA.md) | Módulo de agenda: eventos, disponibilidade, reserva, lembretes |
 | [Demonstração](../DEMO.md) | Roteiro de apresentação da demo (o que falar em cada tela) |
 
