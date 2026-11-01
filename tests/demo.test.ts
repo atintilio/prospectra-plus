@@ -12,7 +12,8 @@ test('demo é criada uma vez, isolada e completa', async () => {
   expect(await findDemoOrg(db, user.id)).toBe(id);
   const n = async (t: any) => (await db.select({ n: count() }).from(t).where(eq(t.orgId, id)))[0].n;
   expect(await n(schema.leads)).toBeGreaterThan(20);
-  expect(await n(schema.campaigns)).toBe(3);
+  // 3 campanhas originais + 1 campanha de LinkedIn da persona "João da Silva"
+  expect(await n(schema.campaigns)).toBe(4);
   expect(await n(schema.actions)).toBeGreaterThan(5);
   expect(await n(schema.events)).toBeGreaterThan(300);
   expect((await db.select({ n: count() }).from(schema.leads).where(eq(schema.leads.orgId, prod.id)))[0].n).toBe(0);

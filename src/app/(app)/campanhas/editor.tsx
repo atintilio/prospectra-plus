@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, GripVertical, Heart, Image, Mail, MessageCircle, MessageSquare, Mic, Phone, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, GripVertical, Heart, Image, Mail, MessageCircle, MessageSquare, Mic, Phone, Plus, Send, Sparkles, Trash2, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { CampaignStep, StepType } from '@/db/schema';
@@ -14,16 +14,59 @@ export const DEFAULT_STEPS: CampaignStep[] = [
   { id: 's4', type: 'message', delayDays: 4, condition: 'always', template: '{nome}, faz sentido uma conversa rápida de 15 minutos nesta semana?', useAi: false },
 ];
 
-const TYPES: Record<StepType, { label: string; icon: typeof Send }> = {
-  react: { label: 'LinkedIn · reagir a post', icon: Heart }, comment: { label: 'LinkedIn · comentar post', icon: MessageCircle },
-  invite: { label: 'LinkedIn · convite', icon: UserPlus }, message: { label: 'LinkedIn · mensagem', icon: Send },
-  email: { label: 'E-mail', icon: Mail }, whatsapp: { label: 'WhatsApp', icon: MessageSquare },
-  voice: { label: 'WhatsApp · voz', icon: Mic },
-  image: { label: 'WhatsApp · imagem/informativo', icon: Image },
-  call: { label: 'WhatsApp · ligação (assistida)', icon: Phone },
+const TYPES: Record<StepType, { label: string; short: string; icon: typeof Send }> = {
+  react: { label: 'LinkedIn · reagir a post', short: 'Reagir', icon: Heart }, comment: { label: 'LinkedIn · comentar post', short: 'Comentar', icon: MessageCircle },
+  invite: { label: 'LinkedIn · convite', short: 'Convite', icon: UserPlus }, message: { label: 'LinkedIn · mensagem', short: 'Mensagem', icon: Send },
+  email: { label: 'E-mail', short: 'E-mail', icon: Mail }, whatsapp: { label: 'WhatsApp', short: 'WhatsApp', icon: MessageSquare },
+  voice: { label: 'WhatsApp · voz', short: 'Voz', icon: Mic },
+  image: { label: 'WhatsApp · imagem/informativo', short: 'Imagem', icon: Image },
+  call: { label: 'WhatsApp · ligação (assistida)', short: 'Ligação', icon: Phone },
 };
 
-type Initial = { name: string; aiBrief: string; assignedTo: string | null; steps: CampaignStep[] };
+/**
+ * Passo editável: o `name` é o rótulo dado pelo vendedor à etapa (RF7 do PRD).
+ * Vive no editor porque o tipo persistido do passo (`CampaignStep`) é do schema.
+ */
+export type EditableStep = CampaignStep & { name?: string };
+
+type Initial = { name: string; aiBrief: string; assignedTo: string | null; steps: EditableStep[] };
+
+/** Mini-mapa do fluxo: os blocos na ordem em que a cadência acontece (RF7). */
+function FlowPreview({ steps }: { steps: EditableStep[] }) {
+  let acc = 0;
+  const days = steps.map((s) => (acc += s.delayDays));
+  return (
+    <section className="card p-4" aria-label="Prévia do fluxo">
+      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p className="font-mono text-[10px] uppercase tracking-[.14em] text-muted">Prévia do fluxo</p>
+        <p className="text-xs text-muted">{steps.length} passos · {acc === 0 ? 'começa hoje' : `termina no dia ${acc}`}</p>
+      </header>
+      {steps.length === 0 ? (
+        <p className="mt-3 text-sm text-muted">Adicione um passo para ver a sequência do fluxo.</p>
+      ) : (
+        <ol className="mt-3 flex flex-wrap items-stretch gap-y-2">
+          {steps.map((s, i) => {
+            const T = TYPES[s.type];
+            return (
+              <li key={s.id} className="flex items-center gap-2">
+                <div className="min-w-[124px] rounded-xl border border-border bg-surface px-3 py-2">
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-text">
+                    <T.icon className="h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
+                    <span className="truncate">{i + 1}. {T.short}</span>
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted">
+                    {s.name?.trim() ? `${s.name.trim()} · dia ${days[i]}` : `dia ${days[i]}`}
+                  </p>
+                </div>
+                {i < steps.length - 1 && <ArrowRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
+  );
+}
 
 export function CampaignEditor({ id, initial, members, aiOn, features }: { id: string | null; initial: Initial; members: { id: string; name: string; email: string }[]; aiOn: boolean; features: CampaignFeatures }) {
   const router = useRouter();
@@ -33,10 +76,10 @@ export function CampaignEditor({ id, initial, members, aiOn, features }: { id: s
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [pending, start] = useTransition();
 
-  const setStep = (i: number, patch: Partial<CampaignStep>) => { setSaved(false); setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) })); };
+  const setStep = (i: number, patch: Partial<EditableStep>) => { setSaved(false); setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) })); };
   const move = (i: number, d: -1 | 1) => setForm((f) => { const s = [...f.steps]; [s[i], s[i + d]] = [s[i + d], s[i]]; return { ...f, steps: s }; });
   const reorder = (from: number, to: number) => { setSaved(false); setForm((f) => { if (from === to || from < 0 || from >= f.steps.length) return f; const s = [...f.steps]; const [m] = s.splice(from, 1); s.splice(to, 0, m); return { ...f, steps: s }; }); };
-  const add = (type: StepType) => setForm((f) => ({ ...f, steps: [...f.steps, { id: `s${Date.now()}`, type, delayDays: 2, condition: f.steps.some((s) => s.type === 'invite') && type === 'message' ? 'accepted' : 'always', template: '', useAi: type !== 'react' }] }));
+  const add = (type: StepType) => setForm((f) => ({ ...f, steps: [...f.steps, { id: `s${Date.now()}`, type, delayDays: 2, condition: f.steps.some((s) => s.type === 'invite') && type === 'message' ? 'accepted' : 'always', template: '', useAi: type !== 'react', name: '' }] }));
   const save = () => start(async () => {
     setError(undefined);
     const r = await saveCampaignAction(id, form);
@@ -49,6 +92,7 @@ export function CampaignEditor({ id, initial, members, aiOn, features }: { id: s
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
       <div className="space-y-3">
+        <FlowPreview steps={form.steps} />
         {form.steps.map((s, i) => {
           day += s.delayDays;
           const T = TYPES[s.type];
@@ -69,6 +113,11 @@ export function CampaignEditor({ id, initial, members, aiOn, features }: { id: s
                   <button className="btn-ghost px-2 py-1" disabled={i === form.steps.length - 1} onClick={() => move(i, 1)} aria-label="Descer"><ArrowDown className="h-4 w-4" /></button>
                   <button className="btn-ghost px-2 py-1 hover:text-danger" onClick={() => setForm((f) => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))} aria-label="Remover"><Trash2 className="h-4 w-4" /></button>
                 </div>
+              </div>
+              <div className="mt-3">
+                <label className="label" htmlFor={`passo-nome-${s.id}`}>Nome da etapa</label>
+                <input id={`passo-nome-${s.id}`} className="input" value={s.name ?? ''} maxLength={60}
+                  placeholder="Ex.: Primeiro contato" onChange={(e) => setStep(i, { name: e.target.value })} />
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
                 <label className="flex items-center gap-2">Esperar
@@ -108,8 +157,10 @@ export function CampaignEditor({ id, initial, members, aiOn, features }: { id: s
             <button key={k} className="btn-outline py-1.5" onClick={() => add(k as StepType)}><Plus className="h-4 w-4" />{v.label}</button>
           ))}
         </div>
-        {(!stepTypeEnabled(features, 'image') || !stepTypeEnabled(features, 'call')) && (
-          <p className="text-xs text-muted">Imagem/informativo e ligação são recursos activados por operação: só aparecem aqui quando o administrador os liberar.</p>
+        {(!stepTypeEnabled(features, 'image') || !stepTypeEnabled(features, 'call') || !stepTypeEnabled(features, 'linkedin')) && (
+          <p className="text-xs text-muted">
+            Imagem/informativo, ligação e LinkedIn são recursos activados por operação: só aparecem aqui quando o administrador os liberar.
+          </p>
         )}
       </div>
 

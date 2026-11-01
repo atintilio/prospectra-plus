@@ -29,7 +29,13 @@ test('a demo popula a suíte inteira (agenda, voz, suporte, inteligência)', asy
 
   // CRM (já existia)
   expect(await n(db, schema.leads, id)).toBeGreaterThan(20);
-  expect(await n(db, schema.campaigns, id)).toBe(3);
+  // 3 campanhas originais + 1 campanha de LinkedIn da persona "João da Silva"
+  expect(await n(db, schema.campaigns, id)).toBe(4);
+
+  // LinkedIn: a persona "João da Silva" com a conta conectada (simulada)
+  expect(await n(db, schema.linkedinConnections, id)).toBe(1);
+  const [joao] = await db.select().from(schema.users).where(eq(schema.users.email, 'joao.silva@atlasconsultoria.demo'));
+  expect(joao?.name).toBe('João da Silva');
 
   // agenda nativa
   expect(await n(db, schema.agendaEventTypes, id)).toBe(2);

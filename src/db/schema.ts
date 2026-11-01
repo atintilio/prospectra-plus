@@ -397,6 +397,24 @@ export const linkedinDispatches=pgTable('linkedin_dispatches',{
  createdAt:createdAt(),
 },t=>[uniqueIndex('linkedin_dispatches_action_uq').on(t.actionId),index('linkedin_dispatches_scope_idx').on(t.orgId,t.userId,t.createdAt)]);
 
+// Conta do LinkedIn conectada pelo próprio usuário (OpenID Connect).
+// O segredo (client_secret) e o token NUNCA entram no banco nem no navegador:
+// aqui fica só o perfil vinculado e o estado da conexão, por operação e usuário.
+export const LINKEDIN_CONNECTION_STATUSES=['connected','revoked','error'] as const;
+export type LinkedInConnectionStatus=(typeof LINKEDIN_CONNECTION_STATUSES)[number];
+export const linkedinConnections=pgTable('linkedin_connections',{
+ id:uuid('id').primaryKey().defaultRandom(),
+ orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
+ userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ providerId:text('provider_id').notNull().default(''),
+ profileName:text('profile_name').notNull().default(''),
+ profileEmail:text('profile_email').notNull().default(''),
+ status:text('status',{enum:LINKEDIN_CONNECTION_STATUSES}).notNull().default('connected'),
+ scopes:text('scopes').notNull().default(''),
+ connectedAt:timestamp('connected_at',{withTimezone:true}),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[uniqueIndex('linkedin_connections_org_user_uq').on(t.orgId,t.userId)]);
+
 // Suporte (Helpin nativo, fase 1): inbox compartilhada de conversas, nativa no Prospectra+.
 // `audience` cobre os dois casos decididos: 'customer' (cliente do parceiro ↔ equipe) e
 // 'product' (usuário do Prospectra+ ↔ suporte Argus). `channel` já prevê web e whatsapp.

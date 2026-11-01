@@ -105,23 +105,67 @@ describe('recursos de campanha só existem depois de ativados na operação', ()
 
 describe('campaignFeatures', () => {
   it('desligado por padrão e só liga com a chave da operação', () => {
-    const off = campaignFeatures({ active: true, isDemo: false, imageEnabled: false, callEnabled: false });
-    expect(off).toEqual({ image: false, call: false });
-    const on = campaignFeatures({ active: true, isDemo: false, imageEnabled: true, callEnabled: true });
-    expect(on).toEqual({ image: true, call: true });
+    const off = campaignFeatures({ active: true, isDemo: false, imageEnabled: false, callEnabled: false, linkedinEnabled: false });
+    expect(off).toEqual({ image: false, call: false, linkedin: false });
+    const on = campaignFeatures({ active: true, isDemo: false, imageEnabled: true, callEnabled: true, linkedinEnabled: true });
+    expect(on).toEqual({ image: true, call: true, linkedin: true });
   });
 
   it('operação inativa ou de demonstração não tem recurso', () => {
-    expect(campaignFeatures({ active: false, isDemo: false, imageEnabled: true, callEnabled: true })).toEqual({ image: false, call: false });
-    expect(campaignFeatures({ active: true, isDemo: true, imageEnabled: true, callEnabled: true })).toEqual({ image: false, call: false });
+    expect(campaignFeatures({ active: false, isDemo: false, imageEnabled: true, callEnabled: true, linkedinEnabled: true })).toEqual({ image: false, call: false, linkedin: false });
+    expect(campaignFeatures({ active: true, isDemo: true, imageEnabled: true, callEnabled: true, linkedinEnabled: true })).toEqual({ image: false, call: false, linkedin: false });
   });
 
   it('só os tipos com gate são condicionados', () => {
-    const features = campaignFeatures({ active: true, isDemo: false, imageEnabled: false, callEnabled: false });
+    const features = campaignFeatures({ active: true, isDemo: false, imageEnabled: false, callEnabled: false, linkedinEnabled: false });
     expect(stepTypeEnabled(features, 'whatsapp')).toBe(true);
     expect(stepTypeEnabled(features, 'voice')).toBe(true);
     expect(stepTypeEnabled(features, 'email')).toBe(true);
     expect(stepTypeEnabled(features, 'image')).toBe(false);
     expect(stepTypeEnabled(features, 'call')).toBe(false);
+    // LinkedIn: convite, mensagem, reação e comentário só existem com o recurso ligado.
+    expect(stepTypeEnabled(features, 'invite')).toBe(false);
+    expect(stepTypeEnabled(features, 'message')).toBe(false);
+    expect(stepTypeEnabled(features, 'react')).toBe(false);
+    expect(stepTypeEnabled(features, 'comment')).toBe(false);
+  });
+
+  it('LinkedIn ligado libera os quatro tipos de passo', () => {
+    const features = campaignFeatures({ active: true, isDemo: false, imageEnabled: false, callEnabled: false, linkedinEnabled: true });
+    expect(stepTypeEnabled(features, 'invite')).toBe(true);
+    expect(stepTypeEnabled(features, 'message')).toBe(true);
+    expect(stepTypeEnabled(features, 'react')).toBe(true);
+    expect(stepTypeEnabled(features, 'comment')).toBe(true);
+  });
+});
+
+describe('gate do LinkedIn na cadência', () => {
+  async function setupLinkedIn(linkedinEnabled: boolean) {
+    const db = await testDb();
+    const { org, user } = await seedOrg(db);
+    const [camp] = await db.insert(schema.campaigns).values({
+      orgId: org.id, ownerId: user.id, name: 'Gate LinkedIn', status: 'active',
+      steps: [{ id: 'g1', type: 'invite', delayDays: 0, condition: 'always', template: 'Oi {nome}', useAi: false }],
+    }).returning();
+    const [lead] = await db.insert(schema.leads).values({ orgId: org.id, ownerId: user.id, linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Ana' }).returning();
+    await enrollLeads(db, org.id, camp.id, [lead.id], day(0));
+    await db.update(schema.orgs).set({ linkedinEnabled }).where(eq(schema.orgs.id, org.id));
+    return { db, org };
+  }
+
+  it('LinkedIn desligado: o passo não age e não vira tarefa na fila', async () => {
+    const { db } = await setupLinkedIn(false);
+    const result = await runScheduler(db, { now: day(0) });
+    expect(result.created).toBe(0);
+    expect(await db.select().from(schema.actions)).toHaveLength(0);
+  });
+
+  it('LinkedIn ligado: a tarefa assistida é criada e fica pendente', async () => {
+    const { db } = await setupLinkedIn(true);
+    const result = await runScheduler(db, { now: day(0) });
+    expect(result.created).toBe(1);
+    const [action] = await db.select().from(schema.actions);
+    expect(action.type).toBe('invite');
+    expect(action.status).toBe('pending');
   });
 });

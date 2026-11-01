@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   BarChart3, BookOpen, Bot, Building2, CalendarDays, ChevronDown, FileText, FolderKanban, Headset,
   LayoutDashboard, LifeBuoy, ListChecks, LogOut, Megaphone, MessageCircle, Mic,
-  MoreHorizontal, Settings, SlidersHorizontal, Sparkles, Timer, Users, UserSearch, X,
+  MoreHorizontal, Settings, Share2, SlidersHorizontal, Sparkles, Timer, Users, UserSearch, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
@@ -32,6 +32,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
       items: [
         { href: '/inteligencia', label: 'Inteligência comercial', icon: Sparkles },
         { href: '/comunicacao', label: 'Perfil de comunicação', icon: MessageCircle },
+        { href: '/linkedin', label: 'LinkedIn', icon: Share2 },
         { href: '/leads/atributos', label: 'Campos', icon: SlidersHorizontal },
         ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
       ],

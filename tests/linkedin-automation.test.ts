@@ -83,6 +83,8 @@ test('backend ligado mas operação sem o LinkedIn ativado: nada é despachado',
   process.env.LINKEDIN_AUTOMATION_ENABLED = 'true';
   const db = await testDb();
   const a = await seedOrg(db, 'LI E');
+  // Esta operação não liberou o LinkedIn (o helper de teste liga por padrão).
+  await db.update(schema.orgs).set({ linkedinEnabled: false }).where(eq(schema.orgs.id, a.org.id));
   const { action } = await seedAction(db, a.org.id, a.user.id, 'invite');
   const exec = okExecutor();
   const res = await runLinkedinQueue(db, { executor: exec });

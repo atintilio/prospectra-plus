@@ -168,6 +168,7 @@ const stepSchema = z.object({
   condition: z.enum(['always', 'accepted']),
   template: z.string().max(1500),
   useAi: z.boolean(),
+  name: z.string().trim().max(60).optional(), // rótulo da etapa no mini-mapa do fluxo (RF7)
 });
 const campaignSchema = z.object({
   name: z.string().trim().min(2, 'Dê um nome à campanha.').max(80),

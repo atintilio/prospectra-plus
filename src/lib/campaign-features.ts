@@ -10,19 +10,37 @@
 //  2. Cadência: passo ainda não alcançado com recurso desligado é pulado (não age).
 //  3. Fila: ação já criada antes da desactivação continua pendente, nada automático.
 
-export const CAMPAIGN_FEATURES = ['image', 'call'] as const;
+export const CAMPAIGN_FEATURES = ['image', 'call', 'linkedin'] as const;
 export type CampaignFeature = (typeof CAMPAIGN_FEATURES)[number];
 
 /** Tipos de passo que dependem de activação explícita da operação. */
-const GATED_STEP_TYPES: Record<string, CampaignFeature> = { image: 'image', call: 'call' };
+const GATED_STEP_TYPES: Record<string, CampaignFeature> = {
+  image: 'image',
+  call: 'call',
+  // LinkedIn: convite, mensagem, reação e comentário são passos de LinkedIn.
+  invite: 'linkedin',
+  message: 'linkedin',
+  react: 'linkedin',
+  comment: 'linkedin',
+};
 
-export type FeatureOrg = { active: boolean; isDemo: boolean; imageEnabled: boolean; callEnabled: boolean };
+export type FeatureOrg = {
+  active: boolean;
+  isDemo: boolean;
+  imageEnabled: boolean;
+  callEnabled: boolean;
+  linkedinEnabled: boolean;
+};
 export type CampaignFeatures = Record<CampaignFeature, boolean>;
 
 /** Recursos ativos na operação. Operação inativa ou demonstração nunca tem recurso. */
 export function campaignFeatures(org: FeatureOrg): CampaignFeatures {
   const base = org.active && !org.isDemo;
-  return { image: base && org.imageEnabled, call: base && org.callEnabled };
+  return {
+    image: base && org.imageEnabled,
+    call: base && org.callEnabled,
+    linkedin: base && org.linkedinEnabled,
+  };
 }
 
 /** O tipo de passo pode ser usado nesta operação? Tipos sem gate estão sempre disponíveis. */

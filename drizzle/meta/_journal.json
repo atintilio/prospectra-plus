@@ -176,6 +176,13 @@
       "when": 1793392297381,
       "tag": "0024_large_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793528459444,
+      "tag": "0025_linkedin_connections",
+      "breakpoints": true
     }
   ]
 }

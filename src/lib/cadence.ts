@@ -82,7 +82,8 @@ export async function runScheduler(db: DB, opts: {
   if (opts.orgId) conds.push(eq(schema.enrollments.orgId, opts.orgId));
   const due = await db
     .select({ enr: schema.enrollments, camp: schema.campaigns, lead: schema.leads, aiEnabled: schema.orgs.aiEnabled,
-      orgActive: schema.orgs.active, orgDemo: schema.orgs.isDemo, imageEnabled: schema.orgs.imageEnabled, callEnabled: schema.orgs.callEnabled })
+      orgActive: schema.orgs.active, orgDemo: schema.orgs.isDemo, imageEnabled: schema.orgs.imageEnabled, callEnabled: schema.orgs.callEnabled,
+      linkedinEnabled: schema.orgs.linkedinEnabled })
     .from(schema.enrollments)
     .innerJoin(schema.orgs, eq(schema.orgs.id, schema.enrollments.orgId))
     .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.enrollments.campaignId))
@@ -91,14 +92,14 @@ export async function runScheduler(db: DB, opts: {
     .limit(500);
 
   let created = 0;
-  for (const { enr, camp, lead, aiEnabled, orgActive, orgDemo, imageEnabled, callEnabled } of due) {
+  for (const { enr, camp, lead, aiEnabled, orgActive, orgDemo, imageEnabled, callEnabled, linkedinEnabled } of due) {
     const step = camp.steps[enr.stepIndex];
     if (!step) {
       await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
       continue;
     }
     // Recursos de campanha dependem de activação da operação: sem activação, o passo não age.
-    const features = campaignFeatures({ active: orgActive, isDemo: orgDemo, imageEnabled, callEnabled });
+    const features = campaignFeatures({ active: orgActive, isDemo: orgDemo, imageEnabled, callEnabled, linkedinEnabled });
     if (lead.stage === 'replied' || lead.stage === 'meeting' || lead.stage === 'won' || lead.stage === 'lost' || lead.stage === 'do_not_contact') {
       await db.update(schema.enrollments).set({ state: 'stopped' }).where(eq(schema.enrollments.id, enr.id));
       continue;

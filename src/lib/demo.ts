@@ -7,6 +7,7 @@ import { seedAgenda } from '@/lib/demo-agenda';
 import { seedVoice } from '@/lib/demo-voice';
 import { seedSupport } from '@/lib/demo-support';
 import { seedIntel } from '@/lib/demo-intel';
+import { seedLinkedIn } from '@/lib/demo-linkedin';
 
 export const DEMO_ORG_NAME = 'Demonstração · Atlas Consultoria';
 
@@ -192,6 +193,8 @@ export async function ensureDemo(db: DB, user: { id: string; name: string }): Pr
   await seedVoice(db, ctx);
   await seedSupport(db, ctx);
   await seedIntel(db, ctx);
+  // LinkedIn: a persona "João da Silva" com a conta conectada (simulada) e a fila dele.
+  await seedLinkedIn({ db, orgId: org.id, now, leads: ctx.leads });
 
   return org.id;
 }

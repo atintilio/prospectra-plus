@@ -10,8 +10,14 @@ export async function testDb(): Promise<DB> {
   return db as unknown as DB;
 }
 
+/**
+ * Cria uma operação de teste com o dono ativo.
+ *
+ * O LinkedIn vem **ligado** por padrão: convites e mensagens são o canal
+ * principal do produto e o gate é testado à parte (tests/campaign-features.test.ts).
+ */
 export async function seedOrg(db: DB, name = 'Parceiro A') {
-  const [org] = await db.insert(schema.orgs).values({ name }).returning();
+  const [org] = await db.insert(schema.orgs).values({ name, linkedinEnabled: true }).returning();
   const [user] = await db.insert(schema.users).values({ email: `${name.replace(/\W/g, '').toLowerCase()}@x.com`, name, status: 'active' }).returning();
   await db.insert(schema.memberships).values({ orgId: org.id, userId: user.id, role: 'owner' });
   return { org, user };

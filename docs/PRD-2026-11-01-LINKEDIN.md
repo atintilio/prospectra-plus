@@ -88,8 +88,11 @@ no CRM Argus, Reversa/Gov ou demais produtos (ver `docs/ESCOPO-E-TOCABILIDADE.md
 >    (passos já existentes continuam visíveis, como regra do repo).
 > 2. **Cadência**: passo de LinkedIn ainda não alcançado com o recurso desligado é pulado
 >    (não age) — mesmo comportamento de `image`/`call`.
-> 3. **Fila (assistida e automática)**: ação de LinkedIn com o recurso desligado não é executada
->    e não fica pendente para execução manual.
+> 3. **Fila**: a **execução automática** (`runLinkedinQueue`) exige o gate global
+>    (`LINKEDIN_AUTOMATION_ENABLED`) **e** o gate da operação (`orgs.linkedin_enabled`) — sem os
+>    dois, nada é despachado. A fila **assistida** é manual por definição (o vendedor executa no
+>    LinkedIn e marca a tarefa): ação já criada antes da desativação continua pendente, como
+>    acontece com imagem e ligação (regra já válida no repo).
 > O gate da **demo** continua liberando tudo (é simulação), como já ocorre hoje.
 
 ### RF3 — Execução real
@@ -163,7 +166,7 @@ no CRM Argus, Reversa/Gov ou demais produtos (ver `docs/ESCOPO-E-TOCABILIDADE.md
 | AC8 | Worker respondendo `sent` atualiza `linkedin_dispatches` e a fila do dia | integração |
 | AC9 | Logo oficial + `#0A66C2` presentes nas telas do LinkedIn | inspeção visual |
 | AC10 | Suíte completa verde + smoke com sessão real sem regressão | `pnpm test` + smoke |
-| AC11 | Gate do LinkedIn vale nas **3 camadas**: editor não oferece os passos, cadência pula, fila assistida não executa | teste do gate |
+| AC11 | Gate do LinkedIn vale nas **3 camadas**: (1) o editor **não oferece** os passos de LinkedIn; (2) a cadência **pula** o passo ainda não alcançado (não age, não vira tarefa); (3) a **execução automática** (`runLinkedinQueue`) só roda com o gate global **e** o gate da operação. A fila *assistida* é manual por definição: a ação já criada antes da desativação continua visível, como em imagem e ligação (regra do repo) | `tests/campaign-features.test.ts` |
 | AC12 | Demo segue liberando LinkedIn (é simulação) | teste do gate |
 
 ## 7. Não-objetivos (YAGNI)
