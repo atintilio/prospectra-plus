@@ -7,6 +7,7 @@ import { aiGenerator } from '@/lib/ai';
 import { dayString, runScheduler } from '@/lib/cadence';
 import { Avatar, Card, KpiCard, LineChart, PageHeader, StagePill } from '@/components/ui';
 import { AgendaCard } from '../agenda-card';
+import { SuiteExplorer } from '@/components/suite-explorer';
 
 export const metadata = { title: 'Painel' };
 
@@ -76,7 +77,7 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
 
   return (
     <>
-      <PageHeader eyebrow={`Olá${first ? `, ${first}` : ''} 👋`} title="Sua prospecção, em tempo real" subtitle={`${ctx.org.name} · ${manager ? 'visão da equipe' : 'seus resultados'}`}>
+      <PageHeader eyebrow={`Bom dia${first ? `, ${first}` : ''}`} title="O que avançou — e onde agir agora." subtitle={`${ctx.org.name} · ${manager ? 'visão da equipe' : 'seus resultados'} · últimos ${days} dias`}>
         <div className="flex rounded-lg border border-border bg-white p-1 text-sm">
           {Object.keys(RANGES).map((k) => (
             <Link key={k} href={`/painel?dias=${k}`} className={`rounded-md px-3 py-1.5 ${String(days) === k ? 'bg-surface-accent font-medium text-accent' : 'text-muted hover:text-text'}`}>{k} dias</Link>
@@ -87,8 +88,8 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
 
       {pending > 0 && (
         <Link href="/fila" className="mb-6 flex items-center justify-between rounded-2xl bg-gradient-to-r from-accent to-violet px-5 py-4 text-white shadow-sm">
-          <span className="flex items-center gap-3"><ListChecks className="h-5 w-5" /><span><strong>{pending} ações</strong> esperando você na Fila do dia</span></span>
-          <span className="text-sm font-medium">Abrir fila →</span>
+          <span className="flex items-center gap-3"><ListChecks className="h-5 w-5" /><span><strong>{pending} próximos passos</strong> aguardam sua revisão na Fila do dia.</span></span>
+          <span className="text-sm font-medium">Revisar fila →</span>
         </Link>
       )}
 
@@ -151,6 +152,7 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
           </Card>
         )}
       </div>
+      <SuiteExplorer />
     </>
   );
 }
