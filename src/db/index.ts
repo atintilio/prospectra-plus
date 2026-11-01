@@ -27,7 +27,10 @@ async function resolveUrl(): Promise<string> {
       getCloudflareContext?: () => { env?: Record<string, { connectionString?: string } | undefined> };
     };
     const env = mod.getCloudflareContext?.()?.env;
-    const url = env?.NEON_DATABASE_URL?.connectionString;
+    // `NEON_DATABASE_URL` e um secret (texto). O Hyperdrive seria um objeto com
+    // `.connectionString`; aceitamos os dois formatos.
+    const raw = env?.NEON_DATABASE_URL as unknown;
+    const url = typeof raw === 'string' ? raw : (raw as { connectionString?: string } | undefined)?.connectionString;
     if (url) return url;
   } catch {
     // Fora do Cloudflare (Node/VPS): segue com a env var.

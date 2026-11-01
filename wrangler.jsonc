@@ -8,12 +8,6 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  "hyperdrive": [
-    {
-      "binding": "HYPERDRIVE",
-      "id": "58105c474e4a4b6d83852386b8a20a01"
-    }
-  ],
   "observability": {
     "enabled": true
   },
@@ -21,7 +15,7 @@
     "MASTER_USER_EMAIL": "atintilio@argusprime.com.br",
     "PUBLIC_APP_URL": "https://prospectra.argusprime.com.br",
     "AGENDA_PUBLIC_URL": "https://agenda.argusprime.com.br",
-    "WA_AKG_BASE_URL": "https://prospectra.argusprime.com.br/whatsapp-gateway",
+    "WA_AKG_BASE_URL": "https://wa.argusprime.com.br/whatsapp-gateway",
     "WA_AKG_SESSION_ID": "prospectra-30592258160abd52e895f911450114df631a2bf9",
     "VOICESTUDIO_BASE_URL": "https://voice.argusprime.com.br",
     "VOICESTUDIO_ENGINE": "moss-tts-nano",
