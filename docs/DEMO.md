@@ -121,9 +121,23 @@ validade do e-mail) e uma na fila. Cada job aponta para um lead real da demo.
 Perfil de voz pronto, um envio concluído e um job na fila. A demo só mostra o
 estado — a geração real de áudio é feita pelo Voice Studio.
 
-### 9. Relatórios, equipe e conta
+### 9. LinkedIn — a conta conectada e o piloto automático
+`/linkedin` e `/automacao`
+- A **conta do LinkedIn** aparece conectada, no nome do **João da Silva** (SDR da
+  Atlas Consultoria) — é uma **simulação**, nada é enviado ao LinkedIn de verdade.
+- Na tela do **piloto automático** (`/automacao`) você vê o agente trabalhando:
+  convites enviados, respostas automáticas, comentários em publicações e a
+  passagem do lead para o closer.
+- O menu mostra o piloto porque o recurso está **ligado nesta operação**.
+
+> “Cada pessoa conecta a **própria** conta do LinkedIn, e a operação decide se o
+> piloto automático pode agir. Nada sai sem passar pelos limites que o
+> administrador definiu.”
+
+### 10. Relatórios, equipe e conta
 `/relatorios`, `/equipe`, `/conta`
-Consolidado de performance, ranking da equipe e Preferências.
+Consolidado de performance, ranking da equipe, Preferências e o atalho para a
+conexão do LinkedIn.
 
 ---
 
@@ -133,6 +147,7 @@ Consolidado de performance, ranking da equipe e Preferências.
 | --- | --- |
 | Orquestrador (CRM + campanhas + fila + eventos) | `src/lib/demo.ts` |
 | Agenda e voz | `src/lib/demo-agenda.ts`, `src/lib/demo-voice.ts` |
+| LinkedIn (persona "João da Silva", conta simulada, campanha e fila) | `src/lib/demo-linkedin.ts` |
 | Suporte/Helpin | `src/lib/demo-support.ts` |
 | Inteligência, Harvey, automações | `src/lib/demo-intel.ts` |
 | Recriar do zero | `src/lib/demo-reset.ts` (ação `resetDemoAction`) |
