@@ -99,6 +99,14 @@ no CRM Argus, Reversa/Gov ou demais produtos (ver `docs/ESCOPO-E-TOCABILIDADE.md
 - **Worker na VPS** (novo serviço `prospectra-linkedin`): navegador headless, cookie `li_at`,
   proxy e uma fila local. Recebe `{ action, payload }` e responde
   `{ state: 'sent' | 'unknown' | 'failed', providerId? }`.
+- **Nota de desenho (releitura):** o próprio `src/lib/linkedin/automation.ts` já fixa a
+  arquitetura — *"o Prospectra+ é assistido por decisão do proprietário… um executor (o agente
+  dele na VM / gateway próprio — **nenhum serviço pago é ativado aqui**)"*. Ou seja: o executor
+  **não** é um SaaS de terceiro, é um serviço do próprio dono rodando na VPS dele, com a conta
+  e o proxy dele. O campo `orgs.driver` (`assisted` | `unipile`) existe no schema mas **não é
+  usado em lugar nenhum** — é resíduo de uma integração de terceiro que nunca foi implementada.
+  **Decisão:** manter o `assisted` como caminho oficial e **não** prometer `unipile` no PRD
+  (YAGNI); o campo fica, mas não é objetivo.
 - `unknown` **nunca** é reenviado automaticamente (a fila não reenvia resultado incerto).
 - Limites diários por usuário (`users.daily_invites`, `users.daily_messages`) respeitados.
 
