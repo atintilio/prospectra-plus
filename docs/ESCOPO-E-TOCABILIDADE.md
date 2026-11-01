@@ -49,6 +49,20 @@
 5. Git: **nunca** force-push em `main`; linhas divergentes vão para `backup/<data>-<linha>`.
 6. Worker: um Worker por finalidade; nada de reaproveitar Worker de outro produto.
 7. Se a tarefa exigir tocar fora do escopo → **parar e perguntar ao dono**.
+8. **Token com escopo errado não se usa.** O `VERCEL_TOKEN` do ambiente só alcança o projeto
+   `reversa-gov-suite` (Reversa/Gov). Qualquer ação na Vercel do Prospectra (desligar cron,
+   remover alias) fica **bloqueada** até o dono fornecer token do projeto correto.
+   Antes de toda chamada destrutiva: **ler o nome/id do projeto na resposta** e abortar se
+   não for o Prospectra.
+9. **Git**: `origin/main` **não** é do Prospectra hoje (é `5473dc7`, reimplementação
+   "Open Claude MVP"). Push em `main` = mexer no projeto errado. Push só nas branches do
+   Prospectra (`release/prospectra-cloudflare-20261101`, `backup/prospectra-plus-2026-10-31`)
+   até o dono decidir qual linha fica no `main`.
+10. **Serviços da VPS**: conferir o nome antes de parar/reiniciar. `argus-api` e `argus-app`
+    são do CRM ❌; do Prospectra são `prospectra-plus`, `prospectra-voice`, `prospectra-wa-akg`
+    (e `prospectra-agenda`, que é o cal.diy — decisão pendente).
+11. **Portas**: 3100 (app), 3101 (WA-AKG), 3102 (cal.diy), 3112 (app em release/anterior),
+    3113+ são do Prospectra; 20241/3306/3900/5432/25 são do CRM ou do host ❌.
 
 ## 4. Como auditar (comandos de verificação)
 
