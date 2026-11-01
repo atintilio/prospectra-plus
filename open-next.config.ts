@@ -7,9 +7,4 @@ import { defineCloudflareConfig } from '@opennextjs/cloudflare';
  * muda e a conexao com o banco, que no Worker vem do binding HYPERDRIVE
  * (ver `src/db/index.ts`).
  */
-export default defineCloudflareConfig({
-  // O cache do Next no Worker usa a Cache API da Cloudflare.
-  cache: {
-    incremental: 'tag',
-  },
-});
+export default defineCloudflareConfig();

@@ -15,7 +15,7 @@ const globalForDb = globalThis as unknown as { __prospectraDb?: Promise<DB> };
  */
 async function resolveUrl(): Promise<string> {
   try {
-    const mod = (await import('@opennextjs/cloudflare')) as {
+    const mod = (await import('@opennextjs/cloudflare')) as unknown as {
       getCloudflareContext?: () => { env?: Record<string, { connectionString?: string } | undefined> };
     };
     const hyper = mod.getCloudflareContext?.()?.env?.HYPERDRIVE;
