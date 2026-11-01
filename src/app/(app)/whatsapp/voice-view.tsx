@@ -1,13 +1,14 @@
 'use client';
 import {useActionState} from 'react';
 import {registerVoiceAction,queueVoiceAction,revokeVoiceAction} from './voice-actions';
+import {WhatsAppMark} from '@/components/whatsapp-mark';
 type Job={id:string;state:string;recipient:string};
 const states:Record<string,string>={queued:'Na fila',running:'Gerando e enviando',sent:'Aceito pelo WhatsApp',unknown:'Sem confirmação — confira no WhatsApp',failed:'Não concluído',waiting_transport:'Aguardando transporte de chamadas'};
 export function VoicePanel({available,enabled,hasProfile,commandId,jobs}:{available:boolean;enabled:boolean;hasProfile:boolean;commandId:string;jobs:Job[]}){
  const [registration,register,registering]=useActionState(registerVoiceAction,{message:''});
  const [delivery,queue,sending]=useActionState(queueVoiceAction,{message:''});
  return <section className="card mt-6 space-y-5 p-6">
-  <h2 className="text-lg font-semibold">Sua voz no WhatsApp</h2>
+  <h2 className="flex items-center gap-2 text-lg font-semibold"><WhatsAppMark size={22}/>Sua voz no WhatsApp</h2>
   <p className="text-sm text-muted">Cadastre uma gravação da sua voz e a transcrição exata. As mensagens serão geradas automaticamente a partir do texto autorizado.</p>
   {!available&&<p className="text-sm text-muted">O serviço de voz ainda precisa ser configurado pelo administrador.</p>}
   <form action={register} className="space-y-3">

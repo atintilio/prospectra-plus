@@ -10,6 +10,26 @@
 /** Cor oficial da marca LinkedIn. */
 export const LINKEDIN_BRAND_COLOR = '#0A66C2';
 
+/**
+ * Tom oficial mais escuro (hover/foco): mesma família da marca, com contraste
+ * ainda maior contra o texto branco do botão.
+ */
+export const LINKEDIN_BRAND_COLOR_DARK = '#08509B';
+
+/**
+ * Classes do botão de marca (fundo azul oficial, texto branco).
+ *
+ * Não reaproveita `btn-primary` (azul do app, `--accent #155dfc`): o azul do
+ * LinkedIn identifica a fonte externa. O foco é declarado aqui (contorno na cor
+ * oficial + anel branco) porque o `btn` do app usa `outline-accent-bright`,
+ * pouco contrastado sobre o cartão claro.
+ */
+export const LINKEDIN_BRAND_BUTTON_CLASS =
+  'inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium shadow-sm transition-colors ' +
+  'bg-[#0A66C2] text-white hover:bg-[#08509B] ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A66C2] focus-visible:ring-2 focus-visible:ring-white ' +
+  'disabled:pointer-events-none disabled:opacity-50';
+
 /** Traçados oficiais do glifo "in" (viewBox 24x24). */
 const MARK_GLYPH = {
   // ponto + haste do "i"
@@ -26,10 +46,13 @@ export function LinkedInMark({
   className,
   size = 20,
   title = 'LinkedIn',
+  decorative = false,
 }: {
   className?: string;
   size?: number;
   title?: string;
+  /** Só decorativo: some com o rótulo acessível (o texto vizinho já nomeia). */
+  decorative?: boolean;
 }) {
   return (
     <svg
@@ -38,8 +61,9 @@ export function LinkedInMark({
       width={size}
       height={size}
       className={className}
-      role="img"
-      aria-label={title}
+      role={decorative ? undefined : 'img'}
+      aria-label={decorative ? undefined : title}
+      aria-hidden={decorative ? true : undefined}
       style={{ display: 'inline-block', flexShrink: 0, verticalAlign: 'middle' }}
     >
       <rect width="24" height="24" rx="2" fill={LINKEDIN_BRAND_COLOR} />

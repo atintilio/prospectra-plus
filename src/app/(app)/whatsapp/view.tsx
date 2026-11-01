@@ -2,12 +2,15 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {whatsappAction,sendWhatsAppAction} from './actions';
 import type {WhatsAppStatus} from '@/lib/whatsapp/akg';
-const LABEL:Record<WhatsAppStatus['state'],string>={not_configured:'Aguardando configuração',disconnected:'Desconectado',connecting:'Conectando',qr_ready:'Escaneie o QR Code',connected:'Conectado',error:'Não foi possível conectar'};
+import {describeWhatsAppStatus} from './status';
+import {WhatsAppMark} from '@/components/whatsapp-mark';
+import {IntegrationBadge} from '@/components/integration-badge';
 export function WhatsAppView({enabled,seller,reason}:{enabled:boolean;seller:string;reason?:string}){
  const [status,setStatus]=useState<WhatsAppStatus>({state:enabled?'disconnected':'not_configured',checkedAt:''});
  const [busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const [recipient,setRecipient]=useState(''),[text,setText]=useState(''),[commandId,setCommandId]=useState(''),[locked,setLocked]=useState(false);
  const deadline=useRef(0),active=useRef(false),generation=useRef(0),inflight=useRef(false);
+ const stateView=describeWhatsAppStatus(status.state);
  const refresh=useCallback(async()=>{
   if(!enabled||inflight.current)return;
   inflight.current=true;const current=generation.current;
@@ -29,8 +32,12 @@ export function WhatsAppView({enabled,seller,reason}:{enabled:boolean;seller:str
   try{const result=await sendWhatsAppAction({id,recipient,text});setNotice(result.ok||result.error||'Confira o resultado.');if(result.state)setLocked(true);}finally{setBusy(false);}
  }
  return <div className="grid gap-6 lg:grid-cols-2">
-  <section className="card p-6"><h2 className="text-lg font-semibold">Seu WhatsApp</h2><p className="mt-1 text-sm text-muted">Responsável: {seller}</p>
-   <p className="mt-5 font-medium" role="status">{LABEL[status.state]}{status.phone?` · +${status.phone}`:''}</p>
+  <section className="card p-6"><h2 className="flex items-center gap-2 text-lg font-semibold"><WhatsAppMark size={22}/>Seu WhatsApp</h2><p className="mt-1 text-sm text-muted">Responsável: {seller}</p>
+   <div className="mt-5 flex flex-wrap items-center gap-3" role="status">
+    <IntegrationBadge name="WhatsApp" symbol={<WhatsAppMark size={16}/>} state={stateView.tone} status={stateView.label}/>
+    {status.phone&&<span className="text-sm text-muted">+{status.phone}</span>}
+   </div>
+   <p className="mt-2 text-sm text-muted">{stateView.hint}</p>
    {reason&&<p className="mt-3 text-sm text-muted">{reason}</p>}
    {status.message&&<p className="mt-3 text-sm text-danger" role="alert">{status.message}</p>}
    {status.qrDataUrl&&<div className="mt-4"><img src={status.qrDataUrl} alt="QR Code de pareamento do seu WhatsApp" className="h-64 w-64 rounded-lg border border-border"/><p className="mt-3 text-sm text-muted">No celular, abra WhatsApp → Dispositivos conectados → Conectar dispositivo.</p></div>}

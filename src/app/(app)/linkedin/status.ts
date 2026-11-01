@@ -32,6 +32,23 @@ export type LinkedInStatusView = {
   hint: string;
 };
 
+/**
+ * Símbolo do selo de estado: a marca oficial do LinkedIn (o quadrado azul
+ * #0A66C2). O azul da marca identifica a fonte externa em qualquer tom.
+ */
+export type LinkedInStatusSymbol = 'linkedin';
+
+/**
+ * Vista do selo de estado (view pura, sem JSX): rótulo + tom + símbolo.
+ * Usada pela tela e pelos selos (mesma fonte de verdade em toda a interface).
+ */
+export type LinkedInStatusBadgeView = LinkedInStatusView & {
+  /** Símbolo do selo (a marca oficial). */
+  symbol: LinkedInStatusSymbol;
+  /** Classes do selo: fundo/texto do tom + moldura na cor oficial da marca. */
+  className: string;
+};
+
 /** Rótulo, tom e explicação de cada estado. */
 export const LINKEDIN_STATUS_VIEW: Record<LinkedInStatus, { label: string; tone: LinkedInTone; hint: string }> = {
   disconnected: {
@@ -83,6 +100,22 @@ export function describeLinkedInStatus(value: unknown): LinkedInStatusView {
   const status = normalizeLinkedInStatus(value);
   const view = LINKEDIN_STATUS_VIEW[status];
   return { status, label: view.label, tone: view.tone, hint: view.hint };
+}
+
+/**
+ * Selo reutilizável de estado: rótulo, tom e símbolo.
+ *
+ * O símbolo é sempre a marca oficial do LinkedIn — o azul #0A66C2 identifica a
+ * fonte externa, mesmo quando o tom do estado pede atenção (pendente) ou erro
+ * (indisponível).
+ */
+export function linkedInStatusBadge(value: unknown): LinkedInStatusBadgeView {
+  const view = describeLinkedInStatus(value);
+  return {
+    ...view,
+    symbol: 'linkedin',
+    className: `${LINKEDIN_TONE_CLASS[view.tone]} border border-[#0A66C2]/25`,
+  };
 }
 
 /** Normaliza a resposta da API de conexão. */

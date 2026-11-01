@@ -16,6 +16,8 @@
 | [2 · Dados, ambiente, deploy e operação](guia/02-dados-ambiente-deploy-operacao.md) | Tabelas por domínio, variáveis de ambiente (onde moram), fluxo de release (com rollback), serviços da VPS, **runbook de incidentes** e checklist | "como deployo? o que faço quando cai?" |
 | [3 · Decisões e o que esperamos um do outro](guia/03-decisoes-e-expectativas.md) | As decisões do dono, o que ele espera de quem mexe no projeto, o que ele garante, os riscos que nunca aceitamos | "posso fazer isso? o que o dono quer?" |
 | [4 · Marca oficial do LinkedIn](guia/04-marca-linkedin.md) | Cor, símbolo, regras de uso, onde a marca aparece e checklist de conformidade | "como uso o logo do LinkedIn?" |
+| [5 · Arquitetura atual e caminho de escala](guia/05-arquitetura-atual-e-escala.md) | Topologia real (quem fala com quem), o caminho de um request, o que quebra e como se recupera, riscos abertos e checklist de manutenção | "como isso está montado? o que quebra se X cair?" |
+| [6 · Tela de escolha de ambiente](guia/06-tela-de-ambiente.md) | As três variações da tela `/ambiente`, o que cada uma muda, o que custa e **qual arquivo trocar** para ativar | "como troco a tela de ambiente?" |
 
 ## Documentos do mesmo tipo
 

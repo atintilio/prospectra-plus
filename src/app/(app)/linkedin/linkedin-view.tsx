@@ -1,15 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ExternalLink, Link2, LoaderCircle, RefreshCw, ShieldCheck, Unlink } from 'lucide-react';
-import { LinkedInMark } from '@/components/linkedin-mark';
+import { ExternalLink, LoaderCircle, RefreshCw, ShieldCheck, Unlink } from 'lucide-react';
+import { LinkedInMark, LINKEDIN_BRAND_BUTTON_CLASS } from '@/components/linkedin-mark';
 import {
   describeLinkedInStatus,
   formatLinkedInDate,
+  linkedInStatusBadge,
   LINKEDIN_CONFIG_ITEMS,
-  LINKEDIN_TONE_CLASS,
   normalizeLinkedInConnection,
   type LinkedInConnection,
+  type LinkedInStatus,
 } from './status';
 
 const API_URL = '/api/integrations/linkedin/connect';
@@ -23,6 +24,76 @@ const NOTICE_CLASS: Record<Notice['tone'], string> = {
   warn: 'bg-warning-soft text-warning',
   error: 'bg-red-50 text-danger',
 };
+
+/**
+ * Selo de estado do LinkedIn: símbolo da marca (azul oficial #0A66C2) + rótulo.
+ * O tom (conectado / pendente / desconectado) vem de `status.ts`.
+ */
+export function LinkedInStatusBadge({
+  status,
+  loading = false,
+  className = '',
+}: {
+  status: LinkedInStatus;
+  loading?: boolean;
+  className?: string;
+}) {
+  const badge = linkedInStatusBadge(status);
+  return (
+    <span className={`pill ${badge.className} ${className}`.trim()} role="status" aria-live="polite">
+      <LinkedInMark size={14} decorative />
+      {loading ? 'Consultando…' : badge.label}
+    </span>
+  );
+}
+
+/**
+ * Botão "Conectar conta" com a identidade oficial do LinkedIn.
+ *
+ * Fundo azul oficial (#0A66C2), texto branco e o símbolo da marca dentro: o
+ * azul do LinkedIn é intencional — diferente do azul primário do app — porque
+ * identifica a fonte externa da conexão.
+ */
+export function LinkedInConnectButton({
+  connecting = false,
+  disabled = false,
+  onClick,
+}: {
+  connecting?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || connecting}
+      aria-label={connecting ? 'Aguardando a autorização do LinkedIn' : 'Conectar conta do LinkedIn'}
+      className={LINKEDIN_BRAND_BUTTON_CLASS}
+    >
+      <LinkedInMark size={18} decorative />
+      {connecting ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+      <span>{connecting ? 'Aguardando o LinkedIn…' : 'Conectar conta'}</span>
+    </button>
+  );
+}
+
+/** Cartão do perfil: nome, e-mail e data da conexão quando a conta está vinculada. */
+export function LinkedInProfileCard({ connection }: { connection: LinkedInConnection }) {
+  const profile = connection.profile;
+  return (
+    <div className="mt-4 rounded-2xl border border-border bg-surface px-4 py-4">
+      <div className="flex items-center gap-2">
+        <LinkedInMark size={18} decorative />
+        <p className="font-medium">{profile?.name || 'Conta conectada'}</p>
+      </div>
+      {profile?.email && <p className="mt-0.5 text-sm text-muted">{profile.email}</p>}
+      {profile?.connectedAt && (
+        <p className="mt-0.5 text-xs text-muted">Conectada em {formatLinkedInDate(profile.connectedAt)}</p>
+      )}
+    </div>
+  );
+}
 
 /**
  * Cartão de integração do LinkedIn (RF1 do PRD).
@@ -117,21 +188,18 @@ export function LinkedInView({ demo = false }: { demo?: boolean }) {
   };
 
   const view = describeLinkedInStatus(connection.status);
-  const profile = connection.profile;
   const missing = connection.missing?.length ? connection.missing : LINKEDIN_CONFIG_ITEMS;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section className="card p-5" aria-labelledby="linkedin-conta">
         <header className="flex flex-wrap items-center gap-3">
-          <LinkedInMark size={40} />
+          <LinkedInMark size={40} decorative />
           <div className="min-w-0">
             <h2 id="linkedin-conta" className="text-base font-semibold">Conta LinkedIn</h2>
             <p className="text-sm text-muted">Cada pessoa conecta a própria conta: o Prospectra escreve como você.</p>
           </div>
-          <span className={`pill ml-auto ${LINKEDIN_TONE_CLASS[view.tone]}`} role="status">
-            {loading ? 'Consultando…' : view.label}
-          </span>
+          <LinkedInStatusBadge status={view.status} loading={loading} className="ml-auto" />
         </header>
 
         {demo && (
@@ -142,17 +210,11 @@ export function LinkedInView({ demo = false }: { demo?: boolean }) {
 
         {view.status === 'authenticated' && !loading && (
           <>
-            <div className="mt-4 rounded-2xl border border-border bg-surface px-4 py-4">
-              <p className="font-medium">{profile?.name || 'Conta conectada'}</p>
-              {profile?.email && <p className="mt-0.5 text-sm text-muted">{profile.email}</p>}
-              {profile?.connectedAt && (
-                <p className="mt-0.5 text-xs text-muted">Conectada em {formatLinkedInDate(profile.connectedAt)}</p>
-              )}
-            </div>
+            <LinkedInProfileCard connection={connection} />
             <p className="mt-3 text-sm text-muted">{view.hint}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button className="btn-outline" onClick={begin} disabled={demo || pending || connecting}>
-                {connecting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                {connecting ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LinkedInMark size={16} decorative />}
                 {connecting ? 'Aguardando o LinkedIn…' : 'Trocar conta'}
               </button>
               <button className="btn-danger" onClick={() => void disconnect()} disabled={demo || pending || connecting}>
@@ -169,10 +231,7 @@ export function LinkedInView({ demo = false }: { demo?: boolean }) {
           <>
             <p className="mt-4 text-sm text-muted">{view.hint}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button className="btn-primary" onClick={begin} disabled={demo || pending || connecting}>
-                {connecting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-                {connecting ? 'Aguardando o LinkedIn…' : 'Conectar conta'}
-              </button>
+              <LinkedInConnectButton connecting={connecting} disabled={demo || pending} onClick={begin} />
               <button className="btn-outline" onClick={() => void refresh()} disabled={pending}>
                 <RefreshCw className="h-4 w-4" /> Atualizar status
               </button>
