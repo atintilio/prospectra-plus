@@ -144,7 +144,7 @@ São **34 telas** (`find src/app -name page.tsx`): 10 públicas/de autenticaçã
 | `/docs` | Documentos internos da equipe. | `docs` | `requireOrg()` |
 | `/equipe` | Time da operação: membros, papéis, limite de assentos, convites. | `memberships`, `users`, `orgs` | `requireOrg()`; gerenciar exige `canManage` |
 | `/conta` | Dados do usuário e limites diários de convites/mensagens. | `users` | `requireUser()` |
-| `/whatsapp` | Pareamento do número (QR/status), envio e painel de voz. | `whatsapp_commands`, `voice_profiles`, `voice_jobs` | `requireOrg()`; exige `WA_AKG_*` (ou demo); voz exige `org.active && ai_enabled && !is_demo` e `VOICE_AUTOMATION_ENABLED` para enviar |
+| `/whatsapp` | Pareamento do número (QR/status), envio e painel de voz. | `whatsapp_commands`, `voice_profiles`, `voice_jobs`, `voice_registrations` (é esta tela que escreve, com cota de 5/dia) | `requireOrg()`; exige `WA_AKG_*` (ou demo); voz exige `org.active && ai_enabled && !is_demo` e `VOICE_AUTOMATION_ENABLED` para enviar |
 | `/voz` | Perfil de voz clonado do vendedor e registro de consentimento. | `voice_profiles`, `voice_registrations` | `requireOrg()`; exige `VOICESTUDIO_*` + `org.active` + `ai_enabled` + `!is_demo` |
 | `/automacao` | Piloto automático simulado: linha do tempo, respostas automáticas, comentários em publicações. | `sim_feed`, `leads` | `requireOrg()` **e** `org.is_demo` (fora da demo, mostra aviso) |
 | `/admin` | Administração de parceiros: criar org, ligar/desligar IA, imagem, ligação, LinkedIn; gerir usuários. | `orgs`, `memberships`, `users` | `requireAdmin()` |
