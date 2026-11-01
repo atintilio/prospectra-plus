@@ -53,13 +53,15 @@ async function create(): Promise<DB> {
     return db as unknown as DB;
   }
   // No Cloudflare Workers: driver WebSocket do Neon (o postgres.js nao tem I/O de TCP la).
+  // Usa-se `Client` (uma conexao) e nao `Pool`: o app usa transacoes, que o driver
+  // HTTP do Neon nao suporta, e o Client nao mantem conexoes extras no isolate.
   if (isCloudflareWorker()) {
-    const { Pool, neonConfig } = await import('@neondatabase/serverless');
+    const { Client, neonConfig } = await import('@neondatabase/serverless');
     const { drizzle: drizzleNeon } = await import('drizzle-orm/neon-serverless');
     // No runtime do Worker o WebSocket global e o unico transporte possivel.
     neonConfig.webSocketConstructor = WebSocket;
-    const pool = new Pool({ connectionString: url });
-    return drizzleNeon(pool, { schema }) as unknown as DB;
+    const client = new Client(url);
+    return drizzleNeon(client, { schema }) as unknown as DB;
   }
 
   const client = postgres(url, { max: 1, prepare: false, idle_timeout: 20 });
@@ -73,6 +75,11 @@ function isCloudflareWorker(): boolean {
 }
 
 export function getDb(): Promise<DB> {
+  // No Cloudflare Workers o runtime proibe reutilizar I/O entre requests
+  // ("Cannot perform I/O on behalf of a different request"): o client do banco
+  // precisa ser criado por request. No Node/VPS o processo e unico e o singleton
+  // continua correto (e evita abrir conexao a cada chamada).
+  if (isCloudflareWorker()) return create();
   globalForDb.__prospectraDb ??= create();
   return globalForDb.__prospectraDb;
 }
