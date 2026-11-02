@@ -223,8 +223,7 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
                     <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-                    <span className="truncate font-medium">{step.name || block.short}</span>
-                    <span className="truncate text-xs text-muted">{block.short}</span>
+                    <span className="min-w-0 flex-1 truncate text-left font-medium">{step.name || block.short}</span>
                   </button>
                   <span className="pill bg-surface text-muted">Dia {days[index]}</span>
                   {step.condition === 'accepted' ? <span className="pill bg-surface-accent text-accent">se aceitar</span> : null}
