@@ -130,7 +130,7 @@ está commitado (`78d80d3`) e **ainda não publicado**, porque falta o token da 
 | **Neon (Postgres)** | Neon (externo) | Sem dados, sem sessão | Alto | Neon faz failover automático; auto-cura local do drizzle | Dono (plano Neon) |
 | **WA-AKG (3101)** | systemd `prospectra-wa-akg` | Sem WhatsApp; o resto do app funciona | Médio | Reiniciar o serviço; a sessão é reaproveitada | Dono (parear número) |
 | **Voice Studio (3900/3112)** | systemd `prospectra-voice` | Sem voz | Médio-baixo | Reiniciar o serviço | Mavis |
-| **Tunnel do Cloudflare** | processo manual na VPS | `wa.argusprime.com.br` cai (o domínio oficial do app continua) | Médio | Relançar `/tmp/tunnel-run.sh` | Mavis — **ver risco R1** |
+| **Tunnel do Cloudflare** | `systemd: prospectra-tunnel` na VPS | `wa.argusprime.com.br` cai (o domínio oficial do app continua) | Médio | `systemctl restart prospectra-tunnel` (sobe sozinho) | Mavis |
 | **Cron de 5 min** | `/etc/cron.d/prospectra-tick` | Cadência, lembretes e inteligência param | Médio | `prospectra-tick` roda de novo no próximo tick | Mavis |
 | **Serviço do cal.diy (3102)** | systemd `prospectra-agenda` | Nada visível | Nenhum (sem vhost) | — | Dono (desligar depois de validar) |
 
@@ -176,7 +176,7 @@ está commitado (`78d80d3`) e **ainda não publicado**, porque falta o token da 
 | Agenda nativa | dentro do app (3100) | 3100 | mesma release do app | `curl -H 'Host: agenda.argusprime.com.br' http://[::1]:80/agendamento` → 200/302 |
 | cal.diy (legado) | `/opt/prospectra-agenda` | 3102 | `systemd: prospectra-agenda` | sem vhost público — **não verificado por URL pública** |
 | nginx | — | `[::]:80` | `systemd: nginx` | `curl -H 'Host: prospectra.argusprime.com.br' http://[::1]:80/login` → 200 |
-| Tunnel Cloudflare | `/tmp/tunnel-run.sh` → `/tmp/cloudflared` | — | **processo manual** (sem unit) | `ps aux | grep cloudflared` → 2 processos; log `/var/log/cloudflared.log` |
+| Tunnel Cloudflare | `/etc/cloudflared/tunnel.token` + `/usr/local/bin/cloudflared` | — | `systemd: prospectra-tunnel.service` (Restart=always) | `systemctl is-active prospectra-tunnel` → active; log `/var/log/cloudflared.log` |
 | Cron de 5 min | `/usr/local/bin/prospectra-tick` + `/etc/cron.d/prospectra-tick` | — | cron do sistema | `tail /var/log/prospectra-plus-release.log`; resposta `{"processed":N,…}` |
 | Cron diário (Vercel) | Vercel → `/api/cron` (`0 10 * * *`) | — | agendador da Vercel | **ainda ativo** — pendência de desligamento (precisa de token da Vercel) |
 
@@ -269,7 +269,7 @@ O projeto da Vercel ainda carrega `DATABASE_URL`, `CRON_SECRET` e as chaves de I
 
 | # | Risco | Severidade | Mitigação proposta |
 |---|---|---|---|
-| **R1** | **O tunnel do Cloudflare roda como processo manual** (`/tmp/tunnel-run.sh`, sem unit systemd). Um reboot da VPS derruba `wa.argusprime.com.br` e ninguém é avisado | **Alta** | Criar `prospectra-tunnel.service` (com `Restart=always`) e versionar em `infra/prospectra/systemd/` |
+| **R1** | ~~**O tunnel do Cloudflare roda como processo manual**~~ **RESOLVIDO em 01/11/2026**: virou serviço systemd (`prospectra-tunnel.service`, `Restart=always`), com o token em `/etc/cloudflared/tunnel.token` (modo `600`, lido por `--token-file`, fora do `ps`) | ~~Alta~~ → **Baixa** (residual: se o arquivo for apagado, o serviço não sobe — documentado no README da infra) | Manter a unidade versionada em `infra/prospectra/systemd/`; trocar o token exige reescrever o arquivo e `systemctl restart` |
 | **R2** | O Worker tem **500 nas rotas de banco** (fix `78d80d3` commitado e **não publicado**) — se o domínio for cortado antes do deploy, o app cai | **Alta** | Publicar o fix **e** rodar o smoke repetido **antes** de qualquer corte de rota |
 | **R3** | Cron diário da Vercel (`0 10 * * *`) continua ativo e **aponta para o app antigo** | Média | Desabilitar quando houver token da Vercel com escopo no projeto certo |
 | **R4** | Alias `prospectra.argusprime.com.br` na Vercel continua existindo — duas-published cópias do mesmo domínio | Média | Remover o alias junto com o cron (mesma pendência do token) |

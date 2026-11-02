@@ -5,7 +5,7 @@
 > (CRM Argus, Reversa/Gov, site institucional, cal.diy, e-mail, etc.) é **intocável**
 > sem autorização explícita do dono, por escrito, no contexto da tarefa.
 >
-> Se uma ação必需的 estiver fora do escopo: **parar e perguntar**, não improvisar.
+> Se uma ação necessária estiver fora do escopo: **parar e perguntar**, não improvisar.
 
 ---
 
