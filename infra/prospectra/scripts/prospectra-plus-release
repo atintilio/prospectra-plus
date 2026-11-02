@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Publica uma release do Prospectra+ nativamente na VPS.
+#
+# Uso: prospectra-plus-release <commit-sha> [<repo-local>]
+#
+# Passos (seguindo infra/prospectra/README.md do repo):
+#   1. extrai o commit numa pasta de release em /opt
+#   2. instala as dependencias (pnpm install --frozen-lockfile)
+#   3. aplica as migrations (scripts/migrate.mjs, com auto-cura endurecida)
+#   4. compila isolado (pnpm exec next build) — sem `pnpm build`, para nao
+#      rodar a migration de novo dentro do build
+#   4b. compila o executor de voz (bundle do worker persistente)
+#   5. ajusta o dono, aponta /opt/prospectra-plus-current e reinicia
+#   6. valida /api/health e /login; volta o symlink anterior se falhar
+set -euo pipefail
+
+SHA=${1:?informe o commit}
+REPO=${2:-/opt/prospectra-plus}
+BASE=/opt/prospectra-plus-release-$SHA
+CURRENT=/opt/prospectra-plus-current
+APP_USER=prospectra-plus
+LOG=/var/log/prospectra-plus-release.log
+
+exec >>$LOG 2>&1
+log(){ echo "[$(date -Is)] $*"; }
+
+PREV=$(readlink -f "$CURRENT" 2>/dev/null || echo "")
+log "publicando $SHA (anterior: ${PREV##*/})"
+
+if [ ! -d "$REPO/.git" ]; then
+  log "ERRO: $REPO nao e um repositorio git"; exit 1
+fi
+
+# 1) extrai o commit
+rm -rf "$BASE"
+mkdir -p "$BASE"
+cd "$REPO"
+git fetch --all --tags --quiet
+git archive "$SHA" | tar -x -C "$BASE"
+log "commit extraido"
+
+# 2) dependencias
+cd "$BASE"
+corepack enable >/dev/null 2>&1 || true
+pnpm install --frozen-lockfile
+log "dependencias instaladas"
+
+# 3) migrations (com a auto-cura endurecida: so recria se o schema inteiro sumiu)
+set -a; . /etc/prospectra-plus/app.env; set +a
+node scripts/migrate.mjs
+log "migrations aplicadas"
+
+# 4) build isolado
+pnpm exec next build
+log "build concluido"
+
+# 4b) executor de voz (bundle do worker persistente; roda fora do app)
+pnpm run build:voice-worker
+log "executor de voz compilado"
+
+# 5) dono + troca do symlink
+chown -R $APP_USER:$APP_USER "$BASE"
+ln -sfn "$BASE" "$CURRENT"
+# restart nao pode derrubar o script (o `set -e` abortaria a validacao)
+systemctl restart prospectra-plus || log "AVISO: restart retornou erro (validacao vai decidir)"
+sleep 8
+
+# 6) validacao com rollback
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 30 http://127.0.0.1:3100/api/health)
+LOGIN=$(curl -s -o /dev/null -w '%{http_code}' -m 30 http://127.0.0.1:3100/login)
+log "health=$CODE login=$LOGIN"
+if [ "$CODE" != "200" ] || [ "$LOGIN" != "200" ]; then
+  log "FALHA na validacao; voltando para ${PREV##*/}"
+  [ -n "$PREV" ] && ln -sfn "$PREV" "$CURRENT" && systemctl restart prospectra-plus
+  exit 1
+fi
+
+log "release $SHA no ar"
+log "--- fim do deploy de $SHA ---"

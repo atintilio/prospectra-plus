@@ -1,0 +1,27 @@
+[Unit]
+Description=Prospectra executor de voz (gera o audio e envia pelo WhatsApp)
+After=network-online.target prospectra-plus.service
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=prospectra-plus
+Group=prospectra-plus
+WorkingDirectory=/opt/prospectra-plus-current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/prospectra-plus/app.env
+ExecStartPre=/usr/bin/node --input-type=module -e "if(process.env.VOICE_AUTOMATION_ENABLED!=='true')throw new Error('VOICE_AUTOMATION_ENABLED is not true');"
+ExecStart=/usr/bin/node /opt/prospectra-plus-current/.dist/voice-worker.cjs
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

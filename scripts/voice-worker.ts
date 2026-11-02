@@ -1,5 +1,5 @@
 /** Executor persistente: não iniciar em Vercel Functions. Sem áudio/texto/segredos nos logs. */
-import {and,asc,eq,lt} from 'drizzle-orm';
+import {and,asc,eq,lt,notInArray} from 'drizzle-orm';
 import {getDb,schema} from '../src/db';
 import {VoiceStudioGateway,voiceConfig} from '../src/lib/voice/voicestudio';
 import {AkgGateway,akgConfig} from '../src/lib/whatsapp/akg';
@@ -16,7 +16,13 @@ async function main(){
    // Após perda do processo, jamais repetir um envio potencialmente aceito.
    await db.update(schema.voiceJobs).set({state:'unknown'}).where(and(eq(schema.voiceJobs.state,'running'),lt(schema.voiceJobs.startedAt,new Date(Date.now()-15*60_000))));
    const job=await db.transaction(async tx=>{
-    const [row]=await tx.select().from(schema.voiceJobs).where(and(eq(schema.voiceJobs.state,'queued'),eq(schema.voiceJobs.kind,'audio'))).orderBy(asc(schema.voiceJobs.createdAt)).limit(1).for('update',{skipLocked:true});
+    // A demonstração NUNCA envia: os telefones do seed são fictícios, com
+    // formato de número real. Jobs de operação de demonstração ficam na fila.
+    const [row]=await tx.select().from(schema.voiceJobs).where(and(
+     eq(schema.voiceJobs.state,'queued'),
+     eq(schema.voiceJobs.kind,'audio'),
+     notInArray(schema.voiceJobs.orgId,tx.select({id:schema.orgs.id}).from(schema.orgs).where(eq(schema.orgs.isDemo,true))),
+    )).orderBy(asc(schema.voiceJobs.createdAt)).limit(1).for('update',{skipLocked:true});
     if(!row)return null;
     await tx.update(schema.voiceJobs).set({state:'running',startedAt:new Date()}).where(eq(schema.voiceJobs.id,row.id));return row;
    });
