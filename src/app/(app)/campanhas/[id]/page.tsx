@@ -6,6 +6,7 @@ import { aiConfigured } from '@/lib/ai';
 import { campaignFeatures } from '@/lib/campaign-features';
 import { PageHeader } from '@/components/ui';
 import { CampaignEditor } from '../editor';
+import { listCampaignFlows, loadLinkedFlow } from '../flows';
 import { CampaignControls } from './controls';
 
 export default async function CampanhaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,12 +24,17 @@ export default async function CampanhaPage({ params }: { params: Promise<{ id: s
     db.select({ newLeads: count() }).from(schema.leads).where(and(eq(schema.leads.orgId, ctx.org.id), eq(schema.leads.stage, 'new'))),
   ]);
   const by = Object.fromEntries(states.map((s) => [s.state, s.n])) as Record<string, number>;
+  const [flows, linkedFlow] = await Promise.all([
+    listCampaignFlows(db, ctx.org.id),
+    loadLinkedFlow(db, ctx.org.id, c.flowId),
+  ]);
+  const stepCount = linkedFlow ? linkedFlow.steps.length : c.steps.length;
   return (
     <>
-      <PageHeader title={c.name} subtitle={`${c.steps.length} passos · ${(by.running ?? 0) + (by.waiting_accept ?? 0)} leads em curso · ${by.done ?? 0} concluídos · ${by.stopped ?? 0} encerrados por resposta`}>
+      <PageHeader title={c.name} subtitle={`${stepCount} passos${linkedFlow ? ` (fluxo “${linkedFlow.name}”)` : ''} · ${(by.running ?? 0) + (by.waiting_accept ?? 0)} leads em curso · ${by.done ?? 0} concluídos · ${by.stopped ?? 0} encerrados por resposta`}>
         <CampaignControls id={c.id} status={c.status} tags={tags.map((t) => t.tag)} newLeads={newLeads} />
       </PageHeader>
-      <CampaignEditor id={c.id} initial={{ name: c.name, aiBrief: c.aiBrief, assignedTo: c.assignedTo ?? c.ownerId, steps: c.steps }} members={members} aiOn={aiConfigured()} features={campaignFeatures(ctx.org)} />
+      <CampaignEditor key={c.id} id={c.id} initial={{ name: c.name, aiBrief: c.aiBrief, assignedTo: c.assignedTo ?? c.ownerId, steps: c.steps }} members={members} aiOn={aiConfigured()} features={campaignFeatures(ctx.org)} flows={flows} linkedFlow={linkedFlow} />
     </>
   );
 }

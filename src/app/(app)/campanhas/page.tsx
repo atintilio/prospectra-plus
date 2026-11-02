@@ -17,6 +17,8 @@ export default async function CampanhasPage() {
   const db = await getDb();
   const rows = await db.select({
     c: schema.campaigns,
+    flowName: schema.flows.name,
+    flowSteps: sql<number>`(select count(*) from ${schema.flowSteps} fs where fs.flow_id = ${schema.campaigns.flowId})`.mapWith(Number),
     enrolled: sql<number>`(select count(*) from ${schema.enrollments} e where e.campaign_id = ${schema.campaigns.id})`.mapWith(Number),
     active: sql<number>`(select count(*) from ${schema.enrollments} e where e.campaign_id = ${schema.campaigns.id} and e.state in ('running','waiting_accept'))`.mapWith(Number),
     replies: sql<number>`(select count(*) from ${schema.events} ev where ev.campaign_id = ${schema.campaigns.id} and ev.type = 'reply_received')`.mapWith(Number),
@@ -25,6 +27,7 @@ export default async function CampanhasPage() {
     assignee: schema.users.name,
   }).from(schema.campaigns)
     .leftJoin(schema.users, eq(schema.users.id, sql`coalesce(${schema.campaigns.assignedTo}, ${schema.campaigns.ownerId})`))
+    .leftJoin(schema.flows, eq(schema.flows.id, schema.campaigns.flowId))
     .where(and(eq(schema.campaigns.orgId, ctx.org.id)))
     .orderBy(desc(schema.campaigns.createdAt));
 
@@ -39,7 +42,7 @@ export default async function CampanhasPage() {
         </Empty>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map(({ c, enrolled, active, replies, accepted, invites, assignee }) => {
+          {rows.map(({ c, flowName, flowSteps, enrolled, active, replies, accepted, invites, assignee }) => {
             const [label, cls] = STATUS[c.status];
             return (
               <Link key={c.id} href={`/campanhas/${c.id}`} className="card group p-5 transition-shadow hover:shadow-md">
@@ -47,7 +50,9 @@ export default async function CampanhasPage() {
                   <h2 className="font-semibold group-hover:text-accent">{c.name}</h2>
                   <span className={`pill ${cls}`}>{label}</span>
                 </div>
-                <p className="mt-1 text-xs text-muted">{c.steps.length} passos · {assignee || 'sem responsável'}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {c.flowId ? `${flowSteps} passos · fluxo “${flowName ?? '—'}”` : `${c.steps.length} passos`} · {assignee || 'sem responsável'}
+                </p>
                 <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4 text-center">
                   <div><dt className="text-xs text-muted">Leads</dt><dd className="mt-1 text-lg font-semibold">{enrolled}</dd><dd className="text-[11px] text-muted">{active} em curso</dd></div>
                   <div><dt className="text-xs text-muted">Aceite</dt><dd className="mt-1 text-lg font-semibold">{invites ? Math.round((accepted / invites) * 100) : 0}%</dd><dd className="text-[11px] text-muted">{accepted}/{invites}</dd></div>

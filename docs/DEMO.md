@@ -74,7 +74,21 @@ Duas campanhas ativas (CFOs da indústria e parcerias com escritórios de
 contabilidade) e uma encerrada. Cada uma mostra os passos, o atraso entre eles
 e o brief de IA que guia a redação.
 
-### 4. Agenda nativa — do link público à reserva
+### 4. Fluxos — o construtor arrastável
+`/fluxos`
+- Dois fluxos prontos: **Abertura quente · decisores de financeiro** (4 blocos) e
+  **Parcerias · escritórios contábeis**.
+- Abra um: a **paleta** à esquerda, a **sequência** no meio e a **configuração**
+  do bloco à direita. Arraste pelo punho para reordenar — o dia de cada bloco
+  se recalcula na hora.
+- Uma das campanhas da demo **já usa um fluxo**: abra a campanha e veja o
+  seletor "Fluxo da operação" com o vínculo ativo.
+- Na demo, todos os blocos estão liberados (nada é enviado de verdade).
+
+> “A mesma sequência serve para campanha de hoje e de amanhã — o modelo é
+>  separado da execução.”
+
+### 5. Agenda nativa — do link público à reserva
 `/agenda` (interna) e `https://agenda.argusprime.com.br/agendamento` (pública)
 - Dois tipos de reunião: **Diagnóstico tributário (30 min)** e **Reunião de
   fechamento (45 min)**.
@@ -87,7 +101,7 @@ e o brief de IA que guia a redação.
 > “O lead escolhe o horário sozinho, entra no CRM e o vendedor recebe o aviso.
 >  Sem double booking — o banco trava a agenda.”
 
-### 5. Atendimento (Helpin) — suporte com SLA
+### 6. Atendimento (Helpin) — suporte com SLA
 `/atendimento`, `/ajuda`, `/suporte`
 - Conversas de web, WhatsApp e internas, com etiquetas.
 - Uma conversa **em risco de SLA** e outra **com SLA violado**.
@@ -97,7 +111,7 @@ e o brief de IA que guia a redação.
 
 > “O suporte tem SLA, Satisfação e time — não é uma caixa de e-mail.”
 
-### 6. Inteligência comercial — quem atacar primeiro
+### 7. Inteligência comercial — quem atacar primeiro
 `/inteligencia`
 Três análises prontas: duas concluídas (com score, prioridade e os seis fatores:
 cargo, porte, completude dos dados, presença digital, risco de dado falso e
@@ -106,7 +120,7 @@ validade do e-mail) e uma na fila. Cada job aponta para um lead real da demo.
 > “Antes de mandar a mensagem, o sistema diz quem tem condição de comprar.
 >  Roda no cron da madrugada — ninguém precisa apertar botão.”
 
-### 7. Operação comercial (Harvey) — o vendedor com apoio
+### 8. Operação comercial (Harvey) — o vendedor com apoio
 `/comunicacao` e a aba do Harvey
 - Perfil comercial da Atlas (nome, estratégia, ofertas de crédito tributário).
 - Perfis de comunicação dos leads (estilo DISC de cada decisor).
@@ -116,12 +130,12 @@ validade do e-mail) e uma na fila. Cada job aponta para um lead real da demo.
 > “O Harvey qualifica, responde o que é repetitivo e passa pro humano o que
 >  exige negociação.”
 
-### 8. Voz
+### 9. Voz
 `/voz`
 Perfil de voz pronto, um envio concluído e um job na fila. A demo só mostra o
 estado — a geração real de áudio é feita pelo Voice Studio.
 
-### 9. LinkedIn — a conta conectada e o piloto automático
+### 10. LinkedIn — a conta conectada e o piloto automático
 `/linkedin` e `/automacao`
 - A **conta do LinkedIn** aparece conectada, no nome do **João da Silva** (SDR da
   Atlas Consultoria) — é uma **simulação**, nada é enviado ao LinkedIn de verdade.
@@ -134,7 +148,7 @@ estado — a geração real de áudio é feita pelo Voice Studio.
 > piloto automático pode agir. Nada sai sem passar pelos limites que o
 > administrador definiu.”
 
-### 10. Relatórios, equipe e conta
+### 11. Relatórios, equipe e conta
 `/relatorios`, `/equipe`, `/conta`
 Consolidado de performance, ranking da equipe, Preferências e o atalho para a
 conexão do LinkedIn.

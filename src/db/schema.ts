@@ -103,6 +103,43 @@ export type CampaignStep = {
   mediaUrl?: string; // URL pública da imagem/informativo (apenas passos de imagem)
 };
 
+// ---------- Fluxo nativo (modelo de cadência por operação) ----------
+// Um fluxo é um MODELO de cadência, por operação: a campanha aponta para ele
+// (`campaigns.flowId`) e o motor que já existe (src/lib/cadence.ts) executa as
+// etapas do fluxo. Campanha sem fluxo continua usando `campaigns.steps` como hoje.
+export const flows = pgTable('flows', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  status: text('status', { enum: ['draft', 'active', 'paused'] }).notNull().default('draft'),
+  assignedTo: uuid('assigned_to').references(() => users.id, { onDelete: 'set null' }), // quem executa
+  aiBrief: text('ai_brief').notNull().default(''), // contexto para a IA
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('flows_org_updated_idx').on(t.orgId, t.updatedAt)]);
+
+// Etapa do fluxo. `position` é a ordem (reordenada pelo arraste).
+export const flowSteps = pgTable('flow_steps', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  flowId: uuid('flow_id').notNull().references(() => flows.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  type: text('type', { enum: ['react', 'comment', 'invite', 'message', 'email', 'whatsapp', 'voice', 'image', 'call'] }).notNull(),
+  name: text('name').notNull().default(''),
+  delayDays: integer('delay_days').notNull().default(0),
+  condition: text('condition', { enum: ['always', 'accepted'] }).notNull().default('always'),
+  template: text('template').notNull().default(''),
+  useAi: boolean('use_ai').notNull().default(false),
+  subject: text('subject').notNull().default(''),
+  mediaUrl: text('media_url').notNull().default(''),
+  createdAt: createdAt(),
+}, (t) => [
+  index('flow_steps_flow_position_idx').on(t.flowId, t.position),
+  index('flow_steps_org_idx').on(t.orgId),
+]);
+
 export const campaigns = pgTable('campaigns', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
@@ -111,6 +148,8 @@ export const campaigns = pgTable('campaigns', {
   name: text('name').notNull(),
   status: text('status', { enum: ['draft', 'active', 'paused', 'finished'] }).notNull().default('draft'),
   steps: jsonb('steps').$type<CampaignStep[]>().notNull().default(sql`'[]'::jsonb`),
+  // Com fluxo preenchido, as etapas vêm do fluxo; sem fluxo, vale `steps` (como hoje).
+  flowId: uuid('flow_id').references(() => flows.id, { onDelete: 'set null' }),
   aiBrief: text('ai_brief').notNull().default(''),
   createdAt: createdAt(),
 }, (t) => [index('campaigns_org_status_idx').on(t.orgId, t.status)]);

@@ -8,6 +8,7 @@ import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { sendSupportMail, mailerConfigured } from '@/lib/mailer';
 import { queueVoiceDelivery } from '@/lib/voice/delivery';
 import { campaignFeatures, stepTypeEnabled } from '@/lib/campaign-features';
+import { resolveSteps, type ResolvedStep } from '@/lib/flows/resolve';
 
 // Motor da cadência (modo assistido).
 // - O scheduler transforma inscrições vencidas em "ações" na Fila do dia de quem executa a campanha.
@@ -58,9 +59,9 @@ export async function enrollLeads(db: DB, orgId: string, campaignId: string, lea
 }
 
 /** Passo com recurso desligado na operação: não age e a cadência avança para o próximo passo. */
-async function skipStep(db: DB, enr: typeof schema.enrollments.$inferSelect, camp: typeof schema.campaigns.$inferSelect, now: Date) {
+async function skipStep(db: DB, enr: typeof schema.enrollments.$inferSelect, steps: ResolvedStep[], now: Date) {
   const nextIndex = enr.stepIndex + 1;
-  const next = camp.steps[nextIndex];
+  const next = steps[nextIndex];
   if (!next) {
     await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'done' }).where(eq(schema.enrollments.id, enr.id));
   } else {
@@ -92,8 +93,19 @@ export async function runScheduler(db: DB, opts: {
     .limit(500);
 
   let created = 0;
+  // Etapas resolvidas uma vez por campanha: com fluxo vinculado vêm do fluxo (modelo),
+  // sem fluxo vêm das próprias etapas da campanha. O motor é o mesmo nos dois casos.
+  const stepCache = new Map<string, ResolvedStep[]>();
+  const stepsOf = async (camp: typeof schema.campaigns.$inferSelect) => {
+    const hit = stepCache.get(camp.id);
+    if (hit) return hit;
+    const steps = await resolveSteps(db, camp);
+    stepCache.set(camp.id, steps);
+    return steps;
+  };
   for (const { enr, camp, lead, aiEnabled, orgActive, orgDemo, imageEnabled, callEnabled, linkedinEnabled } of due) {
-    const step = camp.steps[enr.stepIndex];
+    const steps = await stepsOf(camp);
+    const step = steps[enr.stepIndex];
     if (!step) {
       await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
       continue;
@@ -106,7 +118,7 @@ export async function runScheduler(db: DB, opts: {
     }
     if (!stepTypeEnabled(features, step.type)) {
       // Passo ainda não alcançado com o recurso desligado: não age e não vira tarefa na Fila.
-      await skipStep(db, enr, camp, now);
+      await skipStep(db, enr, steps, now);
       continue;
     }
     if (step.condition === 'accepted' && lead.stage !== 'connected') {
@@ -209,7 +221,8 @@ export async function completeAction(db: DB, orgId: string, userId: string, acti
     await db.update(schema.leads).set({ stage, lastActivityAt: now }).where(eq(schema.leads.id, row.lead.id));
   }
   const nextIndex = row.enr.stepIndex + 1;
-  const next = row.camp.steps[nextIndex];
+  const steps = await resolveSteps(db, row.camp);
+  const next = steps[nextIndex];
   if (!next) {
     await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'done' }).where(eq(schema.enrollments.id, row.enr.id));
   } else {

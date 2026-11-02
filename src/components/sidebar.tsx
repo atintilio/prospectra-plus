@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  BarChart3, BookOpen, Bot, Building2, CalendarDays, ChevronDown, FileText, FolderKanban, Headset,
+  BarChart3, BookOpen, Bot, Building2, CalendarDays, ChevronDown, FileText, FolderKanban, GitBranch, Headset,
   LayoutDashboard, LifeBuoy, ListChecks, LogOut, Megaphone, MessageCircle, Mic,
   MoreHorizontal, Settings, Share2, SlidersHorizontal, Sparkles, Timer, Users, UserSearch, X,
 } from 'lucide-react';
@@ -25,6 +25,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     { href: '/fila', label: 'Fila do dia', icon: ListChecks },
     { href: '/leads', label: 'Leads', icon: UserSearch },
     { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
+    { href: '/fluxos', label: 'Fluxos', icon: GitBranch },
   ];
   const groups: NavGroup[] = [
     {

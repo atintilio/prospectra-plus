@@ -27,7 +27,7 @@ o trabalho está em `docs/HANDOFF-CODEX.md`.
 | WhatsApp (WA-AKG) | **RELIGADO (30/10 22:23)** | A instância do WhatsApp **caía** e o Prospectra falhava com "WA-AKG indisponível". Duas causas: (a) o `crm.argusprime.com.br` aponta para a **Vercel**, então o proxy do WA-AKG nunca chegava na VPS — o gateway foi publicado em `https://prospectra.argusprime.com.br/whatsapp-gateway` (vhost versionado em `infra/prospectra/nginx/prospectra.argusprime.com.br.nginx`); (b) a sessão do WA-AKG foi pareada com o id da operação **antigo** (antes do Neon recriar as tabelas) — agora `WA_AKG_SESSION_ID` fixa a sessão. Enviar mensagem foi validado no gateway |
 | IA (GLM) | **FALLBACK IMPLEMENTADO** | A conta z.ai está **sem saldo** (`1113`): `glm-4.7` não responde, `glm-4.7-flash` está em rate limit (`1302`). Agora a chamada cai sozinha para `glm-4.7-flash` → `glm-4.5-flash` (grátis) e o Harvey usa o provedor configurado (antes exigia OpenRouter e nunca funcionou). **Recarregar a z.ai** devolve o 4.7 como cérebro |
 | WhatsApp (número real) | **AGUARDA PAREAMENTO** | Falta escanear o QR do número na tela **WhatsApp** do app |
-| Voz automática | **AGUARDA VALIDAÇÃO** | `VOICE_AUTOMATION_ENABLED=false` na Vercel até você validar a voz à mão |
+| Voz automática | **LIGADA (02/11) — FALTA O PERFIL DE VOZ EM PRODUÇÃO** | `VOICE_AUTOMATION_ENABLED=true` na VPS, executor de voz como serviço systemd (`prospectra-voice-worker`), demo nunca envia (o executor ignora org de demonstração). Em `/whatsapp` o painel "Sua voz no WhatsApp" está ativo. **Falta**: você cadastrar o perfil de voz na `Argus Prime` (gravar + transcrever + autorizar) |
 | LinkedIn automático | **ENTREGUE (01/11) — FALTA CREDENCIAL** | Tela de **conectar conta** (OIDC por usuário) em `/linkedin`, API `GET|DELETE /api/integrations/linkedin/connect` + `/start` + `/callback`, marca oficial `#0A66C2`, **gate em 3 camadas** (editor, cadência, execução automática) com `orgs.linkedin_enabled`. Na **demo** a persona **"João da Silva"** aparece com conta simulada, campanha e fila próprias. **Falta**: `LINKEDIN_CLIENT_ID/SECRET/REDIRECT_URI` (credencial do dono) e o worker com `li_at`/proxy para envio real. PRD em `docs/PRD-2026-11-01-LINKEDIN.md` |
 | Guia da ferramenta | **ENTREGUE (01/11)** | `docs/GUIA.md` + `docs/guia/01..06`: produto/rotas, dados/deploy/runbook, decisões e expectativas, marca do LinkedIn, **arquitetura atual e escala**, **tela de ambiente**. Versão consolidada em PDF (116 páginas) gerada por `build-doc.mjs` |
 | Identidade das marcas | **ENTREGUE (01/11)** | Botão "Conectar conta" com o símbolo e o azul oficial `#0A66C2`; símbolo do WhatsApp (`src/components/whatsapp-mark.tsx`) em `#25D366`; selo reutilizável `src/components/integration-badge.tsx`; atalhos em `/conta`; estado real (pareado/pareando/desconectado) em `/whatsapp` |
@@ -202,7 +202,7 @@ agenda nativa (passo a passo em `docs/AGEND-NATIVA.md`, seções 4 e 5).
 | # | Item | O que falta | Depende de |
 |---|------|-------------|------------|
 | 1 | **WhatsApp real** | Parear o número (QR na tela **WhatsApp** do app) e validar envio/recebimento/respostas/encaminhamento | **Você** escaneando o QR |
-| 2 | **Voz automática** | Clonar a sua voz em `/voz` ✅ (gravar ✅ → transcrever ✅ → criar o perfil ✅) ✅, validar à mão e então ligar `VOICE_AUTOMATION_ENABLED=true` | **Você** (a gravação) |
+| 2 | **Voz automática** | `VOICE_AUTOMATION_ENABLED=true` **ligado em 02/11** ✅ com executor systemd e trava de demo ✅. Falta **clonar a sua voz na operação de produção** (`Argus Prime` está com 0 perfis): em `/whatsapp`, gravar + transcrever + autorizar | **Você** (a gravação) |
 | 3 | ~~Agenda nativa — publicar~~ **FEITO (30/10)** | Publicada na VPS e validada: fluxo público 8/8, 32/32 rotas em 200, suíte 46 arquivos / 215 testes | — |
 | 4 | **Agenda nativa — primeiro tipo de reunião** | Criar o 1º tipo de reunião em `/agenda` (título, duração, disponibilidade) e gerar o link público; testar uma reserva e o cancelamento. Passo a passo em `docs/AGEND-NATIVA.md` §4 | **Você** (a agenda de verdade) |
 | 7 | **Recarregar a conta z.ai** | Sem saldo, o GLM 4.7 não responde (`1113`). O app cai para `glm-4.5-flash` (grátis), mas o "cérebro" ideal é o 4.7 — recarregar em <https://z.ai> (console da conta) | **Você** (pagamento) |
@@ -222,21 +222,26 @@ execução; cada item só entra em desenvolvimento depois de fechado o escopo.
 
 | # | Item | Situação real hoje | O que precisa ser fechado antes de codar |
 |---|------|--------------------|--------------------------------------------|
-| F1 | **Módulo de fluxos arrastáveis** (flow builder) | **NÃO EXISTE.** O que existe hoje é a **ordenação por arrastar** dentro do editor de campanha (`src/app/(app)/campanhas/editor.tsx`, `draggable` + `onDrop` para reordenar os passos da cadência) e o **mini-mapa** do fluxo (RF7 do PRD do LinkedIn). **Não há** construtor visual de fluxo, canvas de blocos, conexões entre etapas, gatilhos, condições ou ramificações. **Escopo FECHADO em 01/11/2026** no [PRD do fluxo nativo](PRD-2026-11-02-FLUXO-NATIVO.md) §2 (padrão pronto: lista vertical de blocos, tabelas `flows`/`flow_steps`, `campaigns.flow_id`, **sem motor novo** — o motor existente executa o fluxo). **Preview entregue e aguardando aval** | **Só o aval do dono do preview** (`/workspace/output/fluxo/prospectra-construtor-de-fluxo.html`). As fases F1–F5 do PRD já estão prontas para executar |
+| F1 | **Módulo de fluxos arrastáveis** (flow builder) | **ENTREGUE (02/11)** — `/fluxos` (lista) e `/fluxos/[id]` (construtor com paleta, arraste nativo, configuração por bloco e dia acumulado), vínculo campanha↔fluxo no editor de campanha, tabelas `flows`/`flow_steps` + `campaigns.flow_id` (migration `0026_fluxos.sql`), gate nas mesmas 3 camadas, demo semeando 2 fluxos. **Sem motor novo**: o motor de cadência existente executa o fluxo (`src/lib/flows/resolve.ts`). Doc: `docs/FLUXOS.md` | — |
 | F2 | **Editor visual do fluxo de LinkedIn** | Depende de F1 | herda as decisões de F1 |
 | F3 | **Fluxo entre operações** (reutilizar um modelo de fluxo em várias campanhas/operações) | Depende de F1 | modelo de dados (`flow_templates`?) — fora do escopo da fase 1 do PRD |
 
-**Regra:** nada de F1 começa sem o aval do dono sobre o **preview** (processo em
-`docs/guia/07-processo-de-entrega.md` §2.4). O escopo já está fechado no PRD; o que
-falta é o aval. Nenhuma linha de código do módulo foi escrita no app até aqui.
+**Regra:** nada de F2/F3 começa sem o aval do dono sobre o **preview** (processo em
+`docs/guia/07-processo-de-entrega.md` §2.4). F1 cumpriu o caminho completo: preview
+mostrado → escopo fechado no PRD → implementação → teste → doc → release.
 
 ---
 
 ## 4. Pendências e decisões do dono
 
-1. **`VOICE_AUTOMATION_ENABLED`** — está `false` na Vercel. O serviço está no ar e
-   testado, mas a automação (gerar e enviar pelo número do vendedor) só liga depois da
-   sua validação à mão. **Não ativar por conta própria.**
+1. **`VOICE_AUTOMATION_ENABLED`** — **LIGADO em 02/11/2026** na VPS (decisão do
+   dono), com três proteções: (a) o executor de voz virou serviço systemd
+   (`prospectra-voice-worker`) e só roda com a flag ligada; (b) o executor
+   **ignora operação de demonstração** — os telefones do seed são fictícios com
+   formato de número real; (c) a fila de voz da demo foi limpa e o job pendente
+   fica na fila. **Falta o dono cadastrar o perfil de voz na operação de produção**
+   (`Argus Prime` está com 0 perfis): em `/whatsapp`, gravar + transcrever +
+   autorizar. Sem perfil, a voz não sai em produção.
 2. **LinkedIn (termos de uso)** — não ativar sem decisão explícita sua. O executor HTTP
    (`src/lib/linkedin/http-executor.ts`) e o worker da VPS (`infra/linkedin/`) existem;
    o que falta é a decisão, as três variáveis acima e a revalidação dos seletores no

@@ -199,6 +199,44 @@ export async function saveCampaignAction(id: string | null, input: unknown): Pro
   return { id: c.id };
 }
 
+/**
+ * Vincula (ou desvincula) o fluxo que a campanha executa.
+ *
+ * O fluxo é o MODELO da cadência: com `campaigns.flow_id` preenchido, o motor
+ * (src/lib/cadence.ts) executa as etapas de `flows`/`flow_steps`; sem fluxo, a
+ * campanha usa as próprias etapas (`campaigns.steps`), como antes.
+ *
+ * Isolamento: campanha e fluxo têm de ser da operação da sessão.
+ */
+export async function setCampaignFlowAction(campaignId: string, flowId: string | null): Promise<{ ok?: string; error?: string }> {
+  const ctx = await requireOrg();
+  const db = await getDb();
+  if (!z.string().uuid().safeParse(campaignId).success) return { error: 'Campanha inválida.' };
+  const [camp] = await db.select({ id: schema.campaigns.id }).from(schema.campaigns)
+    .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.orgId, ctx.org.id)));
+  if (!camp) return { error: 'Campanha não encontrada.' };
+  if (!flowId) {
+    await db.update(schema.campaigns).set({ flowId: null })
+      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.orgId, ctx.org.id)));
+    await recordAudit(ctx.org.id, { actorUserId: ctx.user.id, action: 'campaign.flow_unlinked', entity: 'campaign', entityId: campaignId });
+    revalidatePath(`/campanhas/${campaignId}`); revalidatePath('/campanhas');
+    return { ok: 'Fluxo desvinculado. A campanha volta a usar as próprias etapas.' };
+  }
+  if (!z.string().uuid().safeParse(flowId).success) return { error: 'Fluxo inválido.' };
+  // O fluxo precisa ser da mesma operação da campanha.
+  const [flow] = await db.select({ id: schema.flows.id, name: schema.flows.name }).from(schema.flows)
+    .where(and(eq(schema.flows.id, flowId), eq(schema.flows.orgId, ctx.org.id)));
+  if (!flow) return { error: 'Fluxo inválido.' };
+  await db.update(schema.campaigns).set({ flowId: flow.id })
+    .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.orgId, ctx.org.id)));
+  await recordAudit(ctx.org.id, {
+    actorUserId: ctx.user.id, action: 'campaign.flow_linked', entity: 'campaign', entityId: campaignId,
+    payload: { flowId: flow.id, flowName: flow.name },
+  });
+  revalidatePath(`/campanhas/${campaignId}`); revalidatePath('/campanhas');
+  return { ok: `Campanha vinculada ao fluxo “${flow.name}”.` };
+}
+
 export async function setCampaignStatusAction(id: string, status: 'active' | 'paused' | 'finished') {
   const ctx = await requireOrg();
   const db = await getDb();

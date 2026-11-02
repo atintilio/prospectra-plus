@@ -8,6 +8,7 @@ import { seedVoice } from '@/lib/demo-voice';
 import { seedSupport } from '@/lib/demo-support';
 import { seedIntel } from '@/lib/demo-intel';
 import { seedLinkedIn } from '@/lib/demo-linkedin';
+import { seedFlows } from '@/lib/demo-fluxos';
 
 export const DEMO_ORG_NAME = 'Demonstração · Atlas Consultoria';
 
@@ -115,6 +116,11 @@ export async function ensureDemo(db: DB, user: { id: string; name: string }): Pr
     { orgId: org.id, ownerId: user.id, assignedTo: user.id, name: 'Parcerias · Escritórios contábeis', status: 'active', steps: STEPS_B, aiBrief: 'Tom de parceria entre pares; foque em indicação e acompanhamento do cliente.' },
     { orgId: org.id, ownerId: user.id, assignedTo: user.id, name: 'Evento Reforma Tributária (encerrada)', status: 'finished', steps: STEPS_B.slice(0, 2), aiBrief: '' },
   ]).returning();
+
+  // Fluxos: dois modelos de cadência e uma campanha que já usa um deles
+  // (mostra o vínculo fluxo↔campanha na tela).
+  const fluxos = await seedFlows(db, org.id, user.id, STEPS_A, STEPS_B);
+  await db.update(schema.campaigns).set({ flowId: fluxos.abertura }).where(eq(schema.campaigns.id, campA.id));
 
   // inscrições: leads em andamento entram nas cadências; encerrados ficam como concluídos/parados
   const today = dayString(now);
