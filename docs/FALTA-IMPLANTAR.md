@@ -222,12 +222,13 @@ execução; cada item só entra em desenvolvimento depois de fechado o escopo.
 
 | # | Item | Situação real hoje | O que precisa ser fechado antes de codar |
 |---|------|--------------------|--------------------------------------------|
-| F1 | **Módulo de fluxos arrastáveis** (flow builder) | **NÃO EXISTE.** O que existe hoje é a **ordenação por arrastar** dentro do editor de campanha (`src/app/(app)/campanhas/editor.tsx`, `draggable` + `onDrop` para reordenar os passos da cadência) e o **mini-mapa** do fluxo (RF7 do PRD do LinkedIn). **Não há** construtor visual de fluxo, canvas de blocos, conexões entre etapas, gatilhos, condições ou ramificações | (a) **escopo**: canvas livre com blocos soltos ou lista vertical de blocos (recomendado — barato e resolve 90%); (b) **qual** automação é o fluxo: a cadência da campanha (`campaigns.steps`) ou a automação de automação (`/automacao`)? (c) **persistência**: salvar o fluxo em `campaigns.steps` (jsonb, já existe) ou em tabela nova? (d) **gatilhos e condições** entram agora ou só na fase 2? (e) quem pode editar: só admin, ou qualquer membro? (f) o gate por operação (`orgs.*_enabled`) vale para cada tipo de bloco no fluxo? |
+| F1 | **Módulo de fluxos arrastáveis** (flow builder) | **NÃO EXISTE.** O que existe hoje é a **ordenação por arrastar** dentro do editor de campanha (`src/app/(app)/campanhas/editor.tsx`, `draggable` + `onDrop` para reordenar os passos da cadência) e o **mini-mapa** do fluxo (RF7 do PRD do LinkedIn). **Não há** construtor visual de fluxo, canvas de blocos, conexões entre etapas, gatilhos, condições ou ramificações. **Escopo FECHADO em 01/11/2026** no [PRD do fluxo nativo](PRD-2026-11-02-FLUXO-NATIVO.md) §2 (padrão pronto: lista vertical de blocos, tabelas `flows`/`flow_steps`, `campaigns.flow_id`, **sem motor novo** — o motor existente executa o fluxo). **Preview entregue e aguardando aval** | **Só o aval do dono do preview** (`/workspace/output/fluxo/prospectra-construtor-de-fluxo.html`). As fases F1–F5 do PRD já estão prontas para executar |
 | F2 | **Editor visual do fluxo de LinkedIn** | Depende de F1 | herda as decisões de F1 |
-| F3 | **Fluxo entre operações** (reutilizar um modelo de fluxo em várias campanhas/operações) | Depende de F1 | modelo de dados (`flow_templates`?) |
+| F3 | **Fluxo entre operações** (reutilizar um modelo de fluxo em várias campanhas/operações) | Depende de F1 | modelo de dados (`flow_templates`?) — fora do escopo da fase 1 do PRD |
 
-**Regra:** nada de F1 começa sem as respostas (a)–(f) acima. O dono foi avisado de que
-o item entrou na fila e está aguardando o escopo — a construção não começou.
+**Regra:** nada de F1 começa sem o aval do dono sobre o **preview** (processo em
+`docs/guia/07-processo-de-entrega.md` §2.4). O escopo já está fechado no PRD; o que
+falta é o aval. Nenhuma linha de código do módulo foi escrita no app até aqui.
 
 ---
 

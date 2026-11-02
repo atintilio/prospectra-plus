@@ -18,12 +18,14 @@
 | [4 · Marca oficial do LinkedIn](guia/04-marca-linkedin.md) | Cor, símbolo, regras de uso, onde a marca aparece e checklist de conformidade | "como uso o logo do LinkedIn?" |
 | [5 · Arquitetura atual e caminho de escala](guia/05-arquitetura-atual-e-escala.md) | Topologia real (quem fala com quem), o caminho de um request, o que quebra e como se recupera, riscos abertos e checklist de manutenção | "como isso está montado? o que quebra se X cair?" |
 | [6 · Tela de escolha de ambiente](guia/06-tela-de-ambiente.md) | As três variações da tela `/ambiente`, o que cada uma muda, o que custa e **qual arquivo trocar** para ativar | "como troco a tela de ambiente?" |
+| [7 · Processo de entrega](guia/07-processo-de-entrega.md) | O pipeline obrigatório de qualquer funcionalidade: PRD → fila → escopo fechado → **preview aprovado** → build → teste → doc → release. Quem decide o quê e o checklist | "como eu entrego uma funcionalidade sem errar?" |
 
 ## Documentos do mesmo tipo
 
 | Documento | Assunto |
 |---|---|
 | [PRD · LinkedIn](../PRD-2026-11-01-LINKEDIN.md) | Do piloto simulado à automação real: requisitos, fases, critérios de aceite, riscos |
+| [PRD · Fluxo nativo](../PRD-2026-11-02-FLUXO-NATIVO.md) | Construtor de fluxos nativo (blocos arrastáveis): escopo fechado, modelo de dados, gate e fases |
 | [Escopo e não-intervenção](../ESCOPO-E-TOCABILIDADE.md) | O que é do Prospectra, o que é intocável, regras operacionais e auditoria |
 | [Falta implantar](../FALTA-IMPLANTAR.md) | Estado de cada item implantado, pendente e bloqueado |
 | [Como gerar credenciais](../COMO-GERAR-CREDENCIAIS.md) | Passo a passo para gerar os tokens do Cloudflare/Vercel e o app OIDC do LinkedIn |
