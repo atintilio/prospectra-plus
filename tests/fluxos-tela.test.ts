@@ -6,6 +6,7 @@ import * as schema from '../src/db/schema';
 import { validateFlowSteps } from '@/lib/flows/validate';
 import { FLOW_STEP_BLOCKS } from '@/lib/flows/types';
 import { ensureDemo } from '@/lib/demo';
+import { listFlows } from '@/app/(app)/fluxos/flows';
 import { seedOrg, testDb } from './helpers';
 
 // O construtor chama a server action ao salvar; na tela ela nunca dispara.
@@ -104,5 +105,28 @@ describe('demonstração — o módulo de fluxos aparece pronto', () => {
     expect(flows.some((f) => f.id === doFlow.flowId)).toBe(true);
     const contagem = await db.select({ n: count() }).from(schema.flowSteps).where(eq(schema.flowSteps.orgId, orgId));
     expect(contagem[0].n).toBe(steps.length);
+  });
+});
+
+describe('lista de fluxos — contagens reais', () => {
+  it('conta os blocos do fluxo e as campanhas que o usam', async () => {
+    const db = await testDb();
+    const { org, user } = await seedOrg(db, 'Real');
+    const [flow] = await db.insert(schema.flows).values({ orgId: org.id, name: 'Abertura quente' }).returning();
+    await db.insert(schema.flowSteps).values([
+      { flowId: flow.id, orgId: org.id, position: 0, type: 'react' },
+      { flowId: flow.id, orgId: org.id, position: 1, type: 'message' },
+      { flowId: flow.id, orgId: org.id, position: 2, type: 'invite' },
+    ]);
+    await db.insert(schema.campaigns).values({ orgId: org.id, ownerId: user.id, name: 'CFO', flowId: flow.id });
+
+    const rows = await listFlows(db, org.id);
+    expect(rows.length).toBe(1);
+    expect(rows[0].steps).toBe(3);
+    expect(rows[0].campaigns).toBe(1);
+
+    // fluxo de outra operação não aparece
+    const { org: outra } = await seedOrg(db, 'Outra');
+    expect((await listFlows(db, outra.id)).length).toBe(0);
   });
 });

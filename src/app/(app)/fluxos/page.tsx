@@ -1,10 +1,10 @@
-import { desc, eq, sql } from 'drizzle-orm';
 import { GitBranch, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { getDb, schema } from '@/db';
+import { getDb } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { Empty, PageHeader } from '@/components/ui';
 import { createFlowAction } from './actions';
+import { listFlows } from './flows';
 
 export const metadata = { title: 'Fluxos' };
 
@@ -17,13 +17,7 @@ const STATUS: Record<string, [string, string]> = {
 export default async function FluxosPage() {
   const ctx = await requireOrg();
   const db = await getDb();
-  const rows = await db.select({
-    f: schema.flows,
-    steps: sql<number>`(select count(*) from ${schema.flowSteps} fs where fs.flow_id = ${schema.flows.id})`.mapWith(Number),
-    campaigns: sql<number>`(select count(*) from ${schema.campaigns} c where c.flow_id = ${schema.flows.id})`.mapWith(Number),
-  }).from(schema.flows)
-    .where(eq(schema.flows.orgId, ctx.org.id))
-    .orderBy(desc(schema.flows.updatedAt));
+  const rows = await listFlows(db, ctx.org.id);
 
   return (
     <>
@@ -50,7 +44,7 @@ export default async function FluxosPage() {
         </Empty>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map(({ f, steps, campaigns }) => {
+          {rows.map((f) => {
             const [label, cls] = STATUS[f.status] ?? STATUS.draft;
             return (
               <Link key={f.id} href={`/fluxos/${f.id}`} className="card group p-5 transition-shadow hover:shadow-md">
@@ -59,7 +53,7 @@ export default async function FluxosPage() {
                   <span className={`pill ${cls}`}>{label}</span>
                 </div>
                 <p className="mt-1 text-xs text-muted">
-                  {steps} {steps === 1 ? 'bloco' : 'blocos'} · {campaigns} {campaigns === 1 ? 'campanha usa' : 'campanhas usam'}
+                  {f.steps} {f.steps === 1 ? 'bloco' : 'blocos'} · {f.campaigns} {f.campaigns === 1 ? 'campanha usa' : 'campanhas usam'}
                 </p>
                 {f.description ? <p className="mt-3 line-clamp-2 text-sm text-muted">{f.description}</p> : null}
               </Link>

@@ -18,12 +18,12 @@ export default async function CampanhasPage() {
   const rows = await db.select({
     c: schema.campaigns,
     flowName: schema.flows.name,
-    flowSteps: sql<number>`(select count(*) from ${schema.flowSteps} fs where fs.flow_id = ${schema.campaigns.flowId})`.mapWith(Number),
-    enrolled: sql<number>`(select count(*) from ${schema.enrollments} e where e.campaign_id = ${schema.campaigns.id})`.mapWith(Number),
-    active: sql<number>`(select count(*) from ${schema.enrollments} e where e.campaign_id = ${schema.campaigns.id} and e.state in ('running','waiting_accept'))`.mapWith(Number),
-    replies: sql<number>`(select count(*) from ${schema.events} ev where ev.campaign_id = ${schema.campaigns.id} and ev.type = 'reply_received')`.mapWith(Number),
-    accepted: sql<number>`(select count(*) from ${schema.events} ev where ev.campaign_id = ${schema.campaigns.id} and ev.type = 'invite_accepted')`.mapWith(Number),
-    invites: sql<number>`(select count(*) from ${schema.events} ev where ev.campaign_id = ${schema.campaigns.id} and ev.type = 'invite_sent')`.mapWith(Number),
+    flowSteps: sql<number>`(select count(*) from ${schema.flowSteps} fs where fs.flow_id = ${schema.campaigns}.flow_id)`.mapWith(Number),
+    enrolled: sql<number>`(select count(*) from ${schema.enrollments} e where e.campaign_id = ${schema.campaigns}.id)`.mapWith(Number),
+    active: sql<number>`(select count(*) from ${schema.enrollments} e where e.campaign_id = ${schema.campaigns}.id and e.state in ('running','waiting_accept'))`.mapWith(Number),
+    replies: sql<number>`(select count(*) from ${schema.events} ev where ev.campaign_id = ${schema.campaigns}.id and ev.type = 'reply_received')`.mapWith(Number),
+    accepted: sql<number>`(select count(*) from ${schema.events} ev where ev.campaign_id = ${schema.campaigns}.id and ev.type = 'invite_accepted')`.mapWith(Number),
+    invites: sql<number>`(select count(*) from ${schema.events} ev where ev.campaign_id = ${schema.campaigns}.id and ev.type = 'invite_sent')`.mapWith(Number),
     assignee: schema.users.name,
   }).from(schema.campaigns)
     .leftJoin(schema.users, eq(schema.users.id, sql`coalesce(${schema.campaigns.assignedTo}, ${schema.campaigns.ownerId})`))
