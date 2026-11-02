@@ -60,7 +60,7 @@ org de demonstração em cascata — **a produção nunca é tocada** — e seme
 **Recriar a demo**: botão **“Recriar do zero”** em `/ambiente`, rota `POST /api/demo/reset` (só
 admin) e `scripts/demo-reset.ts` (linha de comando). Roteiro de apresentação em `docs/DEMO.md`.
 
-**Validação na VPS** (31/10): `POST /api/demo/reset` → 200; **31/31 tabelas** da demo com dado
+**Validação na VPS** (31/10): `POST /api/demo/reset` → 200; **35 tabelas** da demo com dado de 46 no total (recontado em 01/11/2026)
 (4 perfis de comunicação, 19 mensagens de suporte); as 16 telas da demo respondem 200 **com
 conteúdo** (agenda, suporte, atendimento, inteligência, comunicação, voz, painel, ajuda).
 Suíte local: **56 arquivos / 293 testes** verdes.
