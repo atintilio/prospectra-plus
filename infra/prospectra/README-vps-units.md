@@ -79,3 +79,27 @@ print(urllib.request.urlopen(r,timeout=30).status)"
 > aceita na borda (`Authorization: Bearer <chave>`). Encontrei a chave do `app.env`
 > divergente em 30/10: funcionava só porque o backend pula a checagem para clientes em
 > loopback. Alinhado em 30/10 ✅ (`app.env.bak` guarda a versão anterior).
+
+---
+
+## `prospectra-tunnel.service` — conector do Cloudflare Tunnel (01/11/2026)
+
+O conector do tunnel (gateway do WhatsApp) **era um processo manual** (`/tmp/tunnel-run.sh`),
+com o token **na linha de comando** — visível no `ps` de qualquer usuário e morto a cada
+reinício da VPS. Agora é um serviço do systemd:
+
+- Unidade: `infra/prospectra/systemd/prospectra-tunnel.service`
+- Token: `/etc/cloudflared/tunnel.token` (modo `600`, diretório `700`) — lido por
+  `--token-file`, fora do `ps`
+- Binário: `/usr/local/bin/cloudflared` (2026.10.7)
+- Log: `/var/log/cloudflared.log`
+- `Restart=always` + `RestartSec=5`: volta sozinho se cair
+
+```bash
+systemctl status prospectra-tunnel
+systemctl restart prospectra-tunnel
+tail -f /var/log/cloudflared.log
+```
+
+**Atenção:** o token do tunnel é credencial — nunca imprimir, nunca colar em issue,
+commit ou doc.

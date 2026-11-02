@@ -1,0 +1,18 @@
+[Unit]
+Description=Prospectra+ — conector do Cloudflare Tunnel (gateway WhatsApp)
+Documentation=https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# O token fica em arquivo 600: fora da linha de comando (e fora do `ps`).
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate run --token-file /etc/cloudflared/tunnel.token
+Restart=always
+RestartSec=5
+User=root
+StandardOutput=append:/var/log/cloudflared.log
+StandardError=append:/var/log/cloudflared.log
+
+[Install]
+WantedBy=multi-user.target
