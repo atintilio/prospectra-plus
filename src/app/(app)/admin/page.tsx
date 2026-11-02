@@ -21,10 +21,10 @@ export default async function AdminPage() {
     members: sql<number>`(select count(*) from ${schema.memberships} m where m.org_id = ${schema.orgs}.id)`.mapWith(Number),
     leads: sql<number>`(select count(*) from ${schema.leads} l where l.org_id = ${schema.orgs}.id)`.mapWith(Number),
     meetings: sql<number>`(select count(*) from ${schema.events} e where e.org_id = ${schema.orgs}.id and e.type = 'meeting_booked')`.mapWith(Number),
-    owner: sql<string>`(select u.email from ${schema.memberships} m join ${schema.users} u on u.id = m.user_id where m.org_id = ${schema.orgs.id} and m.role = 'owner' order by m.created_at limit 1)`,
+    owner: sql<string>`(select u.email from ${schema.memberships} m join ${schema.users} u on u.id = m.user_id where m.org_id = ${schema.orgs}.id and m.role = 'owner' order by m.created_at limit 1)`,
   }).from(schema.orgs).where(eq(schema.orgs.isDemo, false)).orderBy(asc(schema.orgs.name));
   const users = await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, status: schema.users.status, platformRole: schema.users.platformRole,
-    orgs: sql<string>`coalesce((select string_agg(o.name, ', ') from ${schema.memberships} m join ${schema.orgs} o on o.id = m.org_id where m.user_id = ${schema.users.id}), '')` })
+    orgs: sql<string>`coalesce((select string_agg(o.name, ', ') from ${schema.memberships} m join ${schema.orgs} o on o.id = m.org_id where m.user_id = ${schema.users}.id), '')` })
     .from(schema.users).where(sql`${schema.users.email} not like '%@demo.invalid'`).orderBy(asc(schema.users.email));
   const memberships = await db.select().from(schema.memberships);
   return (
