@@ -21,6 +21,8 @@ Como criar (30 segundos):
    | Escopo | Permissão | Para quê |
    |---|---|---|
    | Account | Workers Scripts → **Edit** | publicar o app (deploy) |
+   | Account | Workers KV Storage → **Edit** | criar o namespace de cache do app (`__NEXT_CACHE_KV`) |
+   | Account | R2 Storage → **Edit** | criar o bucket de cache incremental (`__NEXT_CACHE_R2`) |
    | Account | Workers Tail → **Read** | ler logs do Worker em tempo real |
    | Account | Account Settings → **Read** | ler os dados da conta |
    | Zone (argusprime.com.br) | Workers Routes → **Edit** | apontar o domínio oficial para o Worker |
@@ -28,7 +30,9 @@ Como criar (30 segundos):
    | Zone (argusprime.com.br) | Zone → **Read** | ler a zona |
 
 3. **Zone Resources:** `Include → Specific zone → argusprime.com.br`
-4. **Account Resources:** `Include → Specific account → Argus Prime (60c66733...)`
+   (id da zona: `805c548e0891f14c4fa73d78416ea3d1`)
+4. **Account Resources:** `Include → Specific account → Argus Prime`
+   (id da conta: `60c66733d34a8cc5584b44d799b756f4`)
 5. **Client IP Address Filtering:** deixe em **"No IP filtering"**
 6. **TTL (Expiration):** escolha **1 year** (ou *None*, se a sua conta permitir sem expiração)
 7. **Summary → Create Token**
@@ -40,6 +44,18 @@ Como criar (30 segundos):
 **Como me entregar:** não cole no chat. Use o cofre de segredos do Mavis
 (comando `secret create --name=CLOUDFLARE_API_TOKEN --value=...`) ou salve num arquivo
 com permissão 600 e me diga o caminho. Eu apago o arquivo depois de usar.
+
+### O que eu faço assim que o token chega
+
+1. Publico o Worker com o **driver do Neon por requisição** (o fix `78d80d3`, ainda
+   não publicado) — é o que faz as rotas com banco pararem de dar 500.
+2. Subo os secrets do Worker (os mesmos valores que já estão em `/etc/prospectra-plus/app.env`:
+   `NEON_DATABASE_URL` com o host **direto** do Neon — não o pooler —, `CRON_SECRET`,
+   `WA_AKG_API_KEY`, `VOICESTUDIO_API_KEY`, `AI_API_KEY`, `AUTH_SECRET`,
+   `HARVEY_WEBHOOK_SECRET`, `BLOB_READ_WRITE_TOKEN` e as credenciais do Office 365).
+3. Rodo o smoke do Worker com sessão real (29 rotas).
+4. **Só então** aponto o domínio oficial para o Worker — a VPS continua de pé como rollback.
+5. O cron diário sai da Vercel e passa para o Worker (o de 5 min já roda na VPS).
 
 ---
 
