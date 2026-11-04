@@ -23,7 +23,7 @@
     "AI_MODEL": "glm-4.7",
     "AI_FALLBACK_MODELS": "glm-4.7-flash,glm-4.5-flash",
     "INTELLIGENCE_WORKER_ENABLED": "true",
-    "VOICE_AUTOMATION_ENABLED": "false",
+    "VOICE_AUTOMATION_ENABLED": "true",
     "PROSPERTA_DB_REPAIR": "0"
   }
 }

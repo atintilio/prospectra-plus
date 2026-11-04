@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, count, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, lte, sql, min } from 'drizzle-orm';
 import { getDb, schema, type DB } from '@/db';
 
 // Relatórios de atendimento (Helpin fase D): volume, primeira resposta, SLA, resolução,
@@ -203,7 +203,9 @@ export async function buildSupportReport(db: DB, orgId: string, options: Support
   const firstReplies = ids.length
     ? await db.select({
         conversationId: schema.supportMessages.conversationId,
-        at: sql<Date>`min(${schema.supportMessages.createdAt})`,
+        // `min()` do drizzle (e nao `sql` cru): o agregador sabe o tipo da coluna e
+        // devolve Date. Com `sql` cru o driver entrega string e o `.getTime()` estoura.
+        at: min(schema.supportMessages.createdAt),
       }).from(schema.supportMessages).where(and(
         inArray(schema.supportMessages.conversationId, ids),
         eq(schema.supportMessages.author, 'agent'),
