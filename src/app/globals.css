@@ -124,6 +124,11 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 .prospectra-page-enter { animation:prospectra-page-enter 520ms var(--ease-premium) both; }
 .prospectra-shell { background:linear-gradient(135deg,#f7f9fd 0%,#edf2fa 100%); }
 .prospectra-ambient { position:fixed; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; opacity:.14; mix-blend-mode:screen; filter:saturate(1.08) contrast(1.03); pointer-events:none; }
+/* Tela de ambiente: o movimento ao fundo (mesmo video do login) fica so na
+   faixa do header. O resto da tela continua escuro e estatico. */
+.ambiente-header { position:relative; overflow:hidden; }
+.ambiente-header-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 38%; opacity:.5; mix-blend-mode:screen; filter:saturate(1.18) contrast(1.05); pointer-events:none; }
+.ambiente-header-scrim { position:absolute; inset:0; pointer-events:none; background:radial-gradient(90% 130% at 12% 0%,rgba(21,93,252,.34),transparent 62%),radial-gradient(80% 120% at 78% 4%,rgba(118,85,232,.30),transparent 58%),linear-gradient(180deg,rgba(5,10,22,.18),rgba(5,10,22,.46) 58%,#050a16); }
 .prospectra-ambient-scrim { position:fixed; inset:0; z-index:0; pointer-events:none; background:radial-gradient(circle at 75% 4%,rgba(118,85,232,.13),transparent 32%),radial-gradient(circle at 36% 22%,rgba(21,93,252,.08),transparent 34%),linear-gradient(180deg,rgba(247,249,253,.58),rgba(247,249,253,.91)); }
 .prospectra-sidebar { background:linear-gradient(180deg,#fff 0%,#fdfbff 36%,#f7f3fd 70%,#eee7fa 100%); border-color:rgba(93,70,134,.14); box-shadow:18px 0 60px -42px rgba(66,43,104,.22); backdrop-filter:blur(20px); }
 .prospectra-sidebar nav > p { color:#6d5b83; }
@@ -210,7 +215,7 @@ nav a { transition:color 300ms var(--ease-premium),background-color 300ms var(--
   .suite-explorer-links { grid-template-columns:1fr; gap:18px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .auth-hero-video,.prospectra-ambient { display:none; }
+  .auth-hero-video,.prospectra-ambient,.ambiente-header-video { display:none; }
   .auth-visual::before,.prospecting-motion-aura { animation:none; }
   .prospecting-orbit,.prospecting-signal { animation:none; }
   .prospecting-logo-spin-360,.prospectra-logo-nav-image { animation:none; transform:none; will-change:auto; }

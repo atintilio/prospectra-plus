@@ -11,6 +11,7 @@ import { FlaskConical, LogOut, MapPin, Mic, RotateCcw, Rocket } from 'lucide-rea
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { Logo } from '@/components/logo';
+import { AmbientVideo } from '@/components/ambient-video';
 import { LinkedInMark } from '@/components/linkedin-mark';
 import { WhatsAppMark } from '@/components/whatsapp-mark';
 import { chooseEnvAction, resetDemoAction } from '@/app/(app)/actions';
@@ -34,13 +35,18 @@ export default async function AmbientePage() {
 
   return (
     <main className="flex min-h-dvh flex-col bg-[#050a16] text-white">
-      <header className="flex flex-wrap items-center justify-between gap-4 px-5 py-6 sm:px-8">
-        <Logo dark size={36} />
-        <div className="text-right">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Ambiente ativo agora</p>
-          <p className="text-sm font-medium text-white/90">
-            {atual ? `${atual}${data.currentOrgName ? ` · ${data.currentOrgName}` : ''}` : 'Nenhum ambiente selecionado'}
-          </p>
+      <header className="ambiente-header px-5 py-6 sm:px-8">
+        {/* Movimento ao fundo (mesmo video ambiente do login) so no header. */}
+        <AmbientVideo className="ambiente-header-video" />
+        <div className="ambiente-header-scrim" aria-hidden="true" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <Logo dark size={36} />
+          <div className="text-right">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Ambiente ativo agora</p>
+            <p className="text-sm font-medium text-white/90">
+              {atual ? `${atual}${data.currentOrgName ? ` · ${data.currentOrgName}` : ''}` : 'Nenhum ambiente selecionado'}
+            </p>
+          </div>
         </div>
       </header>
 
