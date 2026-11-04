@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { getDb, schema } from '@/db';
+import { getReadDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { AGENDA_PUBLIC_URL, listAvailability, listBookings, listEventTypes } from '@/lib/agenda-booking';
 import { PageHeader } from '@/components/ui';
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AgendaPage() {
   const ctx = await requireOrg();
-  const db = await getDb();
+  const db = await getReadDb();
   const scope = { orgId: ctx.org.id, userId: ctx.user.id };
   const now = new Date();
 

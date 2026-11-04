@@ -1,6 +1,6 @@
 import { GitBranch, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { getDb } from '@/db';
+import { getReadDb } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { Empty, PageHeader } from '@/components/ui';
 import { createFlowAction } from './actions';
@@ -16,7 +16,7 @@ const STATUS: Record<string, [string, string]> = {
 
 export default async function FluxosPage() {
   const ctx = await requireOrg();
-  const db = await getDb();
+  const db = await getReadDb();
   const rows = await listFlows(db, ctx.org.id);
 
   return (

@@ -11,7 +11,7 @@
 import 'server-only';
 
 import { and, count, eq } from 'drizzle-orm';
-import { getDb, schema, type DB } from '@/db';
+import { getReadDb, schema, type DB } from '@/db';
 import type { Ctx } from '@/lib/auth';
 import { akgConfig, AkgGateway } from '@/lib/whatsapp/akg';
 import { voiceConfig } from '@/lib/voice/voicestudio';
@@ -350,7 +350,7 @@ async function buildEnv(db: DB, ctx: Ctx, key: EnvKey, org: OrgRow | null): Prom
 
 /** Carrega tudo que a tela de ambiente mostra, a partir da sessão e do banco. */
 export async function loadAmbiente(ctx: Ctx): Promise<AmbienteData> {
-  const db = await getDb();
+  const db = await getReadDb();
   const [prodOrg, demoOrg] = await Promise.all([findProdOrg(db, ctx), findDemoOrg(db, ctx)]);
   const [prod, demo] = await Promise.all([
     buildEnv(db, ctx, 'prod', prodOrg),

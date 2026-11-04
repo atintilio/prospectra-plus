@@ -1,7 +1,7 @@
 import { and, count, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { CalendarCheck, Handshake, ListChecks, MessageSquareReply, Send, TrendingUp, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
-import { getDb, schema } from '@/db';
+import { getDb, getReadDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { aiGenerator } from '@/lib/ai';
 import { dayString, runScheduler } from '@/lib/cadence';
@@ -15,8 +15,9 @@ const RANGES = { '7': 7, '30': 30, '90': 90 } as const;
 
 export default async function Painel({ searchParams }: { searchParams: Promise<{ dias?: string }> }) {
   const ctx = await requireOrg();
-  const db = await getDb();
-  await runScheduler(db, { orgId: ctx.org.id, generate: aiGenerator });
+  const db = await getReadDb();
+  // o scheduler GRAVA (cria acoes) — ele fica no driver com transacao
+  await runScheduler(await getDb(), { orgId: ctx.org.id, generate: aiGenerator });
   const days = RANGES[((await searchParams).dias ?? '30') as keyof typeof RANGES] ?? 30;
   const now = new Date();
   const from = new Date(now.getTime() - days * 86400_000);

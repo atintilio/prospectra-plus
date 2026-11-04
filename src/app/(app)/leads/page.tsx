@@ -1,5 +1,5 @@
 import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
-import { getDb, schema } from '@/db';
+import { getReadDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { aiConfigured } from '@/lib/ai';
 import { PageHeader } from '@/components/ui';
@@ -10,7 +10,7 @@ export const metadata = { title: 'Leads' };
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ q?: string; etapa?: string; tag?: string; p?: string }> }) {
   const ctx = await requireOrg();
   const sp = await searchParams;
-  const db = await getDb();
+  const db = await getReadDb();
   const page = Math.max(1, Number(sp.p) || 1);
   const conds = [eq(schema.leads.orgId, ctx.org.id)];
   if (sp.q) conds.push(or(ilike(schema.leads.fullName, `%${sp.q}%`), ilike(schema.leads.company, `%${sp.q}%`), ilike(schema.leads.headline, `%${sp.q}%`))!);

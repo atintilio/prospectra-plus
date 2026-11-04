@@ -1,6 +1,7 @@
 import 'server-only';
 import { drizzle as drizzlePg } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { sql } from 'drizzle-orm';
 import * as schema from './schema';
 
 export type DB = ReturnType<typeof drizzlePg<typeof schema>>;
@@ -86,6 +87,64 @@ export function getDb(): Promise<DB> {
   if (isCloudflareWorker()) return create();
   globalForDb.__prospectraDb ??= create();
   return globalForDb.__prospectraDb;
+}
+
+const globalForRead = globalThis as unknown as { __prospectraReadDb?: Promise<DB> };
+
+/**
+ * URL do endpoint HTTP do Neon.
+ *
+ * O driver HTTP fala com o endpoint DIRETO do banco (`ep-xxx.<region>.neon.tech`),
+ * nao com o pooler (`ep-xxx-pooler...`): o pooler so aceita o protocolo
+ * WebSocket. E o `channel_binding=require` (SCRAM) quebra o handshake HTTP.
+ */
+function toHttpUrl(url: string): string {
+  return url
+    .replace('-pooler', '')
+    .replace(/([?&])channel_binding=require(&?)/, (_, a: string, b: string) => (b ? a : ''))
+    .replace(/[?&]$/, '');
+}
+
+/**
+ * Conexao de LEITURA — driver HTTP do Neon.
+ *
+ * Por que existe: o driver WebSocket mantem UMA sessao com o banco, entao
+ * varias leituras "em paralelo" (`Promise.all`) ficam NA FILA da mesma sessao:
+ * o tempo da tela vira a soma de todas as consultas. O driver HTTP faz uma
+ * requisicao por consulta, de modo que as leituras correm de verdade em
+ * paralelo e nao existe custo de conectar a cada request.
+ *
+ * Limite conhecido: o driver HTTP nao suporta transacoes. Os caminhos que
+ * gravam continuam usando `getDb()` (WebSocket); aqui so entra leitura.
+ */
+async function createRead(): Promise<DB> {
+  let url: string;
+  try {
+    url = await resolveUrl();
+  } catch {
+    // Sem URL configurada (ambiente de teste com banco injetado): segue o driver normal.
+    return create();
+  }
+  const { neon } = await import('@neondatabase/serverless');
+  const { drizzle: drizzleHttp } = await import('drizzle-orm/neon-http');
+  const httpDb = drizzleHttp(neon(toHttpUrl(url)), { schema }) as unknown as DB;
+  // Sanidade: se o endpoint HTTP nao responder, cai no driver WebSocket
+  // (lento, mas correto) em vez de derrubar a tela.
+  try {
+    await httpDb.execute(sql`select 1`);
+    return httpDb;
+  } catch {
+    return create();
+  }
+}
+
+/** Conexao de leitura (consultas paralelas). Nao use em caminhos com transacao. */
+export function getReadDb(): Promise<DB> {
+  // No Node/VPS o processo e unico: o client HTTP (sem estado de I/O) pode
+  // ser reaproveitado. No Worker o driver HTTP e so `fetch`, entao tambem
+  // pode ser reaproveitado entre requests.
+  globalForRead.__prospectraReadDb ??= createRead();
+  return globalForRead.__prospectraReadDb;
 }
 
 export { schema };

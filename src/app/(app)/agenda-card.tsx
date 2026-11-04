@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { CalendarDays, ChevronRight } from 'lucide-react';
-import { getDb } from '@/db';
+import { getReadDb } from '@/db';
 import { requireUser } from '@/lib/auth';
 import { listBookings } from '@/lib/agenda-booking';
 
@@ -29,7 +29,7 @@ export async function AgendaCard() {
     );
   }
 
-  const db = await getDb();
+  const db = await getReadDb();
   const now = new Date();
   const bookings = await listBookings(
     db,

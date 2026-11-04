@@ -1,6 +1,6 @@
 import 'server-only';
 import { and, count, eq, gte, inArray, lte, sql, min } from 'drizzle-orm';
-import { getDb, schema, type DB } from '@/db';
+import { getReadDb, schema, type DB } from '@/db';
 
 // Relatórios de atendimento (Helpin fase D): volume, primeira resposta, SLA, resolução,
 // CSAT, agentes e times.
@@ -168,7 +168,7 @@ export function percent(part: number, total: number): number {
  * Use `options.db` para injetar um banco de teste; sem ele, usa o getDb() da aplicação.
  */
 export async function supportReport(orgId: string, options: SupportReportOptions = {}): Promise<SupportReport> {
-  const db = options.db ?? (await getDb());
+  const db = options.db ?? (await getReadDb());
   return buildSupportReport(db, orgId, options);
 }
 
