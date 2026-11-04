@@ -16,14 +16,28 @@ LinkedIn. Tudo já está gravado no banco, pronto para mostrar.
 3. (Opcional) Use **“Recriar do zero”** na mesma tela para voltar a demo ao estado
    inicial — útil antes de apresentar a um parceiro novo.
 
-A demonstração tem empresa, equipe (4 pessoas), 24 leads, campanhas, agenda,
-suporte, inteligência comercial e voz — cada aba com conteúdo.
+A demonstração tem empresa, equipe (4 pessoas), **124 leads** (24 da semente da persona
++ 100 da base comercial), campanhas, agenda, suporte, inteligência comercial e voz —
+cada aba com conteúdo.
+
+> **“Recriar do zero” já devolve os 124 leads**: a base comercial faz parte da semente
+> (`src/lib/demo-base-leads.ts`, gerado por `docs/gerar-base-demo.mjs` — o mesmo CSV de
+> `docs/base-demo.csv`), então a demo nunca fica magra depois de um reset.
 
 ---
 
-## A base demo (100 leads para subir)
+## A base demo (100 leads) — já está na demonstração
 
-`docs/base-demo.csv` — 100 leads fictícios prontos para subir em **/leads → Importar leads**.
+Os 100 leads da base comercial **já estão carregados** na demonstração (124 no total). Se
+precisar subir de novo (por exemplo, depois de um "Recriar do zero" em uma versão antiga da
+semente), use **/leads → Importar leads** com `docs/base-demo.csv` — ou o script idempotente:
+
+```bash
+# na VPS: importa a base na operação de demonstração (não duplica nada)
+cd /opt/prospectra-plus-current && set -a && . /etc/prospectra-plus/app.env && set +a \
+  && node scripts/import-base-demo.mjs
+```
+
 No campo **“Nome da lista”** escreva `base demo` (é a etiqueta que aparece no CRM).
 
 O arquivo tem as colunas que o importador do Prospectra lê:
@@ -137,10 +151,16 @@ validade do e-mail) e uma na fila. Cada job aponta para um lead real da demo.
 > “O Harvey qualifica, responde o que é repetitivo e passa pro humano o que
 >  exige negociação.”
 
-### 9. Voz
-`/voz`
-Perfil de voz pronto, um envio concluído e um job na fila. A demo só mostra o
-estado — a geração real de áudio é feita pelo Voice Studio.
+### 9. Voz — e dá para gravar a SUA voz na hora da apresentação
+`/whatsapp` (bloco **“Sua voz no WhatsApp”**)
+
+- O perfil de voz pronto, um envio concluído e um job na fila aparecem como estado.
+- **Na demonstração você pode gravar e clonar a sua própria voz** (a clonagem roda no seu
+  próprio servidor de voz): arquivo de áudio + transcrição + autorização. É o jeito de
+  mostrar o produto falando com a sua cara.
+- **Nada é enviado a ninguém** na demo: o envio por WhatsApp fica desligado de propósito.
+- **“Apagar tudo (perfil e fila)”** limpa o perfil de voz e a fila — use antes de outra
+  pessoa gravar a voz dela, para a operação começar limpa.
 
 ### 10. LinkedIn — a conta conectada e o piloto automático
 `/linkedin` e `/automacao`

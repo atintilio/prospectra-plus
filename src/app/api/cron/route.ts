@@ -17,8 +17,13 @@ export const maxDuration = 60;
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) return new Response('unauthorized', { status: 401 });
+  // O pooler do Neon derruba conexão de vez em quando (ETIMEDOUT). O cron roda
+  // de 5 em 5 minutos: uma retentativa curta evita perder o ciclo inteiro.
+  const r = await comRetentativa(async () => {
+    const db = await getDb();
+    return runScheduler(db, { generate: aiGenerator });
+  });
   const db = await getDb();
-  const r = await runScheduler(db, { generate: aiGenerator });
   await flushDeletionReports(db);
   const harveyInbound=await resumeHarveyInbound(db);
   const harvey=await runHarveyQueue(db);
@@ -36,5 +41,19 @@ export async function GET(req: Request) {
     console.error('[intelligence] falha ao rodar o ciclo da fila:', error instanceof Error ? error.message : String(error));
   }
   return Response.json({...r,harveyInbound,harvey,linkedin,disc,reminders,intelligence});
+}
+
+/** Uma retentativa: erro de conexão do banco não pode perder o ciclo do cron. */
+async function comRetentativa<T>(fn: () => Promise<T>, tentativas = 2): Promise<T> {
+  let ultimo: unknown;
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      ultimo = error;
+      console.error('[cron] falha na execução (tentativa ' + (i + 1) + '/' + tentativas + '):', error instanceof Error ? error.message : String(error));
+    }
+  }
+  throw ultimo;
 }
 

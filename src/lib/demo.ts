@@ -9,6 +9,8 @@ import { seedSupport } from '@/lib/demo-support';
 import { seedIntel } from '@/lib/demo-intel';
 import { seedLinkedIn } from '@/lib/demo-linkedin';
 import { seedFlows } from '@/lib/demo-fluxos';
+import { BASE_DEMO_CSV } from '@/lib/demo-base-leads';
+import { leadsFromCsv } from '@/lib/leads-import';
 
 export const DEMO_ORG_NAME = 'Demonstração · Atlas Consultoria';
 
@@ -110,6 +112,17 @@ export async function ensureDemo(db: DB, user: { id: string; name: string }): Pr
     notes: stage === 'meeting' ? 'Reunião agendada para esta semana. Pediu proposta com cenário de compensação.' : stage === 'replied' ? 'Respondeu interessado; aguardando melhor horário.' : '',
     lastActivityAt: addDays(now, -Math.floor(rand() * 9)),
   }))).returning();
+
+  // Base comercial da demo: os 100 leads do CSV de docs/base-demo.csv, pelo
+  // MESMO caminho de importacao da tela /leads (normalizacao e deduplicacao
+  // identicas). Assim "Recriar do zero" devolve a demo completa.
+  const baseLeads = leadsFromCsv(BASE_DEMO_CSV).leads;
+  if (baseLeads.length) {
+    await db.insert(schema.leads).values(baseLeads.map((l, i) => ({
+      ...l, orgId: org.id, ownerId: owners[i % owners.length], source: 'import' as const, tag: 'base-comercial',
+      lastActivityAt: addDays(now, -Math.floor(rand() * 30)),
+    }))).onConflictDoNothing();
+  }
 
   const [campA, campB, campC] = await db.insert(schema.campaigns).values([
     { orgId: org.id, ownerId: user.id, assignedTo: user.id, name: 'Abertura · CFOs da indústria', status: 'active', steps: STEPS_A, aiBrief: 'Tom consultivo e direto. Mencione recuperação de crédito tributário sem desembolso.' },

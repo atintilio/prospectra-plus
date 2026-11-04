@@ -81,8 +81,10 @@ export async function adminStatusAction(userId: string, status: 'active' | 'disa
  *   campanha é `on delete cascade`, ou seja, sem a transferência a campanha
  *   inteira sumiria junto com a conta.
  *
- * O resto do dado do usuário é preservado pelo próprio schema: `leads`,
- * `actions` e `events` usam `on delete set null` (o dado fica, sem dono).
+ * O resto do dado do usuário é preservado pelo próprio schema: `leads` e
+ * `events` usam `on delete set null` (o dado fica, sem dono). As `actions` do
+ * usuário são `on delete cascade` — a fila de passos pendentes é dele e sai
+ * junto com a conta.
  */
 export async function adminDeleteUserAction(userId: string): Promise<Result> {
   const ctx = await requireAdmin();

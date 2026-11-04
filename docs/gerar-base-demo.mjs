@@ -184,7 +184,24 @@ const saida = `${linhasCsv.join('\n')}\n`;
 const destino = new URL('./base-demo.csv', import.meta.url);
 writeFileSync(destino, saida, 'utf8');
 
+// O mesmo CSV tambem vira um modulo do app: a semente da DEMONSTRACAO
+// precisa recriar a base comercial depois de "Recriar do zero" (e o app roda
+// no Cloudflare Worker, onde nao ha sistema de arquivos para ler o CSV).
+const moduloTs = `/**
+ * Base comercial da DEMONSTRACAO (100 leads) — gerado por
+ * \`docs/gerar-base-demo.mjs\`. NAO EDITE A MAO: rode o gerador.
+ *
+ * O texto e o mesmo CSV de \`docs/base-demo.csv\`; a semente da demo passa
+ * pelo mesmo caminho de importacao do app (\`leadsFromCsv\`), entao a
+ * normalizacao de URL e a deduplicacao sao identicas as da tela /leads.
+ */
+export const BASE_DEMO_CSV = ${JSON.stringify(saida)};
+`;
+const destinoTs = new URL('../src/lib/demo-base-leads.ts', import.meta.url);
+writeFileSync(destinoTs, moduloTs, 'utf8');
+
 console.log(`${linhas.length} leads gerados em docs/base-demo.csv`);
+console.log('modulo do app: src/lib/demo-base-leads.ts');
 console.log('cargos:', [...new Set(linhas.map((l) => l.cargo))].join(', '));
 console.log('empresas distintas:', usadosEmpresa.size, '| cidades usadas:', usadosCidade.size);
 console.log(linhasCsv.slice(0, 4).join('\n'));
