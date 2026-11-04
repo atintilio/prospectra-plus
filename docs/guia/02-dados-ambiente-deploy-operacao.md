@@ -46,7 +46,7 @@
 
 | Domínio | Aponta para | TLS |
 |---|---|---|
-| `prospectra.argusprime.com.br` | nginx `[::]:80` → `127.0.0.1:3100` | Cloudflare (edge) |
+| `prospectra.argusprime.com.br` | **Worker Cloudflare `prospectra`** (rota `prospectra.argusprime.com.br/*`) — desde 04/11/2026 | Cloudflare (edge) |
 | `agenda.argusprime.com.br` | nginx `[::]:80` → `127.0.0.1:3100` (agenda **nativa**) | Cloudflare (edge) |
 | `wa.argusprime.com.br` | Cloudflare Tunnel `prospectra-wa-gateway` → VPS 3101 | Cloudflare (edge) |
 | `voice.argusprime.com.br` | Voice Studio na VPS | Cloudflare (edge) |
@@ -57,14 +57,66 @@ O **nginx da VPS escuta somente em `[::]:80`** — o TLS termina na Cloudflare. 
 ### 1.3 Caminho do tráfego (o que é a fonte da verdade hoje)
 
 ```
-usuário → Cloudflare (TLS + proxy) → nginx VPS (:80) → 127.0.0.1:3100 (Next.js) → Neon (Postgres)
-                                                          └→ /whatsapp-gateway/* → 127.0.0.1:3101 (WA-AKG)
+usuário → Cloudflare (TLS + proxy + rota de Worker) → Worker `prospectra` (OpenNext/Next.js) → Neon (Postgres)
+                                                                                          └→ serviços auxiliares na VPS (WhatsApp, voz, IA)
 ```
 
-O Worker `prospectra` (Cloudflare) é o **caminho planejado** de produção (`docs/guia/03-decisoes-e-expectativas.md` §2:
-"Cloudflare é o caminho; a Vercel está fora do caminho de produção. A VPS segue como rollback"). Em 01/11/2026 o
-build OpenNext foi gerado e o bundle publicado, mas **o Worker ainda não tem rota/domínio na zona** — a VPS
-continua atendendo o domínio público.
+**Estado em 04/11/2026 (mudança de rota):** o domínio oficial `prospectra.argusprime.com.br` é servido pelo
+**Worker `prospectra`** (OpenNext), com a VPS mantida como *rollback* e como host dos serviços auxiliares
+(gateway WA-AKG, Voice Studio, executor de voz, cron).
+
+### 1.4 Como o domínio foi apontado ao Worker (e como voltar atrás)
+
+A Cloudflare **recusa** `POST /accounts/{id}/workers/domains` (custom domain) para token de API e para o
+OAuth do `cf` — erro `10405 Method not allowed for this authentication scheme`. O caminho que funciona é a
+**rota de Worker na zona** (a mesma do painel: *Zone → Workers Routes*), via API:
+
+```bash
+# rota do app (criada em 04/11/2026)
+POST https://api.cloudflare.com/client/v4/zones/805c548e0891f14c4fa73d78416ea3d1/workers/routes
+Authorization: Bearer $CLOUDFLARE_API_TOKEN
+{"pattern":"prospectra.argusprime.com.br/*","script":"prospectra"}
+
+# listar rotas
+GET  .../zones/{zone_id}/workers/routes
+```
+
+O registro DNS do domínio (`AAAA` → IPv6 da VPS, `proxied: true`) **não precisa mudar**: a rota intercepta
+na borda antes da origem.
+
+**Rollback (voltar a VPS em ~1 minuto):** apagar a rota e o tráfego volta ao registro `AAAA` → nginx → VPS.
+
+```bash
+DELETE https://api.cloudflare.com/client/v4/zones/{zone_id}/workers/routes/{route_id}
+# route_id da rota do app: 4fa6ce062101469f9502b51a11c5ae67
+```
+
+> A rota `prospectra.argusprime.com.br/whatsapp-gateway/*` → Worker `prospectra-wa-gateway-bridge` é
+> **independente** e não deve ser removida no rollback.
+
+### 1.5 Notas do runtime no Cloudflare Workers (armadilhas resolvidas)
+
+| Sintoma | Causa | Correção no código |
+|---|---|---|
+| `500` / "your Worker's code had hung" em toda rota que toca o banco | O driver do Neon **não abre a conexão** no runtime do Worker: sem `connect()` explícito a primeira consulta fica pendurada para sempre | `src/db/index.ts`: `await client.connect()` antes de devolver o `db` |
+| `database: "error"` no `/api/health` | O secret `NEON_DATABASE_URL` foi gravado **com aspas literais** (`NEON_DATABASE_URL="postgresql://…"`) — o `wrangler secret bulk` **não** remove aspas | Gravar o valor **sem aspas** no arquivo `.vars` |
+| Falha de autenticação no Neon | `channel_binding=require` no pooler (PgBouncer não suporta SCRAM channel binding) | Remover `&channel_binding=require` da URL do Worker (a URL da VPS pode manter) |
+| `Cannot perform I/O on behalf of a different request` | Cliente do banco reaproveitado entre requests | `getDb()` cria o client **por request** no Worker (`isCloudflareWorker()`) |
+| `relation "users" does not exist` / queries quebradas | Hyperdrive antigo apontando para o banco errado | Hyperdrive **removido** do `wrangler.jsonc`; o Worker usa `NEON_DATABASE_URL` (host direto ou pooler, sem `-pooler` obrigatoriedade) |
+
+**Comandos do ciclo do Worker:**
+
+```bash
+export CLOUDFLARE_API_TOKEN=$(cat /tmp/cf-token.txt)      # token "prospectra-mavis" (1 ano)
+export CLOUDFLARE_ACCOUNT_ID=60c66733d34a8cc5584b44d799b756f4
+export PATH=/tmp/shim:$PATH                              # shim de pnpm (o sandbox não tem pnpm no PATH)
+
+cd /workspace/prospectra-plus
+./node_modules/.bin/opennextjs-cloudflare build           # gera .open-next/
+./node_modules/.bin/wrangler deploy                       # publica
+./node_modules/.bin/wrangler secret bulk /tmp/ws-final.vars  # segredos (sem aspas!)
+./node_modules/.bin/wrangler tail prospectra --format pretty  # logs do runtime
+```
 
 ---
 
