@@ -6,10 +6,15 @@ import {sendWhatsAppCommand} from '@/lib/whatsapp/commands';
 import type {Scope} from '@/lib/whatsapp/akg';
 const inputSchema=z.object({id:z.string().uuid(),recipient:z.string().trim().regex(/^\+?[1-9]\d{7,14}$/),text:z.string().trim().min(1).max(2000),kind:z.enum(['audio','call'])});
 
-async function authorize(db:DB,scope:Scope){
+/**
+ * `allowDemo` libera a DEMONSTRACAO apenas para o cadastro da voz (gravar e
+ * clonar a propria voz): o envio continua bloqueado - nada e gerado nem
+ * entregue na operacao de demonstracao.
+ */
+async function authorize(db:DB,scope:Scope,opts:{allowDemo?:boolean}={}){
  const [user]=await db.select().from(schema.users).where(eq(schema.users.id,scope.userId));
  const [membership]=await db.select({org:schema.orgs,role:schema.memberships.role}).from(schema.orgs).leftJoin(schema.memberships,and(eq(schema.memberships.orgId,schema.orgs.id),eq(schema.memberships.userId,scope.userId))).where(eq(schema.orgs.id,scope.orgId));
- if(!user||user.status!=='active'||!membership?.org.active||!membership.org.aiEnabled||membership.org.isDemo||(!membership.role&&user.platformRole!=='admin'))throw Error('Voz automática indisponível nesta operação.');
+ if(!user||user.status!=='active'||!membership?.org.active||!membership.org.aiEnabled||(!opts.allowDemo&&membership.org.isDemo)||(!membership.role&&user.platformRole!=='admin'))throw Error('Voz automática indisponível nesta operação.');
  return user;
 }
 export async function authorizedVoiceProfile(db:DB,scope:Scope){
@@ -21,7 +26,7 @@ export async function authorizedVoiceProfile(db:DB,scope:Scope){
 export async function claimVoiceRegistration(db:DB,scope:Scope){
  return db.transaction(async tx=>{
   await tx.select().from(schema.users).where(eq(schema.users.id,scope.userId)).for('update');
-  await authorize(tx as unknown as DB,scope);
+  await authorize(tx as unknown as DB,scope,{allowDemo:true});
   const today=new Date();today.setUTCHours(0,0,0,0);
   const [count]=await tx.select({n:sql<number>`count(*)::int`}).from(schema.voiceRegistrations).where(and(eq(schema.voiceRegistrations.userId,scope.userId),gte(schema.voiceRegistrations.createdAt,today)));
   if(count.n>=5)throw Error('Limite diário de cadastro de voz atingido.');
@@ -32,7 +37,7 @@ export async function claimVoiceRegistration(db:DB,scope:Scope){
 export async function saveVoiceProfile(db:DB,scope:Scope,externalId:string,engine:string,consent:boolean){
  if(consent!==true)throw Error('Autorização de voz necessária.');
  z.string().regex(/^[a-f0-9]{8}$/).parse(externalId);z.string().trim().min(1).max(100).parse(engine);
- await authorize(db,scope);
+ await authorize(db,scope,{allowDemo:true});
  await db.insert(schema.voiceProfiles).values({...scope,externalId,engine,consentAt:new Date()}).onConflictDoUpdate({target:[schema.voiceProfiles.orgId,schema.voiceProfiles.userId],set:{externalId,engine,enabled:true,consentAt:new Date()}});
 }
 export async function queueVoiceDelivery(db:DB,scope:Scope,input:unknown){
@@ -68,7 +73,7 @@ export async function executeVoiceDelivery(db:DB,id:string,scope:Scope,voice:Voi
  await db.update(schema.voiceJobs).set({state}).where(eq(schema.voiceJobs.id,id));
  return state;
 }
-export async function listVoiceJobs(db:DB,scope:Scope){
- await authorize(db,scope);
+export async function listVoiceJobs(db:DB,scope:Scope,opts:{allowDemo?:boolean}={}){
+ await authorize(db,scope,opts);
  return db.select().from(schema.voiceJobs).where(and(eq(schema.voiceJobs.orgId,scope.orgId),eq(schema.voiceJobs.userId,scope.userId))).orderBy(desc(schema.voiceJobs.createdAt)).limit(20);
 }
