@@ -17,6 +17,7 @@ import { WhatsAppMark } from '@/components/whatsapp-mark';
 import { chooseEnvAction, resetDemoAction } from '@/app/(app)/actions';
 import { logoutAction } from '@/app/(auth)/actions';
 import { loadAmbiente, type EnvInfo, type IntegrationState } from './_ambiente-data';
+import { GuardaSessao } from '@/components/guarda-sessao';
 
 export const metadata = { title: 'Escolha o ambiente' };
 
@@ -35,6 +36,7 @@ export default async function AmbientePage() {
 
   return (
     <main className="flex min-h-dvh flex-col bg-[#050a16] text-white">
+      <GuardaSessao />
       <header className="ambiente-header px-5 py-6 sm:px-8">
         {/* Movimento ao fundo (mesmo video ambiente do login) so no header. */}
         <AmbientVideo className="ambiente-header-video" />

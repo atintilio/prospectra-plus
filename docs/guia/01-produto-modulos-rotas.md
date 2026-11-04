@@ -34,6 +34,11 @@ O **Prospectra+** é o CRM de prospecção da Argus Prime: um painel multi-parce
 
 Tudo começa em `src/lib/auth.ts`. Cookie `prospectra_session` (httpOnly, 14 dias), token guardado como `sha256(token)` em `sessions`.
 
+**Expiração por inatividade (15 minutos).** A sessão não expira sozinha: enquanto a pessoa usa, o navegador manda uma
+"batida" (`touchSessionAction`) que renova a validade; sem batida por 15 minutos (`SESSION_IDLE_MINUTES`), a sessão
+expira no servidor e o próximo acesso volta para o login. O cliente também avisa 2 minutos antes e, no fim, destrói
+a sessão (`GuardaSessao`, `src/lib/session-idle.ts`).
+
 | Função | Comportamento | Quem cai fora |
 |---|---|---|
 | `getCtx()` | Lê sessão + usuário + org + papel. `cache()` do React, então é chamado várias vezes por request sem custo extra. | — |

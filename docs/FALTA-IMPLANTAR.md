@@ -223,6 +223,7 @@ execução; cada item só entra em desenvolvimento depois de fechado o escopo.
 | # | Item | Situação real hoje | O que precisa ser fechado antes de codar |
 |---|------|--------------------|--------------------------------------------|
 | F1 | **Módulo de fluxos arrastáveis** (flow builder) | **ENTREGUE (02/11)** — `/fluxos` (lista) e `/fluxos/[id]` (construtor com paleta, arraste nativo, configuração por bloco e dia acumulado), vínculo campanha↔fluxo no editor de campanha, tabelas `flows`/`flow_steps` + `campaigns.flow_id` (migration `0026_fluxos.sql`), gate nas mesmas 3 camadas, demo semeando 2 fluxos. **Sem motor novo**: o motor de cadência existente executa o fluxo (`src/lib/flows/resolve.ts`). Doc: `docs/FLUXOS.md` | — |
+| F4 | **Timeout de sessao por inatividade** | **ENTREGUE (04/11)** — 15 minutos sem uso encerram o Prospectra: o navegador manda a "batida" que renova a sessao, avisa 2 minutos antes e, no fim, destroi a sessao no servidor (banco + cookie) e volta para o login. Configuravel em `SESSION_IDLE_MINUTES`. `src/lib/session-idle.ts`, `src/components/guarda-sessao.tsx` | — |
 | F2 | **Editor visual do fluxo de LinkedIn** | Depende de F1 | herda as decisões de F1 |
 | F3 | **Fluxo entre operações** (reutilizar um modelo de fluxo em várias campanhas/operações) | Depende de F1 | modelo de dados (`flow_templates`?) — fora do escopo da fase 1 do PRD |
 

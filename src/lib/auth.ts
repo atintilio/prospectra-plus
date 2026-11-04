@@ -5,9 +5,22 @@ import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { getDb, schema } from '@/db';
 import { newToken, sha256 } from './crypto';
+import { minutosInatividade } from './session-idle';
 
 const COOKIE = 'prospectra_session';
 const SESSION_DAYS = 14;
+
+/**
+ * Tempo de inatividade que encerra a sessao (padrao: 15 minutos).
+ *
+ * A sessao NAO expira sozinha no servidor: quem usa mantem viva pela
+ * "batida" (heartbeat) que o navegador envia a cada atividade. Se a pessoa
+ * ficar 15 minutos sem mexer, a batida para, a sessao expira e o proximo
+ * acesso volta para o login. Configuravel por `SESSION_IDLE_MINUTES`.
+ */
+export function sessionIdleMinutes(): number {
+  return minutosInatividade(process.env.SESSION_IDLE_MINUTES);
+}
 
 export type Role = 'owner' | 'manager' | 'sdr' | 'closer';
 export type Ctx = {
@@ -29,10 +42,19 @@ export function isMasterEmail(email: string): boolean {
 export async function createSession(userId: string, orgId: string | null): Promise<void> {
   const db = await getDb();
   const token = newToken();
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400_000);
+  // A sessao vale enquanto a pessoa usar; o prazo e de INATIVIDADE.
+  const expiresAt = new Date(Date.now() + sessionIdleMinutes() * 60_000);
   await db.insert(schema.sessions).values({ id: sha256(token), userId, orgId, expiresAt });
   const jar = await cookies();
-  jar.set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', expires: expiresAt });
+  jar.set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', expires: new Date(Date.now() + SESSION_DAYS * 86400_000) });
+}
+
+/** Renova a sessao: a pessoa continua usando, entao a validade anda. */
+export async function touchSession(sessionId: string): Promise<void> {
+  const db = await getDb();
+  await db.update(schema.sessions)
+    .set({ expiresAt: new Date(Date.now() + sessionIdleMinutes() * 60_000) })
+    .where(eq(schema.sessions.id, sessionId));
 }
 
 export async function destroySession(): Promise<void> {
@@ -56,6 +78,11 @@ export const getCtx = cache(async (): Promise<Ctx | null> => {
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
     .where(and(eq(schema.sessions.id, sha256(token)), gt(schema.sessions.expiresAt, new Date())));
   if (!row || row.user.status !== 'active') return null;
+  // Renova a validade enquanto a pessoa usa (1 gravacao a cada ~5 minutos).
+  const idleMs = sessionIdleMinutes() * 60_000;
+  if (row.session.expiresAt.getTime() - Date.now() < idleMs * 0.66) {
+    void touchSession(row.session.id).catch(() => undefined);
+  }
   let org: Ctx['org'] = null;
   let role: Role | null = null;
   if (row.session.orgId) {

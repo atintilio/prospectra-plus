@@ -16,6 +16,7 @@
   },
   "vars": {
     "MASTER_USER_EMAIL": "atintilio@argusprime.com.br",
+    "SESSION_IDLE_MINUTES": "15",
     "PUBLIC_APP_URL": "https://prospectra.argusprime.com.br",
     "AGENDA_PUBLIC_URL": "https://agenda.argusprime.com.br",
     "WA_AKG_BASE_URL": "https://wa.argusprime.com.br/whatsapp-gateway",

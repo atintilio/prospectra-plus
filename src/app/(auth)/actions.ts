@@ -3,7 +3,7 @@
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getDb, schema } from '@/db';
-import { createSession, destroySession, isMasterEmail, issueAccessLink, normalizeEmail } from '@/lib/auth';
+import { createSession, destroySession, isMasterEmail, issueAccessLink, normalizeEmail, requireUser, touchSession } from '@/lib/auth';
 import { hashPassword, sha256, verifyPassword } from '@/lib/crypto';
 import { sendAccessEmail } from '@/lib/mailer';
 import { findLegacyUser } from '@/lib/legacy';
@@ -116,5 +116,11 @@ export async function setPasswordAction(_: FormState, form: FormData): Promise<F
 export async function logoutAction() {
   await destroySession();
   redirect('/login');
+}
+
+/** Batida: renova a sessao enquanto a pessoa usa o Prospectra. */
+export async function touchSessionAction(): Promise<void> {
+  const ctx = await requireUser();
+  await touchSession(ctx.sessionId);
 }
 

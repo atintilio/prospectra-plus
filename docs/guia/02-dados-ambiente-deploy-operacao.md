@@ -374,6 +374,30 @@ node /opt/prospectra-plus-current/infra/prospectra/backup-data.mjs
 > **por request** (`isCloudflareWorker()` → `create()`), porque o runtime do Workers proíbe reutilizar I/O entre
 > requests (`Cannot perform I/O on behalf of a different request`). No Node/VPS o singleton continua correto.
 
+### 2.7 Leitura em paralelo: `getReadDb()` (o que faz a tela carregar rápido)
+
+O driver WebSocket do Neon mantém **uma sessão**: várias leituras disparadas juntas (`Promise.all`) ficam **na fila
+da mesma conexão**, e o tempo da tela vira a soma de todas. Medido na VPS com 5 consultas:
+
+| Driver | 1 consulta | 5 consultas em `Promise.all` |
+|---|---|---|
+| WebSocket (`neon-serverless`) | 216 ms (depois de 682 ms de conexão) | 1035 ms (serializa) |
+| HTTP (`neon-http`) | 771 ms (nova conexão por consulta) | **777 ms (paralelo de verdade)** |
+
+Por isso existe `getReadDb()` (`src/db/index.ts`): as telas de leitura usam o driver **HTTP**, que faz uma requisição
+por consulta e roda várias em paralelo, sem o custo de "conectar" a cada request.
+
+| Regra | Detalhe |
+|---|---|
+| `getDb()` | driver com **transação** — caminhos que gravam (server actions, cron, scheduler, voz, LinkedIn). |
+| `getReadDb()` | driver **HTTP** — telas e consultas de leitura. **Não suporta transação.** |
+| URL do driver HTTP | o endpoint **direto** do Neon (sem `-pooler`), porque o pooler só fala WebSocket; e sem `channel_binding=require` (SCRAM), que quebra o handshake HTTP. |
+| Rede de segurança | se o endpoint HTTP não responder, `getReadDb()` cai no driver WebSocket (mais lento, mas correto). |
+| `runScheduler` | grava (cria ações) → continua no driver com transação, fora de qualquer `Promise.all`. |
+
+Regra prática ao mexer numa tela: **consultas independentes no mesmo `Promise.all`**; consultas encadeadas continuam
+encadeadas. E nunca troque `getReadDb()` por `getDb()` só por "uniformizar" — o driver HTTP não tem transação.
+
 ---
 
 ## 3. Variáveis de ambiente
@@ -390,6 +414,7 @@ nenhuma** `NEXT_PUBLIC_*` (o prefixo só aparece no cal.diy legado, `infra/agend
 | `NEON_DATABASE_URL` | URL do Postgres **no Worker** (secret text) | `src/db/index.ts:32` | **secret** | Secret do Worker `prospectra` |
 | `CRON_SECRET` | Bearer de `GET /api/cron` e `GET /api/harvey/tick` | `src/app/api/cron/route.ts:18`, `src/app/api/harvey/tick/route.ts:7`, `infra/prospectra/scripts/prospectra-plus-cron-trigger.py`, `infra/prospectra/scripts/prospectra-harvey-recovery.py` | **secret** | `app.env` **+** `harvey-worker.env` **+** `cron.env` (mesmo valor nos três) |
 | `PUBLIC_APP_URL` | URL pública do app (cookie, links, webhook) | `src/lib/auth.ts:121`, `src/lib/agenda-notify.ts:113`, `src/app/(app)/whatsapp/actions.ts:20`, `infra/prospectra/scripts/prospectra-harvey-recovery.py` | plain | `app.env` · `harvey-worker.env` · `vars` do `wrangler.jsonc` |
+| `SESSION_IDLE_MINUTES` | Minutos de inatividade que encerram a sessão (default 15) | `src/lib/session-idle.ts`, `src/lib/auth.ts` | plain | `app.env` · `vars` do `wrangler.jsonc` |
 | `MASTER_USER_EMAIL` | Admin master protegido | `src/lib/auth.ts:25`, `src/lib/admin-policy.ts:4`, `src/lib/mailer.ts`, `scripts/migrate.mjs:61`, `scripts/user-sync.mjs` | plain | `app.env` · `vars` do `wrangler.jsonc` |
 | `AI_API_KEY` | Chave do provedor de IA (preferida) | `src/lib/ai.ts:26` | **secret** | `app.env` · secret do Worker |
 | `OPENROUTER_API_KEY` | Chave do provedor (fallback de `AI_API_KEY`) | `src/lib/ai.ts:26` | **secret** | `app.env` · painel da Vercel |

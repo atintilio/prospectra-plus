@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/auth';
 import { Sidebar } from '@/components/sidebar';
 import { OrgSwitcher } from '@/components/org-switcher';
 import { AmbientVideo } from '@/components/ambient-video';
+import { GuardaSessao } from '@/components/guarda-sessao';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireUser();
@@ -24,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="prospectra-ambient-scrim" aria-hidden="true" />
       <Sidebar isDemo={isDemo} isAdmin={ctx.user.platformRole === 'admin'} canManage={ctx.role === 'owner' || ctx.role === 'manager'} />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <GuardaSessao />
         <header className="prospectra-topbar sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b px-4 md:px-8">
           <div className="md:hidden" />
           <div><OrgSwitcher orgs={orgs} current={ctx.org?.id ?? null} /></div>
