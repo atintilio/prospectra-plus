@@ -83,9 +83,16 @@ describe('tela do construtor de fluxo', () => {
     }));
     expect(markup).toContain('Abertura quente');
     expect(markup).toContain('Reagir ao post');
-    expect(markup).toContain('Dia 3');
+    // Visao geral (leitura horizontal) + canvas arrastavel + paleta arrastavel
+    expect(markup).toContain('Visão geral');
+    expect(markup).toContain('Sequência');
+    expect(markup).toContain('Blocos disponíveis');
+    expect(markup).toContain('dia 3');
     expect(markup).toContain('Travados na operação');
-    expect(markup).toContain('Convite');
+    expect(markup).toContain('LinkedIn · convite');
+    // A alça do bloco e os blocos da paleta sao arrastaveis (HTML5 nativo, sem lib).
+    expect(markup).toContain('draggable="true"');
+    expect(markup).toContain('Arrastar Reagir ao post');
   });
 });
 
