@@ -213,7 +213,7 @@ export async function buildSupportReport(db: DB, orgId: string, options: Support
       )).groupBy(schema.supportMessages.conversationId)
     : [];
   const firstReplyAt = new Map<string, Date>();
-  for (const row of firstReplies) firstReplyAt.set(row.conversationId, row.at);
+  for (const row of firstReplies) if (row.at) firstReplyAt.set(row.conversationId, row.at);
 
   // Quantas respostas cada agente deu no período.
   const repliesByAgent = ids.length

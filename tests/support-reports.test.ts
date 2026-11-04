@@ -25,9 +25,9 @@ describe('relatório de atendimento', () => {
       resolvedAt: new Date('2026-10-10T12:40:00Z'),
     }).returning();
     await db.insert(schema.supportMessages).values([
-      { orgId: org.id, conversationId: conv.id, author: 'customer', body: 'Olá', private: false, createdAt: new Date('2026-10-10T12:01:00Z') },
-      { orgId: org.id, conversationId: conv.id, author: 'agent', authorUserId: user.id, body: 'Resposta', private: false, createdAt: new Date('2026-10-10T12:05:00Z') },
-      { orgId: org.id, conversationId: conv.id, author: 'agent', authorUserId: user.id, body: 'Nota interna', private: true, createdAt: new Date('2026-10-10T12:02:00Z') },
+      { conversationId: conv.id, author: 'visitor' as const, authorUserId: null, body: 'Olá', private: false, createdAt: new Date('2026-10-10T12:01:00Z') },
+      { conversationId: conv.id, author: 'agent' as const, authorUserId: user.id, body: 'Resposta', private: false, createdAt: new Date('2026-10-10T12:05:00Z') },
+      { conversationId: conv.id, author: 'agent' as const, authorUserId: user.id, body: 'Nota interna', private: true, createdAt: new Date('2026-10-10T12:02:00Z') },
     ]);
 
     const report = await buildSupportReport(db, org.id, { now: new Date('2026-10-11T12:00:00Z') });
@@ -58,7 +58,7 @@ describe('relatório de atendimento', () => {
       createdAt: new Date('2026-10-10T12:00:00Z'),
     }).returning();
     await db.insert(schema.supportMessages).values({
-      orgId: org.id, conversationId: conv.id, author: 'agent', authorUserId: user.id, body: 'oi', private: false,
+      conversationId: conv.id, author: 'agent', authorUserId: user.id, body: 'oi', private: false,
       createdAt: new Date('2026-10-10T12:05:00Z'),
     });
     const rows = await db.select({
