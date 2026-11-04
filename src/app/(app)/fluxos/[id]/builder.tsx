@@ -145,7 +145,9 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
 
   /** Início do arraste: guarda a carga (mover ou bloco novo). */
   function startDrag(e: React.DragEvent, carga: Carga) {
-    e.dataTransfer.effectAllowed = carga.tipo === 'mover' ? 'move' : 'copy';
+    // 'copyMove' libera as duas operacoes: o navegador so aceita a solta se o
+    // `dropEffect` do alvo estiver permitido pelo `effectAllowed` da origem.
+    e.dataTransfer.effectAllowed = 'copyMove';
     try {
       e.dataTransfer.setData('text/plain', JSON.stringify(carga));
     } catch {
@@ -489,12 +491,13 @@ function Vao({
       data-gap={index}
       onDragOver={(e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        const permitido = e.dataTransfer.effectAllowed;
+        e.dataTransfer.dropEffect = permitido.includes('copy') && !permitido.includes('move') ? 'copy' : 'move';
         onHot(index);
       }}
       onDragLeave={() => onHot(null)}
       onDrop={(e) => onDrop(index, e)}
-      className={`my-1 h-2.5 rounded-full transition ${hot ? 'bg-accent/20 ring-1 ring-accent/40' : ''}`}
+      className={`my-1 h-4 rounded-full transition ${hot ? 'bg-accent/20 ring-1 ring-accent/40' : ''}`}
       aria-hidden="true"
     />
   );
