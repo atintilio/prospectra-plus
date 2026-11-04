@@ -34,17 +34,29 @@ rascunho e abre o construtor.
 
 ### `/fluxos/[id]` — o construtor
 
-Três colunas (empilhadas no celular):
+O mesmo padrão do protótipo aprovado (ver `docs/PRD-2026-11-02-FLUXO-NATIVO.md` §"Protótipo"):
 
-- **Esquerda — Blocos:** a paleta com os blocos liberados na operação. Clique
-  para adicionar ao final da sequência. Os blocos **travados** na operação
+- **Cabeçalho — nome, situação e Salvar.**
+- **Visão geral:** a **leitura horizontal do fluxo inteiro**: cada etapa como
+  uma ficha (canal + ícone, número, nome e **dia acumulado**), ligada por
+  setas, com o total de etapas e o dia em que o fluxo termina. Clicar numa
+  ficha seleciona o bloco. É o que dá a visão de conjunto para um humano.
+- **Blocos disponíveis:** a paleta com os blocos liberados na operação
+  (LinkedIn reagir/comentar/convidar/mensagem, e-mail, WhatsApp texto/voz/
+  imagem/ligação). **Arrastar** um bloco para a sequência insere na posição
+  desejada; **clicar** adiciona ao final. Os blocos **travados** na operação
   aparecem abaixo, com cadeado, e explicam por quê.
-- **Centro — a sequência:** a lista vertical de blocos. Cada bloco mostra o
-  ícone, o nome, o **dia acumulado** (soma das esperas), a condição e se usa IA.
-  Arraste pelo punho para reordenar; ou use as setas. Há botão de **duplicar**,
-  **remover** e **configurar**.
-- **Direita — Configurar bloco:** nome, espera em dias, condição (sempre / se
+- **Sequência:** os blocos em ordem, cada um com o punho de arraste, o número,
+  o ícone, o nome, o canal, o **dia acumulado** e a espera. Há vão entre os
+  blocos: solte ali para inserir na posição. Arraste pelo punho para
+  reordenar; ou use as setas. Há botão de **duplicar** e **remover**.
+- **Configurar bloco (à direita):** nome, espera em dias, condição (sempre / se
   aceitar), texto, IA, assunto do e-mail e link da mídia.
+
+O arraste é **HTML5 nativo** (sem biblioteca): a origem libera `copyMove` e o
+vão de solta escolhe um `dropEffect` compatível — sem isso o navegador
+rejeita a solta e o bloco nunca entra. Os botões de subir/descer continuam
+existindo (acessibilidade por teclado).
 
 O botão **Salvar** grava nome, situação e a sequência inteira de uma vez
 (transação: apaga as etapas do fluxo e regrava na ordem enviada).
@@ -112,8 +124,9 @@ de outra operação não aparece, não vincula e não executa.
 ## 6. Como usar (passo a passo)
 
 1. **Fluxos → Novo fluxo** → dê um nome.
-2. Monte a sequência na coluna do meio: clique nos blocos da paleta, configure
-   o texto de cada um, arraste para a ordem que quiser.
+2. Monte a sequência: arraste os blocos da paleta para a posição desejada (ou
+   clique para adicionar ao final), configure o texto de cada um e arraste o
+   punho para reordenar. A faixa de **visão geral** mostra o fluxo inteiro.
 3. **Salvar**.
 4. **Campanhas → (campanha) → Fluxo da operação → Vincular fluxo**.
 5. Inscreva os leads e pronto: a cadência usa as etapas do fluxo.
@@ -122,7 +135,9 @@ de outra operação não aparece, não vincula e não executa.
 
 ## 7. O que **não** existe (de propósito)
 
-- Canvas livre de nós com conexões: a fase 1 é **lista vertical de blocos**.
+- Canvas livre de nós com conexões (sem grafo, sem ramificação): o construtor é
+  **uma sequência de blocos com visão geral horizontal** — não um canvas de
+  nós conectados.
 - Gatilhos, ramificações, esperas condicionais, múltiplos caminhos.
 - Fluxo compartilhado entre operações (F3 da fila) e editor visual do fluxo de
   LinkedIn (F2 da fila).
