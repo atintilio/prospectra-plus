@@ -61,6 +61,10 @@ async function create(): Promise<DB> {
     // No runtime do Worker o WebSocket global e o unico transporte possivel.
     neonConfig.webSocketConstructor = WebSocket;
     const client = new Client(url);
+    // O driver do Neon nao abre a conexao sozinha no Worker: sem este
+    // `connect()` explicito a primeira consulta fica pendurada para sempre
+    // (o runtime cancela o request com "your Worker's code had hung").
+    await client.connect();
     return drizzleNeon(client, { schema }) as unknown as DB;
   }
 
