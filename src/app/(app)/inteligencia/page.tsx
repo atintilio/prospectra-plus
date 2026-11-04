@@ -29,13 +29,9 @@ export default async function IntelligencePage() {
   const review=await db.select().from(schema.harveyInboundJobs).where(and(eq(schema.harveyInboundJobs.orgId,ctx.org.id),eq(schema.harveyInboundJobs.userId,ctx.user.id),eq(schema.harveyInboundJobs.state,'review'))).orderBy(desc(schema.harveyInboundJobs.createdAt)).limit(20);
   return <>
     <PageHeader title="Inteligência comercial" subtitle="Prepare conversas com a sua estratégia, ofertas e identidade de vendedor." />
-    {review.length>0&&<details className="card p-4 mb-5"><summary>Mensagens que exigem conferência ({review.length})</summary><ul>{review.map(r=><li className="mt-3 text-sm" key={r.id}><p>{r.error}</p><p>{r.phone} · {r.text}</p></li>)}</ul></details>}
-    <HarveyOperations profile={profile??null} leads={commercialLeads} sellerName={ctx.user.name} enabled={ctx.org.aiEnabled} conversations={conversations.map(c=>({...c,leadName:leads.find(l=>l.id===c.leadId)?.fullName??'Lead da carteira',pending:outbox.filter(o=>o.conversationId===c.id&&o.state==='pending').length,unknown:outbox.filter(o=>o.conversationId===c.id&&['unknown','processing'].includes(o.state)).length}))}/>
-    <details className="mb-6"><summary className="cursor-pointer mb-4">Preparar rascunho avulso para revisão</summary><IntelligenceView leads={leads} sellerName={ctx.user.name} enabled={ctx.org.aiEnabled && aiConfigured()} demo={ctx.org.isDemo}
-      status={!ctx.org.aiEnabled ? 'A IA está desligada nesta operação.' : !aiConfigured() ? 'O provedor de IA ainda não está configurado.' : 'IA disponível para gerar rascunhos sob revisão.'} /></details>
-    <section className="card mt-6 space-y-4 p-5" aria-labelledby="analysis-title">
-      <h2 id="analysis-title" className="text-lg font-semibold">Qualidade e completude dos dados</h2>
-      <p className="text-sm">Leitura de 0 a 100 dos dados que você já tem no CRM, com a IA como cérebro quando ela está disponível. A análise entra na fila e o resultado sai em ciclos de poucos minutos. A prioridade comercial depende de dados de contato e fontes adicionais; esta análise não confirma intenção de compra, e-mail ou telefone.</p>
+    <section className="card mb-6 space-y-4 p-5" aria-labelledby="analysis-title">
+      <h2 id="analysis-title" className="text-lg font-semibold">Insight dos sinais públicos — qualidade e completude dos dados</h2>
+      <p className="text-sm">Leitura de 0 a 100 dos sinais públicos que você já tem no CRM (senioridade do cargo, porte da empresa, completude dos dados, presença digital, risco nas fontes e validação de e-mail), com a IA como cérebro quando ela está disponível. A análise entra na fila e o resultado sai em ciclos de poucos minutos. A prioridade comercial depende de dados de contato e fontes adicionais; esta análise não confirma intenção de compra, e-mail ou telefone.</p>
       <AnalysisForm leads={leads} enabled={ctx.org.isDemo||process.env.INTELLIGENCE_WORKER_ENABLED==='true'} commandId={crypto.randomUUID()}/>
       {analyses.length>0&&<ul className="space-y-2">{analyses.map(job=><li key={job.id} className="rounded-lg border p-3 text-sm">
         <strong>{leads.find(lead=>lead.id===job.leadId)?.fullName??'Lead indisponível'}</strong>{' — '}
@@ -43,5 +39,9 @@ export default async function IntelligencePage() {
         {job.result&&<details><summary>Fatores da pontuação</summary><ul>{Object.entries(job.result.factors).map(([factor,value])=><li key={factor}>{factorNames[factor]??factor}: {job.result?.unavailableFactors?.includes(factor)?'Dado indisponível':value}</li>)}</ul></details>}
       </li>)}</ul>}
     </section>
+    {review.length>0&&<details className="card p-4 mb-5"><summary>Mensagens que exigem conferência ({review.length})</summary><ul>{review.map(r=><li className="mt-3 text-sm" key={r.id}><p>{r.error}</p><p>{r.phone} · {r.text}</p></li>)}</ul></details>}
+    <HarveyOperations profile={profile??null} leads={commercialLeads} sellerName={ctx.user.name} enabled={ctx.org.aiEnabled} conversations={conversations.map(c=>({...c,leadName:leads.find(l=>l.id===c.leadId)?.fullName??'Lead da carteira',pending:outbox.filter(o=>o.conversationId===c.id&&o.state==='pending').length,unknown:outbox.filter(o=>o.conversationId===c.id&&['unknown','processing'].includes(o.state)).length}))}/>
+    <details className="mb-6"><summary className="cursor-pointer mb-4">Preparar rascunho avulso para revisão</summary><IntelligenceView leads={leads} sellerName={ctx.user.name} enabled={ctx.org.aiEnabled && aiConfigured()} demo={ctx.org.isDemo}
+      status={!ctx.org.aiEnabled ? 'A IA está desligada nesta operação.' : !aiConfigured() ? 'O provedor de IA ainda não está configurado.' : 'IA disponível para gerar rascunhos sob revisão.'} /></details>
   </>;
 }
