@@ -30,16 +30,46 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
       .where(and(scope(schema.events), gte(schema.events.at, start), lt(schema.events.at, end))).groupBy(schema.events.type);
     return Object.fromEntries(rows.map((r) => [r.type, r.n])) as Record<string, number>;
   };
-  const [cur, prev] = await Promise.all([counts(from, now), counts(prevFrom, from)]);
+  const tz = 'America/Sao_Paulo';
+  const teamQuery = db.select({
+    name: schema.users.name, email: schema.users.email,
+    invites: sql<number>`count(*) filter (where ${schema.events.type} = 'invite_sent')`.mapWith(Number),
+    replies: sql<number>`count(*) filter (where ${schema.events.type} = 'reply_received')`.mapWith(Number),
+    meetings: sql<number>`count(*) filter (where ${schema.events.type} = 'meeting_booked')`.mapWith(Number),
+  }).from(schema.events).innerJoin(schema.users, eq(schema.users.id, schema.events.userId))
+    .where(and(eq(schema.events.orgId, ctx.org.id), gte(schema.events.at, from)))
+    .groupBy(schema.users.id).orderBy(desc(sql`4`)).limit(8);
+
+  // Todas as leituras abaixo sao independentes entre si. Disparadas juntas, o driver
+  // HTTP do Neon executa uma requisicao por consulta em paralelo de verdade.
+  const [cur, prev, daily, stageRows, pendingRows, recent, team] = await Promise.all([
+    counts(from, now),
+    counts(prevFrom, from),
+    // série diária
+    db.select({ d: sql<string>`to_char(${schema.events.at} at time zone ${tz}, 'YYYY-MM-DD')`, type: schema.events.type, n: count() })
+      .from(schema.events).where(and(scope(schema.events), gte(schema.events.at, from), sql`${schema.events.type} in ('invite_sent','message_sent')`))
+      .groupBy(sql`1`, schema.events.type),
+    // funil
+    db.select({ stage: schema.leads.stage, n: count() }).from(schema.leads)
+      .where(manager ? eq(schema.leads.orgId, ctx.org.id) : and(eq(schema.leads.orgId, ctx.org.id), eq(schema.leads.ownerId, ctx.user.id)))
+      .groupBy(schema.leads.stage),
+    // ações pendentes
+    db.select({ pending: count() }).from(schema.actions)
+      .where(and(eq(schema.actions.orgId, ctx.org.id), eq(schema.actions.userId, ctx.user.id), eq(schema.actions.status, 'pending'))),
+    // sinais recentes
+    db.select({ e: schema.events, lead: schema.leads }).from(schema.events)
+      .innerJoin(schema.leads, eq(schema.leads.id, schema.events.leadId))
+      .where(and(scope(schema.events), sql`${schema.events.type} in ('invite_accepted','reply_received','meeting_booked','deal_won')`))
+      .orderBy(desc(schema.events.at)).limit(6),
+    // equipe (apenas gestor)
+    manager ? teamQuery : Promise.resolve([] as Awaited<typeof teamQuery>),
+  ]);
+  const [{ pending }] = pendingRows;
+
   const delta = (k: string) => (prev[k] ? Math.round((((cur[k] ?? 0) - prev[k]) / prev[k]) * 100) : null);
   const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
   const invites = cur.invite_sent ?? 0, accepted = cur.invite_accepted ?? 0, replies = cur.reply_received ?? 0, msgs = cur.message_sent ?? 0;
 
-  // série diária
-  const tz = 'America/Sao_Paulo';
-  const daily = await db.select({ d: sql<string>`to_char(${schema.events.at} at time zone ${tz}, 'YYYY-MM-DD')`, type: schema.events.type, n: count() })
-    .from(schema.events).where(and(scope(schema.events), gte(schema.events.at, from), sql`${schema.events.type} in ('invite_sent','message_sent')`))
-    .groupBy(sql`1`, schema.events.type);
   const labels: string[] = [], keys: string[] = [];
   for (let i = Math.min(days, 30) - 1; i >= 0; i--) {
     const d = new Date(now.getTime() - i * 86400_000);
@@ -47,31 +77,10 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
   }
   const val = (k: string, t: string) => daily.find((r) => r.d === k && r.type === t)?.n ?? 0;
 
-  // funil
-  const stageRows = await db.select({ stage: schema.leads.stage, n: count() }).from(schema.leads)
-    .where(manager ? eq(schema.leads.orgId, ctx.org.id) : and(eq(schema.leads.orgId, ctx.org.id), eq(schema.leads.ownerId, ctx.user.id)))
-    .groupBy(schema.leads.stage);
   const st = Object.fromEntries(stageRows.map((r) => [r.stage, r.n])) as Record<string, number>;
   const totalLeads = stageRows.reduce((a, r) => a + r.n, 0);
   const funnel = ['new', 'invited', 'connected', 'replied', 'meeting', 'won'] as const;
   const reached = (i: number) => funnel.slice(i).reduce((a, s) => a + (st[s] ?? 0), 0);
-
-  const [{ pending }] = await db.select({ pending: count() }).from(schema.actions)
-    .where(and(eq(schema.actions.orgId, ctx.org.id), eq(schema.actions.userId, ctx.user.id), eq(schema.actions.status, 'pending')));
-
-  const recent = await db.select({ e: schema.events, lead: schema.leads }).from(schema.events)
-    .innerJoin(schema.leads, eq(schema.leads.id, schema.events.leadId))
-    .where(and(scope(schema.events), sql`${schema.events.type} in ('invite_accepted','reply_received','meeting_booked','deal_won')`))
-    .orderBy(desc(schema.events.at)).limit(6);
-
-  const team = manager ? await db.select({
-    name: schema.users.name, email: schema.users.email,
-    invites: sql<number>`count(*) filter (where ${schema.events.type} = 'invite_sent')`.mapWith(Number),
-    replies: sql<number>`count(*) filter (where ${schema.events.type} = 'reply_received')`.mapWith(Number),
-    meetings: sql<number>`count(*) filter (where ${schema.events.type} = 'meeting_booked')`.mapWith(Number),
-  }).from(schema.events).innerJoin(schema.users, eq(schema.users.id, schema.events.userId))
-    .where(and(eq(schema.events.orgId, ctx.org.id), gte(schema.events.at, from)))
-    .groupBy(schema.users.id).orderBy(desc(sql`4`)).limit(8) : [];
 
   const first = (ctx.user.name || '').split(' ')[0];
   const EVENT_TEXT: Record<string, string> = { invite_accepted: 'aceitou seu convite', reply_received: 'respondeu', meeting_booked: 'marcou reunião', deal_won: 'virou venda' };

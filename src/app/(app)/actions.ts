@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { getDb, schema } from '@/db';
+import { arquivoDoFormulario } from '@/lib/upload';
 import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
@@ -91,9 +92,10 @@ export async function importLeadsAction(_: State, form: FormData): Promise<State
   const urls = String(form.get('urls') ?? '');
   let parsed: ParsedLead[] = [];
   let invalid = 0;
-  if (file instanceof File && file.size > 0) {
-    if (file.size > 5_000_000) return { error: 'Arquivo acima de 5 MB.' };
-    const r = leadsFromCsv(await file.text());
+  const uploaded=arquivoDoFormulario(file);
+  if (uploaded && uploaded.size > 0) {
+    if (uploaded.size > 5_000_000) return { error: 'Arquivo acima de 5 MB.' };
+    const r = leadsFromCsv(await uploaded.text());
     parsed = r.leads; invalid += r.invalid;
   }
   if (urls.trim()) {

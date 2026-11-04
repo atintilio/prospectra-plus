@@ -5,6 +5,7 @@ import {requireOrg} from '@/lib/auth';
 import {getDb,schema} from '@/db';
 import {assertWhatsAppAccess, type Scope} from '@/lib/whatsapp/akg';
 import {VoiceStudioGateway,voiceConfig} from '@/lib/voice/voicestudio';
+import {arquivoDoFormulario} from '@/lib/upload';
 import {queueVoiceDelivery,saveVoiceProfile,claimVoiceRegistration} from '@/lib/voice/delivery';
 type State={message:string};
 
@@ -22,12 +23,12 @@ export async function registerVoiceAction(_:State,form:FormData):Promise<State>{
  try{
   const scope=voiceScope(ctx),config=voiceConfig();
   if(!config||!ctx.org.aiEnabled)throw Error('Voz indisponível.');
-  const reference=form.get('reference');if(!(reference instanceof File))throw Error('Gravação necessária.');
+  const reference=arquivoDoFormulario(form.get('reference'));if(!reference)throw Error('Gravação necessária.');
   await claimVoiceRegistration(await getDb(),scope);
   const result=await new VoiceStudioGateway(config).createProfile({sellerName:ctx.user.name||'Minha voz',reference,transcript:String(form.get('transcript')??''),consent:form.get('voiceConsent')==='on'});
   await saveVoiceProfile(await getDb(),scope,result.profileId,config.engine,true);
   revalidatePath('/whatsapp');return {message:'Sua voz foi cadastrada e vinculada somente à sua conta nesta operação.'};
- }catch{return {message:'Não foi possível cadastrar a voz. Confira a gravação, a transcrição, a autorização e a disponibilidade do serviço.'};}
+ }catch(error){console.error('[voz] falha ao cadastrar a voz:',error instanceof Error?error.message:String(error));return {message:'Não foi possível cadastrar a voz. Confira a gravação, a transcrição, a autorização e a disponibilidade do serviço.'};}
 }
 export async function queueVoiceAction(_:State,form:FormData):Promise<State>{
  const ctx=await requireOrg();

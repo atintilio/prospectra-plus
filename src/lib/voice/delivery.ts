@@ -12,8 +12,11 @@ const inputSchema=z.object({id:z.string().uuid(),recipient:z.string().trim().reg
  * entregue na operacao de demonstracao.
  */
 async function authorize(db:DB,scope:Scope,opts:{allowDemo?:boolean}={}){
- const [user]=await db.select().from(schema.users).where(eq(schema.users.id,scope.userId));
- const [membership]=await db.select({org:schema.orgs,role:schema.memberships.role}).from(schema.orgs).leftJoin(schema.memberships,and(eq(schema.memberships.orgId,schema.orgs.id),eq(schema.memberships.userId,scope.userId))).where(eq(schema.orgs.id,scope.orgId));
+ // Usuario e membership sao leituras independentes: dispara as duas juntas.
+ const [[user],[membership]]=await Promise.all([
+  db.select().from(schema.users).where(eq(schema.users.id,scope.userId)),
+  db.select({org:schema.orgs,role:schema.memberships.role}).from(schema.orgs).leftJoin(schema.memberships,and(eq(schema.memberships.orgId,schema.orgs.id),eq(schema.memberships.userId,scope.userId))).where(eq(schema.orgs.id,scope.orgId)),
+ ]);
  if(!user||user.status!=='active'||!membership?.org.active||!membership.org.aiEnabled||(!opts.allowDemo&&membership.org.isDemo)||(!membership.role&&user.platformRole!=='admin'))throw Error('Voz automática indisponível nesta operação.');
  return user;
 }

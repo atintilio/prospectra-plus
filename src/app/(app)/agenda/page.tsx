@@ -26,54 +26,74 @@ export default async function AgendaPage() {
   const scope = { orgId: ctx.org.id, userId: ctx.user.id };
   const now = new Date();
 
-  const eventTypes = await listEventTypes(db, scope);
-  const availability = await Promise.all(eventTypes.map((et) => listAvailability(db, scope, et.id)));
-  const bookings = await listBookings(db, scope, {
-    from: new Date(now.getTime() - 60 * 60 * 1000),
-    to: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-    limit: 50,
-  });
+  // Nomes dos leads citados nas reservas e nos links.
+  const leadNames = async (ids: string[]): Promise<{ id: string; fullName: string }[]> => {
+    if (!ids.length) return [];
+    return db
+      .select({ id: schema.leads.id, fullName: schema.leads.fullName })
+      .from(schema.leads)
+      .where(inArray(schema.leads.id, ids));
+  };
 
+  // Etapa 1 - leituras independentes entre si: tipos de reunião, reservas,
+  // links, leads com telefone e bloqueios. Disparadas juntas, o driver HTTP
+  // do Neon resolve as cinco em paralelo.
+  const [eventTypes, bookings, linkRows, sendLeads, blackoutRows] = await Promise.all([
+    listEventTypes(db, scope),
+    listBookings(db, scope, {
+      from: new Date(now.getTime() - 60 * 60 * 1000),
+      to: new Date(now.getTime() + 30 * 24 * 60 * 1000),
+      limit: 50,
+    }),
+    db
+      .select({
+        id: schema.agendaLinks.id,
+        token: schema.agendaLinks.token,
+        eventTypeId: schema.agendaLinks.eventTypeId,
+        leadId: schema.agendaLinks.leadId,
+        channel: schema.agendaLinks.channel,
+        createdAt: schema.agendaLinks.createdAt,
+        usedAt: schema.agendaLinks.usedAt,
+      })
+      .from(schema.agendaLinks)
+      .where(eq(schema.agendaLinks.orgId, ctx.org.id))
+      .orderBy(desc(schema.agendaLinks.createdAt))
+      .limit(15),
+    db
+      .select({ id: schema.leads.id, fullName: schema.leads.fullName, phone: schema.leads.phone })
+      .from(schema.leads)
+      .where(and(eq(schema.leads.orgId, ctx.org.id), sql`${schema.leads.phone} <> ''`))
+      .orderBy(desc(schema.leads.createdAt))
+      .limit(200),
+    // Bloqueios (outro compromisso, férias): a tabela já é respeitada pelo
+    // cálculo de horários — aqui só é listada para a tela.
+    db
+      .select({
+        id: schema.agendaBlackouts.id,
+        startAt: schema.agendaBlackouts.startAt,
+        endAt: schema.agendaBlackouts.endAt,
+        reason: schema.agendaBlackouts.reason,
+      })
+      .from(schema.agendaBlackouts)
+      .where(eq(schema.agendaBlackouts.orgId, ctx.org.id))
+      .orderBy(asc(schema.agendaBlackouts.startAt))
+      .limit(200),
+  ]);
+
+  // Etapa 2 - dependem da etapa 1: a disponibilidade depende dos tipos de
+  // reunião (cada tipo tem a sua) e os nomes dos leads, dos leads citados
+  // nas reservas e nos links.
   const leadIds = [...new Set(bookings.map((b) => b.leadId).filter((id): id is string => Boolean(id)))];
-  const bookingLeads = leadIds.length
-    ? await db
-        .select({ id: schema.leads.id, fullName: schema.leads.fullName })
-        .from(schema.leads)
-        .where(inArray(schema.leads.id, leadIds))
-    : [];
-  const leadNameById = new Map(bookingLeads.map((lead) => [lead.id, lead.fullName]));
-
-  const eventTypeById = new Map(eventTypes.map((et) => [et.id, et]));
-  const linkRows = await db
-    .select({
-      id: schema.agendaLinks.id,
-      token: schema.agendaLinks.token,
-      eventTypeId: schema.agendaLinks.eventTypeId,
-      leadId: schema.agendaLinks.leadId,
-      channel: schema.agendaLinks.channel,
-      createdAt: schema.agendaLinks.createdAt,
-      usedAt: schema.agendaLinks.usedAt,
-    })
-    .from(schema.agendaLinks)
-    .where(eq(schema.agendaLinks.orgId, ctx.org.id))
-    .orderBy(desc(schema.agendaLinks.createdAt))
-    .limit(15);
-
   const linkLeadIds = [...new Set(linkRows.map((l) => l.leadId).filter((id): id is string => Boolean(id)))];
-  const linkLeads = linkLeadIds.length
-    ? await db
-        .select({ id: schema.leads.id, fullName: schema.leads.fullName })
-        .from(schema.leads)
-        .where(inArray(schema.leads.id, linkLeadIds))
-    : [];
-  const linkLeadName = new Map(linkLeads.map((lead) => [lead.id, lead.fullName]));
+  const [availability, bookingLeads, linkLeads] = await Promise.all([
+    Promise.all(eventTypes.map((et) => listAvailability(db, scope, et.id))),
+    leadNames(leadIds),
+    leadNames(linkLeadIds),
+  ]);
 
-  const sendLeads = await db
-    .select({ id: schema.leads.id, fullName: schema.leads.fullName, phone: schema.leads.phone })
-    .from(schema.leads)
-    .where(and(eq(schema.leads.orgId, ctx.org.id), sql`${schema.leads.phone} <> ''`))
-    .orderBy(desc(schema.leads.createdAt))
-    .limit(200);
+  const leadNameById = new Map(bookingLeads.map((lead) => [lead.id, lead.fullName]));
+  const linkLeadName = new Map(linkLeads.map((lead) => [lead.id, lead.fullName]));
+  const eventTypeById = new Map(eventTypes.map((et) => [et.id, et]));
 
   const eventTypeViews: AgendaEventTypeView[] = eventTypes.map((et) => ({
     id: et.id,
@@ -121,20 +141,6 @@ export default async function AgendaPage() {
     fullName: lead.fullName,
     phone: lead.phone,
   }));
-
-  // Bloqueios (outro compromisso, férias): a tabela já é respeitada pelo
-  // cálculo de horários — aqui só é listada para a tela.
-  const blackoutRows = await db
-    .select({
-      id: schema.agendaBlackouts.id,
-      startAt: schema.agendaBlackouts.startAt,
-      endAt: schema.agendaBlackouts.endAt,
-      reason: schema.agendaBlackouts.reason,
-    })
-    .from(schema.agendaBlackouts)
-    .where(eq(schema.agendaBlackouts.orgId, ctx.org.id))
-    .orderBy(asc(schema.agendaBlackouts.startAt))
-    .limit(200);
 
   // Fuso usado para exibir os bloqueios: o do primeiro tipo de reunião.
   const agendaTimezone = eventTypes[0]?.timezone?.trim() || 'America/Sao_Paulo';

@@ -330,11 +330,13 @@ async function voiceIntegration(db: DB, ctx: Ctx, org: OrgRow | null): Promise<I
 
 async function buildEnv(db: DB, ctx: Ctx, key: EnvKey, org: OrgRow | null): Promise<EnvInfo> {
   const isDemo = key === 'demo';
-  const metrics = org ? await metricsOf(db, org.id) : { leads: 0, campaigns: 0, meetings: 0, team: 0 };
-  const [whatsapp, linkedin, voz] = await Promise.all([
+  // Métricas e integrações não se dependem uma da outra (só do `org`), então
+  // saem na mesma leva: o driver HTTP de leitura as roda em paralelo real.
+  const [whatsapp, linkedin, voz, metrics] = await Promise.all([
     whatsappIntegration(ctx, org),
     linkedinIntegration(db, org),
     voiceIntegration(db, ctx, org),
+    org ? metricsOf(db, org.id) : Promise.resolve<EnvMetrics>({ leads: 0, campaigns: 0, meetings: 0, team: 0 }),
   ]);
   return {
     key,

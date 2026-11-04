@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { assertWhatsAppAccess } from '@/lib/whatsapp/akg';
 import { VoiceStudioGateway, voiceConfig } from '@/lib/voice/voicestudio';
 import { saveVoiceProfile } from '@/lib/voice/delivery';
+import { arquivoDoFormulario } from '@/lib/upload';
 
 export type VoiceState = { ok?: string; error?: string; transcript?: string } | undefined;
 
@@ -20,9 +21,9 @@ export async function transcreverVozAction(form: FormData): Promise<string> {
   if (!config) throw new Error('Voice Studio não configurado.');
   assertWhatsAppAccess(ctx);
   const file = form.get('reference');
-  if (!(file instanceof File) || !file.size) throw new Error('Envie a gravação.');
+  const uploaded=arquivoDoFormulario(file);if(!uploaded||!uploaded.size) throw new Error('Envie a gravação.');
   const gateway = new VoiceStudioGateway(config);
-  const text = await gateway.transcribe(file);
+  const text = await gateway.transcribe(uploaded);
   revalidatePath('/voz');
   return text;
 }
@@ -35,7 +36,7 @@ export async function registrarVozAction(_: VoiceState, form: FormData): Promise
     const config = voiceConfig();
     if (!config || !ctx.org.aiEnabled) throw new Error('Voz indisponível.');
     const reference = form.get('reference');
-    if (!(reference instanceof File)) throw new Error('Gravação necessária.');
+    const ref=arquivoDoFormulario(reference);if(!ref) throw new Error('Gravação necessária.');
     const transcript = String(form.get('transcript') ?? '').trim();
     if (!transcript) throw new Error('Informe (ou transcreva) o que foi dito na gravação.');
     if (form.get('voiceConsent') !== 'on') throw new Error('Confirme a autorização de uso da voz.');
@@ -43,7 +44,7 @@ export async function registrarVozAction(_: VoiceState, form: FormData): Promise
     const gateway = new VoiceStudioGateway(config);
     const result = await gateway.createProfile({
       sellerName: ctx.user.name || 'Minha voz',
-      reference,
+      reference: ref,
       transcript,
       consent: true,
     });

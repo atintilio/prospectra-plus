@@ -161,6 +161,48 @@ export function percent(part: number, total: number): number {
   return round((part / total) * 100, 1) ?? 0;
 }
 
+// ── Leituras do banco ──────────────────────────────────────────────────────
+//
+// Cada bloco abaixo é UMA consulta, tirada daqui sem mudar nada: o que muda é
+// o momento em que ela é disparada. O driver HTTP de leitura (getReadDb) roda
+// de verdade em paralelo as consultas disparadas juntas, então o que não
+// depende do resultado de outra leitura sai na mesma leva.
+
+/** Primeira resposta do agente de cada conversa (nota interna não é resposta ao cliente). */
+async function readFirstReplies(db: DB, ids: string[]): Promise<{ conversationId: string; at: Date | null }[]> {
+  if (!ids.length) return [];
+  return db.select({
+    conversationId: schema.supportMessages.conversationId,
+    // `min()` do drizzle (e nao `sql` cru): o agregador sabe o tipo da coluna e
+    // devolve Date. Com `sql` cru o driver entrega string e o `.getTime()` estoura.
+    at: min(schema.supportMessages.createdAt),
+  }).from(schema.supportMessages).where(and(
+    inArray(schema.supportMessages.conversationId, ids),
+    eq(schema.supportMessages.author, 'agent'),
+    eq(schema.supportMessages.private, false),
+  )).groupBy(schema.supportMessages.conversationId);
+}
+
+/** Quantas respostas cada agente deu no período. */
+async function readRepliesByAgent(db: DB, ids: string[]): Promise<{ userId: string | null; n: number }[]> {
+  if (!ids.length) return [];
+  return db.select({
+    userId: schema.supportMessages.authorUserId,
+    n: count(),
+  }).from(schema.supportMessages).where(and(
+    inArray(schema.supportMessages.conversationId, ids),
+    eq(schema.supportMessages.author, 'agent'),
+  )).groupBy(schema.supportMessages.authorUserId);
+}
+
+/** Times citados pelas conversas do período. */
+async function readTeams(db: DB, orgId: string, teamIds: string[]): Promise<{ id: string; name: string }[]> {
+  if (!teamIds.length) return [];
+  return db.select({ id: schema.supportTeams.id, name: schema.supportTeams.name })
+    .from(schema.supportTeams)
+    .where(and(eq(schema.supportTeams.orgId, orgId), inArray(schema.supportTeams.id, teamIds)));
+}
+
 // ── Relatório ───────────────────────────────────────────────────────────────
 
 /**
@@ -199,32 +241,21 @@ export async function buildSupportReport(db: DB, orgId: string, options: Support
 
   const ids = conversations.map((c) => c.id);
 
-  // Primeira resposta do agente de cada conversa (nota interna não é resposta ao cliente).
-  const firstReplies = ids.length
-    ? await db.select({
-        conversationId: schema.supportMessages.conversationId,
-        // `min()` do drizzle (e nao `sql` cru): o agregador sabe o tipo da coluna e
-        // devolve Date. Com `sql` cru o driver entrega string e o `.getTime()` estoura.
-        at: min(schema.supportMessages.createdAt),
-      }).from(schema.supportMessages).where(and(
-        inArray(schema.supportMessages.conversationId, ids),
-        eq(schema.supportMessages.author, 'agent'),
-        eq(schema.supportMessages.private, false),
-      )).groupBy(schema.supportMessages.conversationId)
-    : [];
+  // Quantas conversas caíram em cada time (depende só das conversas do período).
+  const teamCount = new Map<string, number>();
+  for (const c of conversations) if (c.teamId) teamCount.set(c.teamId, (teamCount.get(c.teamId) ?? 0) + 1);
+  const teamIds = [...teamCount.keys()];
+
+  // ── 1a leva: leituras que dependem só das conversas do período ──
+  // Disparadas juntas: o driver HTTP de leitura as executa em paralelo real.
+  const [firstReplies, repliesByAgent, teamList] = await Promise.all([
+    readFirstReplies(db, ids),
+    readRepliesByAgent(db, ids),
+    readTeams(db, orgId, teamIds),
+  ]);
+
   const firstReplyAt = new Map<string, Date>();
   for (const row of firstReplies) if (row.at) firstReplyAt.set(row.conversationId, row.at);
-
-  // Quantas respostas cada agente deu no período.
-  const repliesByAgent = ids.length
-    ? await db.select({
-        userId: schema.supportMessages.authorUserId,
-        n: count(),
-      }).from(schema.supportMessages).where(and(
-        inArray(schema.supportMessages.conversationId, ids),
-        eq(schema.supportMessages.author, 'agent'),
-      )).groupBy(schema.supportMessages.authorUserId)
-    : [];
 
   // ── Volume ──
   const byDayCount = new Map<string, number>();
@@ -295,6 +326,8 @@ export async function buildSupportReport(db: DB, orgId: string, options: Support
   const agentIds = new Set<string>();
   for (const c of conversations) if (c.assignedTo) agentIds.add(c.assignedTo);
   for (const r of repliesByAgent) if (r.userId) agentIds.add(r.userId);
+  // ── 2a leva: a lista de agentes usa também os ids de quem respondeu ──
+  // (veio da leva anterior), então só pode sair depois dela.
   const agentList = agentIds.size
     ? await db.select({
         id: schema.users.id,
@@ -333,14 +366,6 @@ export async function buildSupportReport(db: DB, orgId: string, options: Support
     .sort((a, b) => b.conversations - a.conversations || b.replies - a.replies || a.name.localeCompare(b.name));
 
   // ── Times ──
-  const teamCount = new Map<string, number>();
-  for (const c of conversations) if (c.teamId) teamCount.set(c.teamId, (teamCount.get(c.teamId) ?? 0) + 1);
-  const teamIds = [...teamCount.keys()];
-  const teamList = teamIds.length
-    ? await db.select({ id: schema.supportTeams.id, name: schema.supportTeams.name })
-      .from(schema.supportTeams)
-      .where(and(eq(schema.supportTeams.orgId, orgId), inArray(schema.supportTeams.id, teamIds)))
-    : [];
   const topTeams = teamList.map((t) => ({ id: t.id, name: t.name, conversations: teamCount.get(t.id) ?? 0 }))
     .filter((t) => t.conversations > 0)
     .sort((a, b) => b.conversations - a.conversations || a.name.localeCompare(b.name));
