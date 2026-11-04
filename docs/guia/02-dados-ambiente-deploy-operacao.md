@@ -22,7 +22,7 @@
 | Voice Studio (MOSS-TTS-Nano) | `prospectra-voice.service`, `/opt/prospectra-voice` | ✅ |
 | Agenda nativa | `src/app/api/agenda/**`, `src/lib/agenda-*.ts` | ✅ |
 | Postgres Neon | `DATABASE_URL` (VPS) / `NEON_DATABASE_URL` (Worker) | ✅ |
-| Cron do Prospectra | `/etc/cron.d/prospectra-tick` (5 min) | ✅ |
+| Cron do Prospectra | `/etc/cron.d/prospectra-tick` → `GET https://prospectra.argusprime.com.br/api/cron` (a cada 5 min) | ✅ |
 | cal.diy self-hosted | `prospectra-agenda.service`, `/opt/agenda`, 3102 | ⚠️ legado — **decisão pendente do dono** (só desligar com aval) |
 | CRM Argus (`argus-api`, `argus-app`) | `/opt/argus-crm`, `crm.argusprime.com.br` | ❌ **fora de escopo** |
 | Reversa/Gov, site institucional, e-mail/Mailgun, Microsoft 365 (tenant) | — | ❌ **fora de escopo** |
@@ -118,6 +118,40 @@ cd /workspace/prospectra-plus
 ./node_modules/.bin/wrangler tail prospectra --format pretty  # logs do runtime
 ```
 
+### 1.6 Onde fica o cron — e por que o Worker não tem
+
+O **agendador é a VPS**, não o Worker:
+
+```
+cron da VPS (a cada 5 min)
+   └─ /etc/cron.d/prospectra-tick   →   */5 * * * * root /usr/local/bin/prospectra-tick
+        └─ . /etc/prospectra/cron.env        (CRON_SECRET)
+             └─ curl -H "Authorization: Bearer $CRON_SECRET" \
+                     https://prospectra.argusprime.com.br/api/cron
+                  └─ log em /var/log/prospectra-tick.log
+```
+
+Como o domínio oficial é servido pelo **Worker**, o tick **chega no Worker**: quem marca o tempo é a VPS, quem executa a cadência é o app no edge — mesmo código, `src/app/api/cron/route.ts`.
+
+**Por que o Worker não tem cron.** O `wrangler.jsonc` **não declara** `triggers.crons`: o gatilho fica num lugar só, a VPS. O Cloudflare Workers suporta cron (`triggers.crons` no `wrangler.jsonc`), mas ligá-lo criaria um **segundo batimento do mesmo `/api/cron`**, e a duplicidade tem efeito — a cadência roda duas vezes e a agenda e a Inteligência processam duas vezes. A regra do produto é "nunca dois agendadores" (§5.1): o cron da VPS é o único.
+
+O que o `/api/cron` roda a cada batida (`src/app/api/cron/route.ts`): cadência (`runScheduler`), relatórios de exclusão, fila do Harvey (`resumeHarveyInbound` + `runHarveyQueue`), LinkedIn automático (só com `LINKEDIN_AUTOMATION_ENABLED` e executor ligado), descoberta DISC, lembretes de reunião e a fila de Inteligência. A falha da Inteligência não derruba o resto do ciclo (o `catch` registra e segue).
+
+| Item do batimento | Valor |
+|---|---|
+| Endpoint | `GET /api/cron` (`dynamic = 'force-dynamic'`, `maxDuration = 60`) |
+| Autorização | header `Authorization: Bearer $CRON_SECRET` — o segredo vive em `/etc/prospectra/cron.env` (600) e tem que ser **igual** ao do `app.env` |
+| Cadência | 5 em 5 minutos (`*/5 * * * *`) |
+| Timeout | `curl -m 60` |
+| Prova de que está vivo | `tail -n 5 /var/log/prospectra-tick.log` sem 403/500 — **não** `/api/health` (o health só faz `select 1`) |
+| Batida do Harvey | à parte: `prospectra-harvey-recovery.timer` → `GET /api/harvey/tick` |
+
+> **Atenção ao User-Agent.** O `urllib` do Python é bloqueado pela Cloudflare (403) — por isso o
+> `prospectra-harvey-recovery.py` manda `User-Agent: Prospectra-Recovery/1.0`. Quem chama
+> `http://127.0.0.1:3100` (loopback) não passa pela Cloudflare e não sofre com isso.
+
+**No rollback da topologia (§1.4) o cron não muda:** ele sempre chamou o domínio público. Com a rota de Worker apagada, a chamada volta a cair no nginx → app da VPS.
+
 ---
 
 ## 2. Banco de dados
@@ -126,9 +160,9 @@ cd /workspace/prospectra-plus
 
 | Item | Caminho |
 |---|---|
-| Schema Drizzle (fonte da verdade do modelo) | `src/db/schema.ts` (577 linhas) |
+| Schema Drizzle (fonte da verdade do modelo) | `src/db/schema.ts` (634 linhas) |
 | Conexão (Node/VPS e Worker) | `src/db/index.ts` |
-| Migrações SQL | `drizzle/*.sql` (26 arquivos, `0000`…`0025`) |
+| Migrações SQL | `drizzle/*.sql` (27 arquivos, `0000`…`0026`) |
 | Ledger das migrações | `drizzle/meta/_journal.json` + `drizzle/meta/*_snapshot.json` |
 | Config do drizzle-kit | `drizzle.config.ts` (`out: './drizzle'`) |
 | Auto-cura / decisão de recriar schema | `scripts/migrate-repair.mjs` |
@@ -136,12 +170,14 @@ cd /workspace/prospectra-plus
 
 ### 2.2 Inventário de tabelas por domínio
 
-**45 tabelas publicadas** — 44 declaradas em `src/db/schema.ts` (versão em `main`) + 1 criada em SQL cru
+**48 tabelas no repositório** — 47 declaradas em `src/db/schema.ts` (branch `release/prospectra-cloudflare-20261101`) + 1 criada em SQL cru
 (`lead_communication_profiles`, migration `0008_communication.sql`, usada por `src/lib/communication.ts`).
-A tabela `linkedin_connections` (migration `0025`) existe na árvore de trabalho em andamento e **ainda não está
-publicada** — quando for, o total vai a 46.
+A branch `main` ainda tem **44** no `src/db/schema.ts` (sem `flows`, `flow_steps` e `linkedin_connections`): lá o total é 45.
 
-Os grupos abaixo somam **46 linhas = 45 publicadas + 1 em andamento**. Cada linha da coluna "Tabela" é **uma
+> Uma tabela **no Neon de produção** não se deduz do repositório: ela é o estado do ledger
+> `drizzle.__drizzle_migrations` (ver §2.4 e §2.5).
+
+Os grupos abaixo somam **48 tabelas**. Cada linha da coluna "Tabela" é **uma
 tabela** (uma linha por entidade, sem agrupar), para a contagem ser auditável contra o schema.
 
 #### Identidade e multi-tenant (5)
@@ -175,6 +211,13 @@ tabela** (uma linha por entidade, sem agrupar), para a contagem ser auditável c
 | `enrollments` | Lead dentro de uma campanha | `enrollments_one_active_per_lead` (parcial, só `running`/`waiting_accept`); `enrollments_due_idx` |
 | `actions` | Tarefa a executar (a "Fila") | `actions_enrollment_step_uq`; `actions_user_due_idx`; `due_date` é **date**, não timestamp |
 | `sim_feed` | Linha do tempo do piloto **simulado** (só org de demo) | `sim_feed_org_at_idx` |
+
+#### Fluxos nativos (2)
+
+| Tabela | Papel | Notas |
+|---|---|---|
+| `flows` | Modelo de cadência por operação | `status` ∈ `draft`/`active`/`paused`; `assigned_to` e `created_by` em `set null` |
+| `flow_steps` | Etapa do bloco do fluxo | `position` é a ordem (reordenada pelo arraste); `type` é o mesmo conjunto da cadência |
 
 #### WhatsApp e Harvey (6)
 
@@ -240,33 +283,33 @@ tabela** (uma linha por entidade, sem agrupar), para a contagem ser auditável c
 |---|---|---|
 | `intelligence_jobs` | Fila de análise de qualidade de dados | `state` ∈ `queued`, `running`, `completed`, `failed`, `cancelled`; `attempts`; resultado com 6 fatores |
 | `linkedin_dispatches` | Recibo durável de cada ação de LinkedIn | `state` ∈ `pending`, `sent`, `unknown`; `linkedin_dispatches_action_uq` |
-| `linkedin_connections` | Conta do LinkedIn conectada (OIDC) | **migration `0025`, ainda não publicada**; guarda só perfil e estado — **nunca** o `client_secret` nem o token |
+| `linkedin_connections` | Conta do LinkedIn conectada (OIDC) | migration `0025` (versionada na branch atual, fora do `main`); guarda só perfil e estado — **nunca** o `client_secret` nem o token |
 
 #### Contagem por grupo (auditoria)
 
-| Grupo | Tabelas | Publicadas |
-|---|---|---|
-| Identidade e multi-tenant | 5 | 5 |
-| CRM / prospecção | 5 | 5 |
-| Cadência / fila de trabalho | 3 | 3 |
-| WhatsApp e Harvey | 6 | 6 |
-| Agenda nativa | 5 | 5 |
-| Suporte / Helpin | 12 | 12 |
-| Workspace interno e comercial | 4 | 4 |
-| Voz | 3 | 3 |
-| Inteligência, LinkedIn e automação | 3 | 2 (`linkedin_connections` ainda não publicada) |
-| **Total** | **46** | **45** |
+| Grupo | Tabelas |
+|---|---|
+| Identidade e multi-tenant | 5 |
+| CRM / prospecção | 5 |
+| Cadência / fila de trabalho | 3 |
+| Fluxos nativos | 2 |
+| WhatsApp e Harvey | 6 |
+| Agenda nativa | 5 |
+| Suporte / Helpin | 12 |
+| Workspace interno e comercial | 4 |
+| Voz | 3 |
+| Inteligência, LinkedIn e automação | 3 |
+| **Total** | **48** |
 
-Conferência: 44 `pgTable(` em `src/db/schema.ts` no `main` + `lead_communication_profiles` (SQL cru) = **45
-publicadas**; com `linkedin_connections` (migration `0025`, fora do `main`) = **46**.
+Conferência: 47 `pgTable(` em `src/db/schema.ts` (branch `release/prospectra-cloudflare-20261101`) + `lead_communication_profiles` (SQL cru) = **48**; a branch `main` tem 44 + 1 = **45**.
 
 ### 2.3 Migrações
 
 | Item | Valor |
 |---|---|
-| Arquivos SQL | 26 (`drizzle/0000_init.sql` … `drizzle/0025_linkedin_connections.sql`) |
-| Entradas no ledger | 26 (`drizzle/meta/_journal.json`, `idx` 0…25) |
-| `0025_linkedin_connections.sql` | **Fora do `main`** — trabalho em andamento (ver `git status`) |
+| Arquivos SQL | 27 (`drizzle/0000_init.sql` … `drizzle/0026_fluxos.sql`) |
+| Entradas no ledger | 27 (`drizzle/meta/_journal.json`, `idx` 0…26) |
+| `0025_linkedin_connections.sql` e `0026_fluxos.sql` | Versionadas na branch `release/prospectra-cloudflare-20261101`; **fora do `main`** |
 | Gerar nova migration | `pnpm db:generate` (= `drizzle-kit generate`) |
 | Aplicar | `node scripts/migrate.mjs` (usa `drizzle-orm/postgres-js/migrator` com `migrationsFolder: 'drizzle'`) |
 
@@ -274,9 +317,10 @@ publicadas**; com `linkedin_connections` (migration `0025`, fora do `main`) = **
 
 | Migration | Conteúdo |
 |---|---|
+| `0026_fluxos` | Cria `flows`, `flow_steps` e a coluna `campaigns.flow_id` (modelo de cadência por operação) |
 | `0023_agenda_nativa` | Cria `agenda_event_types`, `agenda_availability`, `agenda_blackouts`, `agenda_links` + 12 colunas novas em `meetings` (convite, cancelamento, fuso, participante) |
 | `0024_large_leopardon` | `agenda_event_types.reminder_minutes_before`, `.notify_seller`, `.send_invite`; `meetings.invite_state`, `.invite_sent_at`, `.seller_notified_at` |
-| `0025_linkedin_connections` *(não publicada)* | Cria `linkedin_connections` + `linkedin_connections_org_user_uq` |
+| `0025_linkedin_connections` | Cria `linkedin_connections` + `linkedin_connections_org_user_uq` |
 | `0022_blue_callisto` | `orgs.linkedin_enabled` (gate do piloto automático por operação) |
 | `0021_helpin_fase6_sla_atributos` | 7 tabelas novas (SLA, horário, pré-chat, atributos, automação, auditoria, webhooks) + `leads.attributes` + colunas de CSAT |
 | `0020_powerful_betty_brant` | `orgs.image_enabled`, `orgs.call_enabled` (gate dos passos de imagem e ligação) |
@@ -528,8 +572,8 @@ binding do `wrangler deploy`.
    `fetch(provider.endpoint)` direto, sem acrescentar caminho. O `set-ai-key.sh` grava o endpoint completo
    (`https://api.z.ai/api/paas/v4/chat/completions`) na `app.env` da VPS, mas o `wrangler.jsonc` hoje tem
    `https://api.z.ai/api/paas/v4` (sem o sufixo) — **conferir e corrigir antes de publicar no Worker**.
-5. O Worker **não tem rota/domínio na zona** até hoje — publicar não é o mesmo que expor. Verifique com
-   `wrangler deployments list` e `wrangler tail`.
+5. Publicar **não é** expor: o que faz o domínio responder pelo edge é a **rota de Worker na zona** (§1.4). Verifique o
+   estado com `wrangler deployments list` e `wrangler tail` — e confira a rota na zona antes de mandar tráfego.
 
 **Validação do Worker (read-only):**
 
@@ -588,10 +632,13 @@ curl -s -o /dev/null -w '%{http_code}\n' https://prospectra.atintilio.workers.de
 
 | Agendador | Cadência | Onde | Estado |
 |---|---|---|---|
-| Cron do sistema | 5 min | `/etc/cron.d/prospectra-tick` → `/usr/local/bin/prospectra-tick` → `https://prospectra.argusprime.com.br/api/cron` | **em uso** |
+| Cron do sistema (VPS) | 5 min | `/etc/cron.d/prospectra-tick` → `/usr/local/bin/prospectra-tick` → `https://prospectra.argusprime.com.br/api/cron` | **em uso** (marcador de tempo; quem responde é o app do edge — ver §1.6) |
 | Timer systemd | 1 min | `prospectra-plus-cron.timer` (loopback, sem Cloudflare) | desligado |
 | GitHub Actions | `*/5 * * * *` | `.github/workflows/tick.yml` | throttle documentado (rede de segurança) |
 | Vercel Cron | diário `0 10 * * *` | `vercel.json` | fora do caminho de produção |
+
+> O Worker `prospectra` **não tem cron**: o `wrangler.jsonc` não declara `triggers.crons` e o batimento é
+> marcado pela VPS (§1.6). Ligar cron lá criaria um segundo batimento do mesmo `/api/cron`.
 
 > Não habilite dois ao mesmo tempo: a cadência dispara em duplicidade e a agenda/Inteligência rodam duas vezes.
 
@@ -668,7 +715,7 @@ node -e "const p=require('postgres');(async()=>{const c=p(process.env.DATABASE_U
 | Situação | O que fazer |
 |---|---|
 | `users` presente, erro de rede/timeout | Problema de conexão com o Neon. Repetir em 1 min; checar se o `DATABASE_URL` do `app.env` continua válido (painel do Neon). **Não** rodar migration |
-| `users` **ausente** e ledger presente (o incidente de 29/10) | Rodar `node scripts/migrate.mjs` **depois de um snapshot** (`backup-data.mjs`): a auto-cura recria o schema e reaplica as 26 migrations. Antes, conferir o estado com `decideRepair` — em estado parcial o script **aborta sem apagar nada** |
+| `users` **ausente** e ledger presente (o incidente de 29/10) | Rodar `node scripts/migrate.mjs` **depois de um snapshot** (`backup-data.mjs`): a auto-cura recria o schema e reaplica as 27 migrations. Antes, conferir o estado com `decideRepair` — em estado parcial o script **aborta sem apagar nada** |
 | `users` ausente e ledger **ausente** | `decideRepair` aborta (não é auto-curável). Inspecione o banco manualmente antes de qualquer `drop schema` |
 | Worker no Cloudflare | `PROSPERTA_DB_REPAIR=0` lá — a recriação **não** acontece sozinha. Recrie o schema num deploy controlado do VPS, não no Worker |
 
@@ -817,7 +864,7 @@ dig +short wa.argusprime.com.br
 | 8 | Relatórios de exclusão | `deletion_reports` com `notified_at` preenchido (fila de aviso ao proprietário) |
 | 9 | Rotas principais (a smoke do Worker) | `worker-smoke.mjs` (rota por rota, com sessão real e banco Neon) |
 | 10 | Releases antigas da VPS | `ls -d /opt/prospectra-plus-release-* \| wc -l` — remover antigas **só** depois que a nova estiver validada |
-| 11 | Cloudflare (se o Worker estiver publicado) | `wrangler deployments list`; `wrangler secret list` (só nomes) |
+| 11 | Cloudflare (o Worker está publicado desde 04/11/2026) | `wrangler deployments list`; `wrangler secret list` (só nomes); rota de Worker na zona (§1.4) |
 | 12 | Revisão do que está pendente | `docs/FALTA-IMPLANTAR.md` §3 (o que falta) e `docs/ESCOPO-E-TOCABILIDADE.md` §5 (histórico de escopo) |
 
 ### 7.3 Antes de qualquer deploy
@@ -836,15 +883,17 @@ dig +short wa.argusprime.com.br
 
 ## 8. Resumo em 5 linhas
 
-1. **Dados**: 45 tabelas no Neon (44 em `src/db/schema.ts` + `lead_communication_profiles` em SQL cru), 26
+1. **Dados**: 48 tabelas no schema do repositório (47 em `src/db/schema.ts` + `lead_communication_profiles` em SQL cru), 27
    migrações em `drizzle/` aplicadas por `scripts/migrate.mjs`, com auto-cura que só recria o schema quando
    **as três** tabelas centrais faltam **e** o ledger existe (estado parcial aborta sem apagar nada).
 2. **Ambiente**: 34 variáveis lidas do servidor, **nenhuma** `NEXT_PUBLIC_*` no app — segredos vivem em
    `/etc/prospectra-plus/app.env` (600), nos secrets do Worker `prospectra` e no painel da Vercel, e
    `CRON_SECRET` precisa ser **igual** em três arquivos da VPS.
-3. **Deploy**: na VPS, `prospectra-plus-release <sha>` faz extrair → `pnpm install` → **migração** →
+3. **Deploy**: o domínio oficial é servido pelo **Worker `prospectra`** (rota na zona, §1.4) e a VPS é o
+   rollback; na VPS, `prospectra-plus-release <sha>` faz extrair → `pnpm install` → **migração** →
    `pnpm exec next build` → **symlink** → validação (`/api/health` + `/login`) → **rollback automático**; no
-   Cloudflare, `next build` → `opennextjs-cloudflare build` → `wrangler deploy`.
+   Cloudflare, `next build` → `opennextjs-cloudflare build` → `wrangler deploy`. O **cron é da VPS**
+   (5 em 5 min, `/etc/cron.d/prospectra-tick`) — o Worker não tem cron (§1.6).
 4. **Serviços**: `prospectra-plus` (3100), `prospectra-wa-akg` (3101), `prospectra-agenda`/cal.diy (3102, legado,
    desligar só com aval) e `prospectra-voice` (3900) são do Prospectra; `argus-api`/`argus-app` são do CRM e
    ficam **fora de escopo**.

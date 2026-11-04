@@ -13,7 +13,7 @@ O **Prospectra+** é o CRM de prospecção da Argus Prime: um painel multi-parce
 |---|---|---|
 | App web | `src/app/**` | App Router. Grupos: `(app)` = telas logadas, `(auth)` = login/recuperação, raiz = páginas públicas. |
 | Domínio | `src/lib/**` | Regras de negócio puras e "server-only". É aqui que se mexe para mudar comportamento. |
-| Dados | `src/db/schema.ts` | 45 tabelas Drizzle + `lead_communication_profiles` (SQL cru). Migrações em `drizzle/*.sql` (aplicadas por `scripts/migrate.mjs` no `pnpm build`). |
+| Dados | `src/db/schema.ts` | 47 tabelas Drizzle + `lead_communication_profiles` (SQL cru). Migrações em `drizzle/*.sql` (aplicadas por `scripts/migrate.mjs` no `pnpm build`). |
 | Ações de servidor | `src/app/(app)/actions.ts`, `src/app/(app)/*/actions.ts` | Mutations do React (`useActionState`). A API REST é só o que precisa ser público ou de webhook. |
 | API REST | `src/app/api/**/route.ts` | 29 rotas: agenda (públicas + internas), cron, webhooks, widget, CSAT, health, demo e integrações do LinkedIn. |
 | Cron | `src/app/api/cron/route.ts` | `GET` com `Authorization: Bearer $CRON_SECRET`. Roda cadência, Harvey, LinkedIn, lembretes, descoberta DISC e a fila de inteligência. |
@@ -98,11 +98,52 @@ São **31 variáveis de ambiente** lidas por `process.env.*` / `env.*` em `src/*
 
 > `AUTH_SECRET` aparece no `.env.example` mas **não é lido por nenhum arquivo de `src/`**: o token de sessão é sorteado e guardado como `sha256` em `sessions` (`src/lib/auth.ts`, `src/lib/crypto.ts`).
 
+### 2.4 Gestão de contas pelo administrador (`/admin` → "Gestão de usuários")
+
+A seção "Gestão de usuários" da tela `/admin` é onde a plataforma cadastra pessoas e controla o acesso. A interface é `src/app/(app)/admin/users-view.tsx`; as regras estão em `src/app/(app)/admin/user-actions.ts` e a política de quem pode mexer em quem, em `src/lib/admin-policy.ts`.
+
+| Ação | O que faz | Botão na tela |
+|---|---|---|
+| **Cadastrar** | Cria a conta com `status='invited'` e manda o **convite por e-mail** (link de acesso de uso único). O e-mail identifica a conta: depois de criado, o formulário só o mostra em modo leitura. | "Cadastrar e enviar convite" |
+| **Editar permissões** | Muda o **acesso à plataforma** (Usuário / Administrador) e o **papel na equipe** (Dono / Gestor / SDR / Closer). | "Editar permissões" |
+| **Reenviar acesso** | Manda outro e-mail de acesso: **convite**, se a pessoa nunca entrou; **redefinição de senha**, se já está ativa. Conta desativada não recebe e-mail (o botão fica bloqueado). | "Reenviar acesso" |
+| **Remover acesso** | **Desativa** a conta: `status='disabled'`, apaga as sessões e invalida os links de acesso pendentes. **Os dados ficam** — a pessoa continua na base (leads, campanhas, histórico). "Reativar" volta. | "Remover acesso" / "Reativar" |
+| **Excluir conta** *(novo, 04/11/2026)* | **Remove a conta de vez**: apaga a conta e as linhas de acesso. O dado de negócio é preservado (tabela abaixo). | "Excluir conta" |
+
+**Travas (ninguém pula):**
+
+| Trava | Onde |
+|---|---|
+| A **conta master** (`MASTER_USER_EMAIL`, default `atintilio@argusprime.com.br`) não pode ser alterada nem excluída | `canChangeUser()` (`src/lib/admin-policy.ts`) |
+| A **própria conta** de quem está na tela | `canChangeUser()` |
+| O **último administrador da plataforma** não pode ser excluído | `adminDeleteUserAction` |
+| Só **administrador da plataforma** executa as ações | `requireAdmin()` no topo de cada action |
+| **Cota da equipe**: a conta só entra na operação se houver assento (`orgs.seats`) | `saveAdminUserAction` |
+
+**O que a exclusão apaga e o que fica** (`adminDeleteUserAction`, tudo numa transação, com a linha do usuário travada para escrita):
+
+| Dado | O que acontece | Por quê |
+|---|---|---|
+| `users` (a conta) | **apaga** | é a exclusão |
+| `memberships` (vínculo com a equipe) | **apaga** | `on delete cascade` |
+| `sessions`, `auth_tokens` | **apagam** | `on delete cascade` |
+| `leads` (CRM) | **fica** — o `owner_id` vira `null` | `on delete set null` |
+| `events` (trilha de eventos) | **fica** — o `user_id` vira `null` | `on delete set null` |
+| `actions` (Fila do vendedor) | **sai com a conta** | `actions.user_id` é `not null` com `cascade`: a ação pertence a quem executa |
+| `campaigns` | **passa para quem excluiu** | `campaigns.owner_id` é `not null` com `cascade` — sem a transferência a campanha inteira sumiria junto |
+
+> ⚠️ **O comentário em `user-actions.ts` diz que `leads`, `actions` e `events` usam `on delete set null`.**
+> Isso vale para `leads` e `events`. Para `actions` o schema é `not null` com `cascade`, então as ações
+> pendentes da Fila saem junto com a conta (verificado no banco; o `tests/admin.test.ts` de hoje cobre a
+> exclusão de `leads` e `campaigns`, mas não o `actions`).
+
+**"Remover acesso" ≠ "Excluir conta".** A primeira é reversível e preserva tudo (a pessoa perde o acesso, o histórico fica). A segunda é definitiva e mexe no vínculo com os dados. A tela pede confirmação nos dois casos — na exclusão ela avisa que o histórico de leads e eventos é preservado e que as campanhas do usuário passam para quem exclui.
+
 ---
 
 ## 3. Roteiro de telas
 
-São **34 telas** (`find src/app -name page.tsx`): 10 públicas/de autenticação e 24 dentro de `(app)`.
+São **36 telas** (`find src/app -name page.tsx`): 10 públicas/de autenticação e 26 dentro de `(app)`.
 
 > **Colunas:** `Rota` = URL · `Propósito` = o que a tela faz · `Dados` = tabelas Drizzle que alimentam a tela · `Gate` = o que controla o acesso.
 
@@ -132,6 +173,8 @@ São **34 telas** (`find src/app -name page.tsx`): 10 públicas/de autenticaçã
 | `/campanhas` | Lista de campanhas com inscritos, ativos, convites, aceitações e respostas. | `campaigns`, `enrollments`, `events`, `users` | `requireOrg()` |
 | `/campanhas/nova` | Cria campanha e abre o editor. | `campaigns`, `memberships`/`users` | `requireOrg()`; recursos conforme `campaignFeatures(org)` |
 | `/campanhas/[id]` | Editor de campanha (passos, IA, responsável) + inscrição de leads. | `campaigns`, `enrollments`, `leads`, `memberships`/`users` | `requireOrg()`; `image`/`call` só se `image_enabled`/`call_enabled` |
+| `/fluxos` | Lista de fluxos (modelos de cadência): cards com situação, número de blocos e quantas campanhas usam o fluxo. "Novo fluxo" cria um rascunho e abre o construtor. | `flows`, `flow_steps`, `campaigns` | `requireOrg()`; isolamento por operação |
+| `/fluxos/[id]` | Construtor do fluxo: visão geral horizontal, paleta arrastável, sequência reordenável e configuração do bloco (texto, espera, condição, IA). | `flows`, `flow_steps` | `requireOrg()`; bloco travado na operação não entra na paleta (detalhe em §3.4) |
 | `/inteligencia` | Inteligência comercial: rascunho avulso, operação Harvey (perfil do vendedor, conversas, aprovações), mensagens em revisão e análise de qualidade dos dados. | `leads`, `commercial_profiles`, `harvey_conversations`, `harvey_outbox`, `harvey_inbound_jobs`, `intelligence_jobs`, `lead_communication_profiles` | `requireOrg()` + `org.active`; IA exige `ai_enabled`; análise exige `INTELLIGENCE_WORKER_ENABLED` ou demo |
 | `/comunicacao` | Perfil de comunicação por lead (DISC, canal e formato preferidos). | `leads`, `lead_communication_profiles` | `requireOrg()` + `org.active` |
 | `/linkedin` | Conexão da conta do próprio usuário no LinkedIn (OpenID Connect): vincular, ver o estado e desconectar. | `linkedin_connections` | `requireOrg()`; sem `LINKEDIN_CLIENT_ID`/`SECRET`/`REDIRECT_URI` o estado é `configuration_required` (a tela explica o que falta) |
@@ -147,7 +190,7 @@ São **34 telas** (`find src/app -name page.tsx`): 10 públicas/de autenticaçã
 | `/whatsapp` | Pareamento do número (QR/status), envio e painel de voz. | `whatsapp_commands`, `voice_profiles`, `voice_jobs`, `voice_registrations` (é esta tela que escreve, com cota de 5/dia) | `requireOrg()`; exige `WA_AKG_*` (ou demo); voz exige `org.active && ai_enabled && !is_demo` e `VOICE_AUTOMATION_ENABLED` para enviar |
 | `/voz` | Perfil de voz clonado do vendedor e registro de consentimento. | `voice_profiles`, `voice_registrations` | `requireOrg()`; exige `VOICESTUDIO_*` + `org.active` + `ai_enabled` + `!is_demo` |
 | `/automacao` | Piloto automático simulado: linha do tempo, respostas automáticas, comentários em publicações. | `sim_feed`, `leads` | `requireOrg()` **e** `org.is_demo` (fora da demo, mostra aviso) |
-| `/admin` | Administração de parceiros: criar org, ligar/desligar IA, imagem, ligação, LinkedIn; gerir usuários. | `orgs`, `memberships`, `users` | `requireAdmin()` |
+| `/admin` | Administração de parceiros: criar org, ligar/desligar IA, imagem, ligação, LinkedIn; gerir usuários (seção "Gestão de usuários": cadastrar com convite, editar permissões, reenviar acesso, remover acesso e **excluir conta** — ver §2.4). | `orgs`, `memberships`, `users` | `requireAdmin()` |
 | `/argus` | Suporte interno do produto: chamados dos parceiros (público do Prospectra+). | `support_conversations` (`audience='product'`), `support_messages` | `requireAdmin()` |
 
 ### 3.3 Mapa de navegação (sidebar)
@@ -156,7 +199,7 @@ O menu é montado em `src/components/sidebar.tsx` e é a referência rápida do 
 
 | Grupo | Itens | Visibilidade |
 |---|---|---|
-| Atalhos | `/painel`, `/fila`, `/leads`, `/campanhas` | sempre |
+| Atalhos | `/painel`, `/fila`, `/leads`, `/campanhas`, `/fluxos` | sempre |
 | Prospecção | `/inteligencia`, `/comunicacao`, `/linkedin`, `/leads/atributos` | sempre |
 | Prospecção | `/automacao` | **só na demo** (`isDemo`) |
 | Relacionamento | `/agenda`, `/atendimento`, `/whatsapp`, `/voz`, `/suporte`, `/ajuda` | sempre |
@@ -166,6 +209,29 @@ O menu é montado em `src/components/sidebar.tsx` e é a referência rápida do 
 | Administração | `/argus`, `/admin` | **só admin master** |
 
 Rotas fora do menu: `/ambiente` (botão "Trocar ambiente" na topbar) e as três páginas públicas de `/agendamento/*`.
+
+### 3.4 Tela em detalhe: o construtor de fluxos (`/fluxos/[id]`)
+
+O fluxo é o **modelo** da cadência (a sequência de blocos) e a campanha é a **execução**: o motor é o de sempre (`src/lib/cadence.ts`), o que muda é de onde a campanha lê as etapas (`src/lib/flows/resolve.ts`). O construtor é `src/app/(app)/fluxos/[id]/builder.tsx`.
+
+| Parte da tela | O que é |
+|---|---|
+| **Cabeçalho** | nome do fluxo, situação (rascunho / ativo / pausado) e **Salvar** — grava nome, situação e a sequência inteira numa transação (apaga as etapas do fluxo e regrava na ordem enviada). |
+| **Visão geral** | a **leitura horizontal do fluxo inteiro**: uma ficha por etapa (selo do canal, número, nome, canal e **dia acumulado**), ligada por setas, com o total de etapas e o **dia em que o fluxo termina**. Clicar na ficha seleciona o bloco. |
+| **Blocos disponíveis** (paleta) | os blocos liberados na operação: LinkedIn (reagir, comentar, convidar, mensagem), e-mail e WhatsApp (texto, voz, imagem, ligação). **Arrastáveis** para a sequência, na posição desejada; **clicar** adiciona ao final. Os blocos **travados** na operação aparecem abaixo, com cadeado e o motivo. |
+| **Sequência** | os blocos em ordem: **alça de arraste** (o punho de seis pontos), número, selo do canal, nome, canal, **dia** e espera. Entre os blocos há **vão de solta** — solte ali para inserir na posição. Há também subir, descer, duplicar e remover. |
+| **Configurar bloco** | nome, espera em dias, condição (sempre / se aceitar), texto (com `{nome}`, `{empresa}`, `{cargo}`), **Escrever o texto com a IA**, assunto do e-mail e link da mídia. |
+
+**O dia é sempre derivado.** O "dia N" de cada etapa é a **soma das esperas** até ela (`accumulatedDays`): mudar a espera de um bloco recalcula o dia de todos os que vêm depois, na hora, sem salvar.
+
+**Armadilha do arraste HTML5 (e como foi resolvida).** O arraste é nativo do navegador, sem biblioteca. O navegador só aceita a solta quando o `dropEffect` pedido pelo alvo está **permitido** pelo `effectAllowed` da origem. Com a paleta em `effectAllowed='copy'` e o vão pedindo `dropEffect='move'`, a solta era **rejeitada** e o bloco nunca entrava. Hoje a origem libera `copyMove` (`startDrag`) e o vão escolhe um `dropEffect` compatível (`copy` ou `move`, conforme o que a origem liberou) — e o vão tem 16 px de altura para a solta ao mouse.
+
+**Gate de validação (o que o Salvar recusa).** `src/lib/flows/validate.ts` (função pura, testada sem servidor) confere a sequência antes de gravar:
+
+1. **Recurso desligado na operação não entra.** Bloco de recurso travado é recusado na gravação — mas uma etapa que **já existia** e ficou travada continua salva (é a cadência, camada 2, que decide se ela age). Na **demonstração** o gate não prende a construção: a paleta mostra todos os blocos.
+2. **Texto em todo bloco que manda mensagem.** Só a reação do LinkedIn (`react`) é dispensada de texto; todo outro bloco precisa de texto **ou** da IA ligada. Sem os dois, o Salvar devolve *"Escreva o texto de cada bloco ou ligue a IA."*
+
+**Selos de canal** (`src/components/channel-marks.tsx`): todo bloco exibe o selo do canal — **LinkedIn** no azul oficial `#0A66C2`, **WhatsApp** no verde oficial `#25D366` e **e-mail** num **envelope pintado em âmbar** (`#D97706`, cor que não colide com o azul do app nem com o verde do WhatsApp). É a regra de marca do app: o canal externo aparece com o símbolo e a cor dele. O punho de arraste também é desenho próprio (seis pontos), sem ícone de biblioteca.
 
 ---
 
@@ -265,6 +331,11 @@ Todas usam `requireLinkedInScope()` (`src/app/api/integrations/linkedin/_auth.ts
 |---|---|---|
 | `src/lib/cadence.ts` | Motor da cadência assistida: inscrição de leads, `runScheduler` (vira inscrição vencida em ação na Fila), `completeAction`, `markOutcome`. | Regras de quando uma ação nasce, delays, transições de etapa. |
 | `src/lib/campaign-features.ts` | Gate único dos recursos de campanha (`image`, `call`). | Novo passo gated ou nova regra de habilitação. |
+| `src/lib/flows/types.ts` | Tipos, rótulos e ícones dos blocos do fluxo (o mesmo conjunto de passos da cadência). | Novo tipo de bloco. |
+| `src/lib/flows/gate.ts` | O que a paleta do construtor oferece e o que fica travado na operação (mesma regra de `campaign-features.ts`). | Quando um bloco entra ou sai da paleta. |
+| `src/lib/flows/validate.ts` | Gate de validação do construtor (recurso travado + texto ou IA em cada bloco). Função pura. | Regra de recusa na gravação. |
+| `src/lib/flows/order.ts` | Reordenação das etapas (`position` renumerada a partir de 0). Função pura. | Regra de ordenação da sequência. |
+| `src/lib/flows/resolve.ts` | De onde a campanha lê as etapas: com `flow_id`, as etapas do fluxo; sem fluxo, `campaigns.steps`. | De onde a cadência tira os passos. |
 | `src/lib/ai.ts` | Provedor de IA (API compatível com OpenAI: Z.AI, OpenRouter), cadeia de modelos com fallback, `aiGenerator`, `planSearch`. | Modelo, fallback, custo, prompts de geração. |
 | `src/lib/template.ts` | Preenchimento de `{nome}`, `{cargo}`, `{empresa}`, `{cidade}` etc. | Novas variáveis de template. |
 | `src/lib/linkedin/automation.ts` | Fila de execução automática de LinkedIn (desligada por padrão), recibo durável em `linkedin_dispatches`. | Regras de despacho, limites, retry. |
@@ -354,15 +425,21 @@ Todas usam `requireLinkedInScope()` (`src/app/api/integrations/linkedin/_auth.ts
 | Executar LinkedIn automaticamente | `src/lib/linkedin/automation.ts` + `src/lib/linkedin/http-executor.ts` |
 | Adicionar uma rota de API | `src/app/api/<tema>/route.ts`; use `requireScope()`/`requireOrg()` e o envelope `ok()`/`fail()` de `src/app/api/agenda/_http.ts` |
 | Adicionar uma ação de servidor | `src/app/(app)/actions.ts` (ou `src/app/(app)/<tema>/actions.ts`) com `requireOrg()` no topo |
-| Mudar as permissões | `src/lib/auth.ts` (`require*`, `canManage`) e `src/lib/admin-policy.ts` |
+| Mudar as permissões | `src/lib/auth.ts` (`require*`, `canManage`), `src/lib/admin-policy.ts` e `src/app/(app)/admin/user-actions.ts` (cadastrar, remover acesso, excluir conta) |
 | Mudar o menu lateral | `src/components/sidebar.tsx` (`primary`, `groups`) |
 | Recriar a demonstração | `src/lib/demo-reset.ts` + `POST /api/demo/reset` (só admin master) |
+| Mudar os blocos do fluxo (tipos, rótulos, ícones) | `src/lib/flows/types.ts` + `src/app/(app)/fluxos/[id]/builder.tsx` |
+| Mudar o que a paleta oferece ou o que o construtor recusa | `src/lib/flows/gate.ts` e `src/lib/flows/validate.ts` (a regra de recurso é a de `src/lib/campaign-features.ts`) |
+| Mudar de onde a campanha lê as etapas | `src/lib/flows/resolve.ts` + `src/lib/cadence.ts` |
 
 ---
 
 ## 7. Mapa rápido das tabelas
 
-46 tabelas no total: 45 em `src/db/schema.ts` + `lead_communication_profiles`, que é criada por SQL cru (`drizzle/0008_communication.sql`) e acessada por `db.execute` em `src/lib/communication.ts`.
+48 tabelas no total: 47 em `src/db/schema.ts` + `lead_communication_profiles`, que é criada por SQL cru (`drizzle/0008_communication.sql`) e acessada por `db.execute` em `src/lib/communication.ts`.
+
+> A branch `main` ainda tem **44** tabelas no `src/db/schema.ts` (sem `flows`, `flow_steps` e
+> `linkedin_connections`): as três só existem na linha `release/prospectra-cloudflare-20261101`.
 
 > Duas tabelas existem no schema mas **ainda não têm tela nem API** — só o seed da demo as preenche: `supportPrechatForms` / `support_prechat_forms` (formulário pré-chat) e `automationRules` / `automation_rules` (gatilho → condições → ações). Tratar como esquema reservado.
 
@@ -370,6 +447,7 @@ Todas usam `requireLinkedInScope()` (`src/app/api/integrations/linkedin/_auth.ts
 |---|---|
 | Tenancy | `users`, `orgs`, `memberships`, `sessions`, `authTokens` |
 | Prospecção | `leads`, `campaigns`, `enrollments`, `actions`, `events` |
+| Fluxos | `flows`, `flow_steps` |
 | Demonstração | `simFeed` |
 | Auditoria | `deletionReports`, `auditLog` |
 | WhatsApp | `whatsappCommands` |

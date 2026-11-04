@@ -95,6 +95,7 @@ curl -s -H "Authorization: Bearer $CF_TOKEN" \
 | 01/11/2026 | Criado | Workers `prospectra` e `prospectra-wa-gateway-bridge` | ✅ Prospectra |
 | 01/11/2026 | Criado | Tunnel `prospectra-wa-gateway` | ✅ Prospectra |
 | 01/11/2026 | Removido | `/opt/cf-build/index.ts` — arquivo órfão copiado por mim no mesmo ciclo | ✅ Prospectra |
+| 04/11/2026 | Criado | Rota de Worker `prospectra.argusprime.com.br/*` na zona — o domínio oficial passa a ser servido pelo edge. **Rollback**: apagar a rota devolve o tráfego para o registro DNS → nginx → VPS | ✅ Prospectra |
 
 **Nada fora do escopo foi alterado, desabilitado ou removido.** Vercel (`reversa-gov-suite`),
 CRM, Reversa/Gov, site, e-mail e cal.diy seguem intocados.

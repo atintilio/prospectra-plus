@@ -76,11 +76,18 @@ e o brief de IA que guia a redação.
 
 ### 4. Fluxos — o construtor arrastável
 `/fluxos`
-- Dois fluxos prontos: **Abertura quente · decisores de financeiro** (4 blocos) e
-  **Parcerias · escritórios contábeis**.
-- Abra um: a **paleta** à esquerda, a **sequência** no meio e a **configuração**
-  do bloco à direita. Arraste pelo punho para reordenar — o dia de cada bloco
-  se recalcula na hora.
+- Dois fluxos prontos: **Abertura quente · decisores de financeiro** (4 blocos,
+  termina no dia 7) e **Parcerias · escritórios contábeis** (3 blocos).
+- Abra um e comece pela **visão geral**: a faixa no topo lê o fluxo inteiro de
+  lado a lado — uma ficha por etapa com o **selo do canal** (LinkedIn azul,
+  WhatsApp verde, e-mail âmbar), o **dia** de cada bloco e o **dia em que o
+  fluxo termina**.
+- A **paleta** fica logo abaixo: **arraste** um bloco para a sequência (na
+  posição desejada) ou clique para adicionar ao final.
+- Na sequência, **arraste pelo punho** para reordenar e **solte no vão entre os
+  blocos** para inserir na posição. O dia de cada etapa se recalcula na hora.
+- À direita, a **configuração do bloco**: nome, espera em dias, condição,
+  texto — ou "escrever com a IA" — e, no e-mail, o assunto.
 - Uma das campanhas da demo **já usa um fluxo**: abra a campanha e veja o
   seletor "Fluxo da operação" com o vínculo ativo.
 - Na demo, todos os blocos estão liberados (nada é enviado de verdade).
