@@ -69,3 +69,38 @@ export async function adminStatusAction(userId: string, status: 'active' | 'disa
   });
   revalidatePath('/admin'); revalidatePath('/equipe'); return { ok: status === 'disabled' ? 'Acesso removido; dados preservados.' : 'Usuário reativado.' };
 }
+
+/**
+ * Exclui a conta de um usuário (remoção definitiva).
+ *
+ * Regras:
+ * - só o administrador da plataforma exclui;
+ * - a própria conta e a conta master são protegidas (canChangeUser);
+ * - o último administrador da plataforma não pode ser excluído;
+ * - as campanhas do usuário passam para quem está excluindo — o `owner_id` da
+ *   campanha é `on delete cascade`, ou seja, sem a transferência a campanha
+ *   inteira sumiria junto com a conta.
+ *
+ * O resto do dado do usuário é preservado pelo próprio schema: `leads`,
+ * `actions` e `events` usam `on delete set null` (o dado fica, sem dono).
+ */
+export async function adminDeleteUserAction(userId: string): Promise<Result> {
+  const ctx = await requireAdmin();
+  const db = await getDb();
+  const id = z.string().uuid().parse(userId);
+  const result = await db.transaction(async tx => {
+    const [user] = await tx.select().from(schema.users).where(eq(schema.users.id, id)).for('update');
+    if (!user) return { error: 'Usuário não encontrado.' };
+    if (!canChangeUser(ctx.user, user)) return { error: 'A conta master e a própria conta são protegidas.' };
+    if (user.platformRole === 'admin') {
+      const [{ n }] = await tx.select({ n: count() }).from(schema.users).where(eq(schema.users.platformRole, 'admin'));
+      if (n <= 1) return { error: 'Não é possível excluir o último administrador da plataforma.' };
+    }
+    const campaigns = await tx.update(schema.campaigns).set({ ownerId: ctx.user.id }).where(eq(schema.campaigns.ownerId, user.id)).returning({ name: schema.campaigns.name });
+    await tx.delete(schema.users).where(eq(schema.users.id, user.id));
+    const extra = campaigns.length ? ` ${campaigns.length} campanha(s) foram transferidas para você.` : '';
+    return { ok: `Conta de ${user.email} excluída.${extra}` };
+  });
+  revalidatePath('/admin'); revalidatePath('/equipe'); revalidatePath('/', 'layout');
+  return result;
+}
