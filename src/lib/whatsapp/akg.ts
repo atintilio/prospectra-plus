@@ -35,7 +35,7 @@ export class AkgGateway {
  private async request(path:string,method='GET',body?:unknown,missing=false):Promise<any>{
   let response:Response;
   const multipart=body instanceof FormData;
-  try {response=await this.fetcher(this.base+'/api'+path,{method,headers:multipart?{'x-api-key':this.config.apiKey}:{'x-api-key':this.config.apiKey,'Content-Type':'application/json'},body:multipart?body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8000)});}
+  try {response=await this.fetcher(this.base+'/api'+path,{method,headers:multipart?{'x-api-key':this.config.apiKey}:{'x-api-key':this.config.apiKey,'Content-Type':'application/json'},body:multipart?body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',/* 'manual' e o unico valor de redirect que existe no runtime do Cloudflare Worker ('error' lanca TypeError antes da requisicao sair). */ redirect:'manual',signal:AbortSignal.timeout(8000)});}
   catch {throw Error('WA-AKG indisponível ou sem resposta. Tente consultar o status novamente.');}
   if(missing&&[403,404].includes(response.status))return null;
   if([401,403].includes(response.status))throw Error('Credencial do WA-AKG inválida ou sem permissão.');
@@ -62,7 +62,7 @@ export class AkgGateway {
   if(!session||typeof session.status!=='string')throw Error('Resposta inválida do WA-AKG.');
   if(session.status==='CONNECTED'&&session.hasInstance===true&&typeof session.me?.id==='string')return {state:'connected',phone:session.me.id.split('@')[0].split(':')[0],checkedAt};
   if(!session.hasInstance||['STOPPED','LOGGED_OUT','DISCONNECTED'].includes(session.status))return {state:'disconnected',checkedAt};
-  const response=await this.fetcher(this.base+'/api'+this.path(scope)+'/qr',{headers:{'x-api-key':this.config.apiKey},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8000)}).catch(()=>null);
+  const response=await this.fetcher(this.base+'/api'+this.path(scope)+'/qr',{headers:{'x-api-key':this.config.apiKey},cache:'no-store',/* 'manual' e o unico valor de redirect que existe no runtime do Cloudflare Worker ('error' lanca TypeError antes da requisicao sair). */ redirect:'manual',signal:AbortSignal.timeout(8000)}).catch(()=>null);
   if(!response)throw Error('WA-AKG indisponível ou sem resposta. Tente consultar o status novamente.');
   if([400,404].includes(response.status))return {state:'connecting',checkedAt};
   if(!response.ok)throw Error('Não foi possível obter o QR Code do WA-AKG.');

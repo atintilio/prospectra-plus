@@ -25,7 +25,7 @@ export class VoiceStudioGateway {
  }
  private async request(path:string,init:RequestInit={},timeout=25000){
   let response:Response;
-  try{response=await this.fetcher(this.base+path,{...init,headers:{Authorization:`Bearer ${this.config.apiKey}`},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(timeout)});}
+  try{response=await this.fetcher(this.base+path,{...init,headers:{Authorization:`Bearer ${this.config.apiKey}`},cache:'no-store',/* 'manual' e o unico valor de redirect que existe no runtime do Cloudflare Worker ('error' lanca TypeError antes da requisicao sair). */ redirect:'manual',signal:AbortSignal.timeout(timeout)});}
   catch(error){console.error('[voice-studio] falha na chamada:',error instanceof Error?`${error.name}: ${error.message}${error.cause?` (cause: ${String(error.cause)})`:''}`:String(error));throw Error('Voice Studio indisponível ou sem confirmação. Nenhum envio foi confirmado.');}
   if(!response.ok){await response.body?.cancel();throw Error('Voice Studio recusou a operação. Verifique configuração, motor e acesso.');}
   return response;
