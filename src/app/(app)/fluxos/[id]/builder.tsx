@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import {
-  ArrowDown, ArrowUp, Copy, GripVertical, Lock, Plus, Save, Trash2, X,
+  ArrowDown, ArrowUp, Copy, Lock, Plus, Save, Trash2, X,
 } from 'lucide-react';
 import { FLOW_STEP_BLOCKS, type FlowStepType } from '@/lib/flows/types';
+import { ChannelMark, DragHandleMark, type CanalMarca } from '@/components/channel-marks';
 import { reorderFlowSteps } from '@/lib/flows/order';
 import { saveFlowAction } from '../actions';
 
@@ -50,6 +51,13 @@ const CANAL: Record<FlowStepType, Canal> = {
   voice: { rotulo: 'WhatsApp', cor: '#128C4A', fundo: 'rgba(37,211,102,.16)' },
   image: { rotulo: 'WhatsApp', cor: '#128C4A', fundo: 'rgba(37,211,102,.16)' },
   call: { rotulo: 'WhatsApp', cor: '#128C4A', fundo: 'rgba(37,211,102,.16)' },
+};
+
+/** Qual marca (selo) cada tipo de bloco usa. */
+const MARCA: Record<FlowStepType, CanalMarca> = {
+  react: 'linkedin', comment: 'linkedin', invite: 'linkedin', message: 'linkedin',
+  email: 'email',
+  whatsapp: 'whatsapp', voice: 'whatsapp', image: 'whatsapp', call: 'whatsapp',
 };
 
 /** O que o arraste carrega: mover uma etapa ou trazer um bloco novo. */
@@ -247,7 +255,6 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
           <ol className="mt-3 flex flex-wrap items-stretch gap-2">
             {steps.map((step, index) => {
               const block = FLOW_STEP_BLOCKS[step.type];
-              const Icon = block.icon;
               const canal = CANAL[step.type];
               return (
                 <li key={step.id} className="flex items-center gap-2">
@@ -258,7 +265,7 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
                     title={`${index + 1}. ${step.name || block.short}`}
                   >
                     <span className="flex items-center gap-1.5 text-xs font-semibold">
-                      <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: canal.cor }} aria-hidden="true" />
+                      <ChannelMark channel={MARCA[step.type]} size={18} decorative />
                       <span className="truncate">{index + 1}. {step.name || block.short}</span>
                     </span>
                     <span className="mt-0.5 block text-[11px] text-muted">
@@ -282,8 +289,6 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
         <div className="mt-3 flex flex-wrap gap-2">
           {available.map((type) => {
             const block = FLOW_STEP_BLOCKS[type];
-            const Icon = block.icon;
-            const canal = CANAL[type];
             return (
               <button
                 key={type}
@@ -292,11 +297,11 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
                 onDragStart={(e) => startDrag(e, { tipo: 'novo', bloco: type })}
                 onDragEnd={endDrag}
                 onClick={() => addBlock(type)}
-                className="inline-flex cursor-grab items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium transition hover:border-accent hover:bg-surface-accent hover:text-accent active:cursor-grabbing"
+                className="group inline-flex cursor-grab items-center gap-2.5 rounded-xl border border-border bg-white py-2 pl-2 pr-3 text-sm font-medium transition hover:-translate-y-px hover:border-accent/50 hover:shadow-md active:cursor-grabbing"
               >
-                <Icon className="h-4 w-4 shrink-0" style={{ color: canal.cor }} aria-hidden="true" />
+                <ChannelMark channel={MARCA[type]} size={26} decorative />
                 <span>{block.label}</span>
-                <Plus className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                <Plus className="h-3.5 w-3.5 text-muted transition group-hover:text-accent" aria-hidden="true" />
               </button>
             );
           })}
@@ -309,15 +314,14 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
             <div className="mt-2 flex flex-wrap gap-2">
               {blocked.map(({ type, reason }) => {
                 const block = FLOW_STEP_BLOCKS[type];
-                const Icon = block.icon;
                 return (
                   <span
                     key={type}
-                    className="inline-flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2 text-sm text-muted"
+                    className="inline-flex items-center gap-2.5 rounded-xl border border-dashed border-border py-2 pl-2 pr-3 text-sm text-muted"
                     title={reason || FEATURE_REASON[type]}
                   >
-                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    <span>{block.label}</span>
+                    <ChannelMark channel={MARCA[type]} size={26} decorative />
+                    <span className="opacity-60">{block.label}</span>
                     <Lock className="h-3.5 w-3.5" aria-hidden="true" />
                   </span>
                 );
@@ -343,7 +347,6 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
             ) : null}
             {steps.map((step, index) => {
               const block = FLOW_STEP_BLOCKS[step.type];
-              const Icon = block.icon;
               const canal = CANAL[step.type];
               const isSelected = step.id === selectedId;
               return (
@@ -368,7 +371,7 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
                         aria-label={`Arrastar ${step.name || block.short}`}
                         title="Arraste para reordenar"
                       >
-                        <GripVertical className="h-4 w-4" aria-hidden="true" />
+                        <DragHandleMark size={18} />
                       </span>
                       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-accent text-xs font-bold text-accent">
                         {index + 1}
@@ -379,7 +382,7 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
                         className="flex min-w-0 flex-1 flex-col items-start text-left"
                       >
                         <span className="flex min-w-0 items-center gap-2">
-                          <Icon className="h-4 w-4 shrink-0" style={{ color: canal.cor }} aria-hidden="true" />
+                          <ChannelMark channel={MARCA[step.type]} size={22} decorative />
                           <span className="truncate font-semibold">{step.name || block.short}</span>
                         </span>
                         <span className="mt-0.5 text-xs text-muted">
