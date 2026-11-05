@@ -16,7 +16,7 @@ mensagens, comentários em publicações e passagem de lead para o closer. O que
 | Fila e regras do piloto | ✅ existe | `src/lib/linkedin/automation.ts` |
 | Chamada ao worker (HTTP) | ✅ existe (no-op sem env) | `src/lib/linkedin/http-executor.ts` |
 | Gate por operação | ✅ existe (default desligado) | `orgs.linkedin_enabled` |
-| Tela do piloto | ⚠️ **só na demonstração** e 100% simulada | `src/app/(app)/automacao/page.tsx` |
+| Tela do piloto | mostra o **estado real** (desligado enquanto a operação não liberar o LinkedIn e não houver conta conectada); na demonstração é simulada | `src/app/(app)/automacao/page.tsx` |
 | Tela de **conectar conta** | ❌ **não existe** | — |
 | Worker de LinkedIn (headless + `li_at` + proxy) | ❌ **não implantado** | — |
 | Env `LINKEDIN_WORKER_URL/KEY` | ❌ ausentes | `/etc/prospectra-plus/app.env` |

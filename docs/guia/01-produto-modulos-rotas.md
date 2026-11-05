@@ -206,7 +206,7 @@ O menu é montado em `src/components/sidebar.tsx` e é a referência rápida do 
 |---|---|---|
 | Atalhos | `/painel`, `/fila`, `/leads`, `/campanhas`, `/fluxos` | sempre |
 | Prospecção | `/inteligencia`, `/comunicacao`, `/linkedin`, `/leads/atributos` | sempre |
-| Prospecção | `/automacao` | **só na demo** (`isDemo`) |
+| Prospecção | `/automacao` | mostra o **estado real** do piloto: desligado até a operação liberar o LinkedIn (`orgs.linkedin_enabled`) e a conta estar conectada |
 | Relacionamento | `/agenda`, `/atendimento`, `/whatsapp`, `/voz`, `/suporte`, `/ajuda` | sempre |
 | Gestão e equipe | `/relatorios`, `/projetos`, `/docs` | sempre |
 | Gestão e equipe | `/equipe` | `canManage` ou admin master |
