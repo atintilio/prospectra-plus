@@ -180,19 +180,46 @@ async function callModel(
     body: JSON.stringify({
       model,
       // modelos com raciocínio forçado (ex.: GLM-4.7) gastam tokens pensando;
-      // dá folga para a resposta não ser truncada e reduz a profundidade do raciocínio
-      max_tokens: provider.isOpenRouter ? maxTokens : Math.max(maxTokens, 2048),
+      // o piso é generoso porque, com orçamento curto, o modelo consome tudo
+      // pensando e devolve a resposta vazia (o "content" chega como '').
+      max_tokens: provider.isOpenRouter ? maxTokens : Math.max(maxTokens, 4096),
       temperature,
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       ...(provider.isOpenRouter ? {} : { reasoning_effort: 'low' }),
     }),
-    signal: AbortSignal.timeout(provider.isOpenRouter ? 25_000 : 45_000),
+    signal: AbortSignal.timeout(provider.isOpenRouter ? 25_000 : 60_000),
   });
-  const body = (await res.json().catch(() => ({}))) as { choices?: { message?: { content?: unknown } }[]; error?: unknown };
+  const body = (await res.json().catch(() => ({}))) as {
+    choices?: { message?: { content?: unknown; reasoning_content?: unknown } }[];
+    error?: unknown;
+  };
   const raw = body.choices?.[0]?.message?.content;
-  const text = typeof raw === 'string' ? raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim() : '';
+  const raciocinio = body.choices?.[0]?.message?.reasoning_content;
+  const semThink = (v: unknown) => (typeof v === 'string' ? v.replace(/<think>[\s\S]*?<\/think>/g, '').trim() : '');
+  // Resposta normal; se o modelo só "pensou" e não escreveu nada, o texto do
+  // raciocínio é usado como fonte (a extração do JSON treats as duas).
+  const text = semThink(raw) || semThink(raciocinio);
   if (res.ok && text) return text;
   throw providerFailure(res, body);
+}
+
+/**
+ * Extrai o objeto JSON de uma resposta de modelo.
+ *
+ * Os modelos devolvem o JSON dentro de cerca de markdown (```json ... ```),
+ * com texto antes ou depois, ou só dentro do raciocínio. Sem esta extração,
+ * uma resposta válida vira "a IA não passou na validação".
+ */
+export function extrairJson<T = unknown>(texto: string): T | null {
+  const limpo = texto.replace(/```(?:json|JSON)?/g, '').replace(/```/g, '').trim();
+  if (!limpo) return null;
+  try { return JSON.parse(limpo) as T; } catch { /* tenta o bloco interno */ }
+  const inicio = limpo.indexOf('{');
+  if (inicio < 0) return null;
+  for (let fim = limpo.lastIndexOf('}'); fim > inicio; fim = limpo.lastIndexOf('}', fim - 1)) {
+    try { return JSON.parse(limpo.slice(inicio, fim + 1)) as T; } catch { /* tenta o próximo */ }
+  }
+  return null;
 }
 
 /**
@@ -318,7 +345,7 @@ export async function planSearch(prompt: string): Promise<SearchPlan> {
         'Extraia filtros de busca de pessoas no LinkedIn. Responda apenas JSON: {"keywords":"...","titles":["..."],"locations":["..."],"industries":["..."]}. keywords: até 6 palavras para a busca do LinkedIn. titles: cargos em português e inglês.',
         prompt, 300,
       );
-      const json = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+      const json = extrairJson<Record<string, unknown>>(raw) ?? {};
       plan = {
         keywords: String(json.keywords || prompt).slice(0, 120),
         titles: Array.isArray(json.titles) ? json.titles.map(String).slice(0, 6) : [],

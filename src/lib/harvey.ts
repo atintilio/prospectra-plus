@@ -1,6 +1,6 @@
 import 'server-only';
 import {communicationQuestion,commercialMessage,type CommunicationContext} from '@/lib/communication-copy';
-import { aiCompleteFree, aiFreeModelChain, aiProvider } from '@/lib/ai';
+import { aiCompleteFree, aiFreeModelChain, aiProvider, extrairJson } from '@/lib/ai';
 import { z } from 'zod';
 
 const leadSchema = z.object({ id: z.string(), orgId: z.string(), ownerId: z.string().nullable(), fullName: z.string().max(300), company: z.string().max(500), headline: z.string().max(1000), stage: z.string() });
@@ -16,7 +16,7 @@ const planSchema = z.object({
   intent: z.enum(['outreach', 'qualifying', 'interested', 'technical', 'unexpected', 'opt_out']),
   topic: z.enum(['commercial', 'growth', 'unknown']),
   evidence: z.array(z.object({ field: z.enum(['company', 'headline', 'inbound']), quote: z.string().min(1).max(300) }).strict()).max(5),
-}).strict();
+}).passthrough();
 export function authorizeCommercial(ctx: CommercialContext, lead: CommercialInput['lead']): void {
   if (ctx.status !== 'active' || !ctx.orgActive || ctx.orgId !== lead.orgId || ctx.userId !== lead.ownerId) throw new Error('COMMERCIAL_FORBIDDEN');
   if (!ctx.aiEnabled) throw new Error('AI_DISABLED');
@@ -75,8 +75,18 @@ export async function generateCommercial(ctx: CommercialContext, rawInput: Comme
   let plan: z.infer<typeof planSchema>;
   try {
     if (content.length > 12000) throw new Error();
-    plan = validateCommercialPlan(JSON.parse(content), input);
-  } catch { throw new Error('AI_INVALID_RESPONSE'); }
+    // O modelo devolve o JSON dentro de cerca de markdown (e às vezes só no
+    // raciocínio): a extração pega o objeto em qualquer um dos formatos.
+    const bruto = extrairJson<unknown>(content);
+    if (!bruto) throw new Error();
+    plan = validateCommercialPlan(bruto, input);
+  } catch {
+    // Resposta fora do formato: a conversa continua com o plano mínimo
+    // (qualificar e perguntar a prioridade). O rascunho continua exigindo
+    // revisão humana — o modelo nunca escreve a mensagem.
+    console.warn('[harvey] a resposta do modelo não passou na validação; usando o plano mínimo de qualificação.');
+    plan = { offerIndex: 0, question: 'priority', intent: 'qualifying', topic: 'commercial', evidence: [] };
+  }
   const offer = input.offers[plan.offerIndex];
   // Any inbound text remains a human review, even if classification is wrong.
   const reason = optOut.test(input.inbound) ? 'opt_out' : input.inbound.trim() && plan.intent === 'outreach' ? 'unexpected' : plan.intent;
