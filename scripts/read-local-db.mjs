@@ -1,0 +1,11 @@
+import { PGlite } from '@electric-sql/pglite';
+const t0 = Date.now();
+const c = new PGlite('.data/dev');
+await c.waitReady;
+console.log('pronto em', Date.now() - t0, 'ms');
+const r = await c.query('select id, email, name, status from users');
+console.log('users:', JSON.stringify(r.rows));
+const o = await c.query('select id, name, is_demo from orgs');
+console.log('orgs:', JSON.stringify(o.rows));
+await c.close();
+process.exit(0);

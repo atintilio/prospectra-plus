@@ -137,7 +137,7 @@ export function SupportInbox({ list, selected, status, members, canAssign, allLa
               onSubmit={(e) => {
                 e.preventDefault(); const text = draft.trim(); if (!text) return; setDraft('');
                 if (noteMode) { const ids = mentionIds; setMentionIds([]); start(async () => { const r = await addSupportNoteAction(selected.id, text, ids); setNotice(r?.error ?? r?.ok ?? ''); }); }
-                else start(() => { void replySupportAction(selected.id, text); });
+                else start(async () => { const r = await replySupportAction(selected.id, text); setNotice(r?.error ?? r?.ok ?? ''); });
               }}>
               <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
                 <label className="flex items-center gap-1.5"><input type="checkbox" checked={noteMode} onChange={(e) => setNoteMode(e.target.checked)} /> <Lock className="h-3 w-3" /> Nota interna (só a equipe vê)</label>

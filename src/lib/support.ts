@@ -8,6 +8,7 @@ import { getSlaPolicy, deadlineFrom } from '@/lib/support-sla';
 import { getSchedule, withinSchedule } from '@/lib/support-schedule';
 import { dispatchWebhook } from '@/lib/webhooks';
 import { recordAudit } from '@/lib/audit';
+import { safeFailureReason, sendWhatsAppCommand } from '@/lib/whatsapp/commands';
 
 type InboxScope = Scope & { role: Role };
 const isManager = (scope: InboxScope) => scope.role === 'owner' || scope.role === 'manager';
@@ -134,19 +135,68 @@ export async function openInternalTicket(
   });
 }
 
-export async function replyToConversation(db: DB, scope: InboxScope, conversationId: string, body: string): Promise<void> {
+export async function replyToConversation(db: DB, scope: InboxScope, conversationId: string, body: string): Promise<{ messageId: string }> {
   const text = bodySchema.parse(body);
-  await db.transaction(async (tx) => {
+  const messageId = await db.transaction(async (tx) => {
     const [c] = await tx.select().from(schema.supportConversations)
       .where(and(eq(schema.supportConversations.id, conversationId), inboxAccess(scope))).for('update');
     if (!c) throw new Error('Conversa não encontrada.');
-    await tx.insert(schema.supportMessages).values({ conversationId, author: 'agent', authorUserId: scope.userId, body: text });
+    const [message] = await tx.insert(schema.supportMessages).values({ conversationId, author: 'agent', authorUserId: scope.userId, body: text })
+      .returning({ id: schema.supportMessages.id });
     await tx.update(schema.supportConversations).set({ status: 'open', lastMessageAt: new Date(), assignedTo: c.assignedTo ?? scope.userId }).where(eq(schema.supportConversations.id, conversationId));
+    return message.id;
   });
   await recordAudit(scope.orgId, {
     actorUserId: scope.userId, action: 'support.replied', entity: 'support_conversation', entityId: conversationId,
   });
   await notifyWebhooks(scope.orgId, 'conversation.replied', { conversationId });
+  return { messageId };
+}
+
+/** Resultado da entrega de uma resposta: 'sent' só existe com confirmação do provedor. */
+export type SupportReplyDelivery = { state: 'sent' | 'demo' | 'unknown'; error?: string };
+
+/**
+ * Entrega a resposta de uma conversa pelo WhatsApp.
+ *
+ * A resposta já está registrada no atendimento; aqui mora a entrega externa.
+ * - conversa de web: a gravação no atendimento É a entrega (o widget lê a conversa);
+ * - conversa de WhatsApp: só é 'sent' com o recibo do gateway; sem confirmação o
+ *   recibo fica 'unknown' (estado do schema para envio não confirmado) e o motivo
+ *   real volta para a tela — nunca um "Resposta enviada" falso.
+ */
+export async function deliverSupportReply(
+  db: DB,
+  scope: InboxScope,
+  conversationId: string,
+  commandId: string,
+  body: string,
+  deps: {
+    send: (scope: Scope, recipient: string, text: string) => Promise<{ providerMessageId: string }>;
+    dailyLimit: number;
+    isDemo?: boolean;
+  },
+): Promise<SupportReplyDelivery> {
+  const [c] = await db.select().from(schema.supportConversations)
+    .where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, scope.orgId)));
+  if (!c) throw new Error('Conversa não encontrada.');
+  if (c.channel !== 'whatsapp') return { state: 'sent' }; // web: a gravação no atendimento é a entrega
+  if (deps.isDemo) return { state: 'demo' }; // demonstração: nenhum envio real pelo WhatsApp
+  const phone = c.visitorPhone.replace(/[\s()+-]/g, '');
+  if (!/^[1-9]\d{7,14}$/.test(phone)) {
+    return { state: 'unknown', error: 'A conversa não tem um telefone válido do cliente: a resposta ficou registrada no atendimento, mas não saiu pelo WhatsApp.' };
+  }
+  let result: Awaited<ReturnType<typeof sendWhatsAppCommand>>;
+  try {
+    result = await sendWhatsAppCommand(db, { orgId: scope.orgId, userId: scope.userId }, { id: commandId, recipient: phone, text: body }, deps.dailyLimit, deps.send);
+  } catch (error) {
+    return { state: 'unknown', error: `A resposta ficou registrada no atendimento, mas o WhatsApp não enviou: ${safeFailureReason(error, 'falha no envio')}` };
+  }
+  if (result.state === 'sent') return { state: 'sent' };
+  return {
+    state: 'unknown',
+    error: `A resposta ficou registrada no atendimento, mas o WhatsApp não confirmou o envio.${result.error ? ` Motivo: ${result.error}` : ''} Confira no WhatsApp antes de reenviar.`,
+  };
 }
 
 export async function setConversationStatus(db: DB, scope: InboxScope, conversationId: string, status: 'open' | 'closed'): Promise<void> {

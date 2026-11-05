@@ -14,6 +14,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 
 export function ArgusPanel({ list, selected, status }: { list: ListItem[]; selected: Selected | null; status: 'open' | 'closed' }) {
   const [, start] = useTransition();
   const [draft, setDraft] = useState('');
+  const [notice, setNotice] = useState('');
 
   return (
     <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
@@ -55,6 +56,7 @@ export function ArgusPanel({ list, selected, status }: { list: ListItem[]; selec
                 {selected.status === 'open' ? <><Check className="h-4 w-4" /> Fechar</> : <><RotateCcw className="h-4 w-4" /> Reabrir</>}
               </button>
             </header>
+            {notice && <p className="px-5 pt-2 text-xs text-muted" role="status">{notice}</p>}
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
               {selected.messages.map((m) => (
                 <div key={m.id} className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${m.author === 'agent' ? 'ml-auto bg-accent text-white' : 'bg-surface'}`}>
@@ -64,7 +66,7 @@ export function ArgusPanel({ list, selected, status }: { list: ListItem[]; selec
               ))}
             </div>
             <form className="border-t border-border p-3"
-              onSubmit={(e) => { e.preventDefault(); const text = draft.trim(); if (!text) return; setDraft(''); start(() => { void argusReplyAction(selected.id, text); }); }}>
+              onSubmit={(e) => { e.preventDefault(); const text = draft.trim(); if (!text) return; setDraft(''); start(async () => { const r = await argusReplyAction(selected.id, text); setNotice(r?.error ?? r?.ok ?? ''); }); }}>
               <div className="flex gap-2">
                 <textarea className="input resize-none" rows={2} placeholder="Responder ao solicitante…" value={draft} onChange={(e) => setDraft(e.target.value)} />
                 <button type="submit" className="btn-primary self-end" disabled={!draft.trim()}><Send className="h-4 w-4" /> Enviar</button>

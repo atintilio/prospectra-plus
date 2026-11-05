@@ -24,3 +24,9 @@ __pycache__/
 services/intelligence/data/
 services/intelligence/.venv/
 infra/voice-studio/source/
+
+# build local do Cloudflare + logs de dev
+.open-next/
+.devserver.log
+.read-db.log
+.seed-demo.log

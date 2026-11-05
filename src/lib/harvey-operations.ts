@@ -216,6 +216,8 @@ export async function runHarveyQueue(db:DB,deps:{send?:(scope:Scope,recipient:st
    else{
     const result=await sendWhatsAppCommand(db,{orgId:conversation.orgId,userId:conversation.userId},{id:row.id,recipient:row.recipient,text:row.body},job.limit,send!);
     state=result.state==='sent'?'sent':'unknown';
+    // Envio nao confirmado guarda o motivo real (sem falso 'sent').
+    if(result.error)error=result.error;
    }
   }catch(e){error=e instanceof Error?e.message.slice(0,300):'Entrega sem confirmação';}
   await db.update(schema.harveyOutbox).set({state,error}).where(eq(schema.harveyOutbox.id,row.id));

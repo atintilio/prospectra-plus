@@ -10,7 +10,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
-import { addPrivateNote, adminReplyProduct, adminSetProductStatus, assignConversation, assignConversationTeam, createTeam, deleteTeam, openInternalTicket, replyToConversation, setConversationLabels, setConversationStatus, setTeamMembers } from '@/lib/support';
+import { addPrivateNote, adminReplyProduct, adminSetProductStatus, assignConversation, assignConversationTeam, createTeam, deleteTeam, deliverSupportReply, openInternalTicket, replyToConversation, setConversationLabels, setConversationStatus, setTeamMembers, type SupportReplyDelivery } from '@/lib/support';
 import { sendSupportMail } from '@/lib/mailer';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
 import { deleteArticle, setArticleStatus, upsertArticle } from '@/lib/help';
@@ -463,17 +463,32 @@ export async function replySupportAction(conversationId: string, body: string): 
   const ctx = await requireOrg();
   if (!body?.trim()) return { error: 'Escreva uma resposta.' };
   const db = await getDb();
+  const scope = { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role };
+  let messageId: string;
   try {
-    await replyToConversation(db, { orgId: ctx.org.id, userId: ctx.user.id, role: ctx.role }, conversationId, body);
+    ({ messageId } = await replyToConversation(db, scope, conversationId, body));
   } catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível responder.' }; }
-  // Conversa de WhatsApp: entrega a resposta pelo gateway quando configurado (best-effort; já ficou registrada).
+  // Entrega externa (WhatsApp): 'Resposta enviada' só existe com confirmação do gateway.
+  // Sem confirmação o recibo fica 'unknown' e a tela recebe o motivo real da falha.
+  const cfg = akgConfig();
+  let delivery: SupportReplyDelivery;
   try {
-    const [c] = await db.select().from(schema.supportConversations).where(and(eq(schema.supportConversations.id, conversationId), eq(schema.supportConversations.orgId, ctx.org.id)));
-    const cfg = akgConfig();
-    if (c?.channel === 'whatsapp' && c.visitorPhone && cfg) await new AkgGateway(cfg).sendText({ orgId: ctx.org.id, userId: ctx.user.id }, c.visitorPhone, body);
-  } catch { /* entrega pelo WhatsApp é best-effort */ }
+    delivery = await deliverSupportReply(db, scope, conversationId, messageId, body, {
+      send: async (s, p, t) => {
+        if (!cfg) throw Error('O WhatsApp não está configurado nesta operação.');
+        return new AkgGateway(cfg).sendText(s, p, t);
+      },
+      dailyLimit: ctx.user.dailyMessages,
+      isDemo: ctx.org.isDemo,
+    });
+  } catch (e) {
+    revalidatePath('/suporte');
+    return { error: `A resposta ficou registrada no atendimento, mas não foi possível enviar pelo WhatsApp: ${e instanceof Error ? e.message : 'erro desconhecido.'}` };
+  }
   revalidatePath('/suporte');
-  return { ok: 'Resposta enviada.' };
+  if (delivery.state === 'sent') return { ok: 'Resposta enviada.' };
+  if (delivery.state === 'demo') return { ok: 'Demonstração: resposta registrada no atendimento; nenhum envio real pelo WhatsApp.' };
+  return { error: delivery.error };
 }
 
 export async function setSupportStatusAction(conversationId: string, status: 'open' | 'closed') {
@@ -580,13 +595,30 @@ export async function openSupportTicketAction(_: State, form: FormData): Promise
   return { ok: 'Chamado aberto. O suporte da Argus responde por aqui e por e-mail.' };
 }
 
+/** Motivo da falha de e-mail para a tela: só o código do Office 365, sem credencial. */
+function mailFailureReason(error: unknown): string {
+  const raw = error instanceof Error ? error.message.replace(/\s+/g, ' ').trim() : '';
+  if (raw === 'OFFICE365_NOT_CONFIGURED') return 'o Office 365 não está configurado neste servidor.';
+  const http = /^OFFICE365_SEND_FAILED_(\d{3})$/.exec(raw);
+  if (http) return `o Office 365 recusou o envio (HTTP ${http[1]}).`;
+  const detail = raw.replace(/\b[A-Za-z0-9_-]{40,}\b/g, '***').slice(0, 120);
+  return detail ? `falha do provedor de e-mail (${detail}).` : 'falha desconhecida do provedor de e-mail.';
+}
+
 export async function argusReplyAction(conversationId: string, body: string): Promise<State> {
   const ctx = await requireAdmin();
   if (!body?.trim()) return { error: 'Escreva uma resposta.' };
   let to = '';
   try { ({ to } = await adminReplyProduct(await getDb(), ctx.user.id, conversationId, body)); }
   catch (e) { return { error: e instanceof Error ? e.message : 'Não foi possível responder.' }; }
-  if (to) sendSupportMail([to], 'Resposta do suporte Argus', body).catch(() => {});
+  // A resposta do chamado chega ao solicitante pelo e-mail: sem e-mail entregue não é 'Resposta enviada'.
+  if (to) {
+    try { await sendSupportMail([to], 'Resposta do suporte Argus', body); }
+    catch (e) {
+      revalidatePath('/argus');
+      return { error: `A resposta ficou registrada no chamado, mas o e-mail para ${to} não foi enviado: ${mailFailureReason(e)}` };
+    }
+  }
   revalidatePath('/argus');
   return { ok: 'Resposta enviada.' };
 }
