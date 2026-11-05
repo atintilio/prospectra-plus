@@ -2,6 +2,5 @@
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm exec next build",
-  "regions": ["gru1"],
-  "crons": [{ "path": "/api/cron", "schedule": "0 10 * * *" }]
+  "regions": ["gru1"]
 }

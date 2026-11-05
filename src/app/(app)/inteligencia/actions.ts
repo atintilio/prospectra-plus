@@ -49,6 +49,7 @@ export async function generateCommercialAction(raw: unknown): Promise<Intelligen
     if (code === 'AI_NOT_CONFIGURED') return { error: 'O provedor de IA ainda não está configurado pelo administrador.' };
     if (code === 'AI_FREE_MODEL_REQUIRED') return { error: 'Configure um modelo gratuito de IA para esta operação.' };
     if (code === 'AI_INVALID_RESPONSE') return { error: 'A resposta da IA não passou na validação. Nenhum rascunho foi salvo. Tente novamente.' };
+    console.error('[inteligencia] falha ao gerar o rascunho:', code);
     return { error: 'Não foi possível gerar ou salvar agora. Nenhuma mensagem foi enviada.' };
   }
 }

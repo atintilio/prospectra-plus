@@ -26,6 +26,21 @@ function aiKey(): string | undefined {
   return (process.env.AI_API_KEY || process.env.OPENROUTER_API_KEY)?.trim() || undefined;
 }
 
+/**
+ * Normaliza o endpoint da IA.
+ *
+ * O `AI_BASE_URL` pode vir so com a base (`https://api.z.ai/api/paas/v4`).
+ * A API responde em `/chat/completions`: sem esse sufixo a chamada vai para
+ * uma rota que nao existe e a IA falha (com "Não foi possível gerar ou
+ * salvar agora" na tela). Anexar o caminho aqui evita depender de a
+ * configuracao estar completa.
+ */
+function normalizaEndpointAi(endpoint: string): string {
+  const base = endpoint.replace(/\/+$/, '');
+  if (!base.includes('/chat/completions')) return base + '/chat/completions';
+  return base;
+}
+
 function hostname(endpoint: string): string {
   try {
     return new URL(endpoint).hostname.toLowerCase();
@@ -36,7 +51,7 @@ function hostname(endpoint: string): string {
 
 /** Provedor configurado no ambiente (lido a cada chamada). */
 export function aiProvider(): AiProvider {
-  const endpoint = process.env.AI_BASE_URL?.trim() || OPENROUTER_ENDPOINT;
+  const endpoint = normalizaEndpointAi(process.env.AI_BASE_URL?.trim() || OPENROUTER_ENDPOINT);
   const host = hostname(endpoint);
   return {
     endpoint,

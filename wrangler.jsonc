@@ -23,7 +23,7 @@
     "WA_AKG_SESSION_ID": "prospectra-30592258160abd52e895f911450114df631a2bf9",
     "VOICESTUDIO_BASE_URL": "https://voice.argusprime.com.br",
     "VOICESTUDIO_ENGINE": "moss-tts-nano",
-    "AI_BASE_URL": "https://api.z.ai/api/paas/v4",
+    "AI_BASE_URL": "https://api.z.ai/api/paas/v4/chat/completions",
     "AI_MODEL": "glm-4.7",
     "AI_FALLBACK_MODELS": "glm-4.7-flash,glm-4.5-flash",
     "INTELLIGENCE_WORKER_ENABLED": "true",
