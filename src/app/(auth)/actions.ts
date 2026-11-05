@@ -20,6 +20,21 @@ async function firstOrgOf(userId: string): Promise<string | null> {
   return m?.orgId ?? null;
 }
 
+/**
+ * Operação de entrada depois do login: a de produção quando existe; senão a
+ * demonstração (quem só tem a demo entra direto nela, sem tela de ambiente).
+ */
+async function entryOrgOf(userId: string): Promise<string | null> {
+  const prod = await firstOrgOf(userId);
+  if (prod) return prod;
+  const db = await getDb();
+  const [m] = await db.select({ orgId: schema.memberships.orgId }).from(schema.memberships)
+    .innerJoin(schema.orgs, eq(schema.orgs.id, schema.memberships.orgId))
+    .where(and(eq(schema.memberships.userId, userId), eq(schema.orgs.isDemo, true)))
+    .orderBy(schema.memberships.createdAt).limit(1);
+  return m?.orgId ?? null;
+}
+
 export async function loginAction(_: FormState, form: FormData): Promise<FormState> {
   const email = normalizeEmail(String(form.get('email') ?? ''));
   const password = String(form.get('password') ?? '');
@@ -50,12 +65,14 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
       legacy = legacy ?? (await findLegacyUser(email));
       if (legacy) await ensureTeam(db, user.id, legacy.role);
     }
-    await createSession(user.id, await firstOrgOf(user.id));
+    await createSession(user.id, await entryOrgOf(user.id));
   } catch (e) {
     console.error('login failed', e);
     return { error: 'Não foi possível entrar agora. Tente novamente em instantes.' };
   }
-  redirect('/ambiente');
+  // Entra direto na operação: a tela /ambiente continua existindo, mas quem
+  // entra no Prospectra cai no painel (o ambiente troca-se pelo botão do topo).
+  redirect('/painel');
 }
 
 /** Garante o usuário master e o parceiro "Argus Prime" no primeiro acesso. */
@@ -109,8 +126,8 @@ export async function setPasswordAction(_: FormState, form: FormData): Promise<F
     .set({ passwordHash: await hashPassword(password), status: 'active', ...(name ? { name } : {}) })
     .where(eq(schema.users.id, row.userId));
   await db.delete(schema.sessions).where(eq(schema.sessions.userId, row.userId));
-  await createSession(row.userId, await firstOrgOf(row.userId));
-  redirect('/ambiente');
+  await createSession(row.userId, await entryOrgOf(row.userId));
+  redirect('/painel');
 }
 
 export async function logoutAction() {

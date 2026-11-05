@@ -4,6 +4,7 @@ import { canManage, requireOrg } from '@/lib/auth';
 import { mailerConfigured } from '@/lib/mailer';
 import { PageHeader } from '@/components/ui';
 import { TeamView } from './team-view';
+import { displayOrgName } from '@/lib/demo-name';
 
 export const metadata = { title: 'Equipe' };
 
@@ -15,7 +16,7 @@ export default async function EquipePage() {
     .where(eq(schema.memberships.orgId, ctx.org.id)).orderBy(asc(schema.users.name));
   return (
     <>
-      <PageHeader title="Equipe" subtitle={`${members.length} de ${ctx.org.seats} usuários em ${ctx.org.name}`} />
+      <PageHeader title="Equipe" subtitle={`${members.length} de ${ctx.org.seats} usuários em ${displayOrgName(ctx.org)}`} />
       <TeamView members={members} me={ctx.user.id} myRole={ctx.role} canManage={canManage(ctx.role)} mailOk={mailerConfigured()} />
     </>
   );

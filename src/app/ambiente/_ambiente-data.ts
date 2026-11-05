@@ -16,6 +16,7 @@ import type { Ctx } from '@/lib/auth';
 import { akgConfig, AkgGateway } from '@/lib/whatsapp/akg';
 import { voiceConfig } from '@/lib/voice/voicestudio';
 import { isLinkedInConfigured } from '@/lib/linkedin/connection';
+import { displayOrgName } from '@/lib/demo-name';
 
 export type EnvKey = 'prod' | 'demo';
 export type IntegrationKey = 'whatsapp' | 'linkedin' | 'voz';
@@ -343,7 +344,9 @@ async function buildEnv(db: DB, ctx: Ctx, key: EnvKey, org: OrgRow | null): Prom
     title: isDemo ? 'Demonstração' : 'Produção',
     tagline: isDemo ? DEMO_TAGLINE : PROD_TAGLINE,
     orgId: org?.id ?? null,
-    orgName: org?.name ?? null,
+    // Na demonstração o nome exibido é o rótulo genérico: o nome fictício da
+    // empresa fica no banco, mas não aparece para a pessoa.
+    orgName: org ? displayOrgName(org) : null,
     exists: Boolean(org),
     metrics,
     integrations: [whatsapp, linkedin, voz],
@@ -361,7 +364,7 @@ export async function loadAmbiente(ctx: Ctx): Promise<AmbienteData> {
   const currentEnv: EnvKey | null = ctx.org ? (ctx.org.isDemo ? 'demo' : 'prod') : null;
   return {
     currentEnv,
-    currentOrgName: ctx.org?.name ?? null,
+    currentOrgName: ctx.org ? displayOrgName(ctx.org) : null,
     firstName: (ctx.user.name || '').split(' ')[0] ?? '',
     prod,
     demo,

@@ -8,6 +8,7 @@ import { dayString, runScheduler } from '@/lib/cadence';
 import { Avatar, Card, KpiCard, LineChart, PageHeader, StagePill } from '@/components/ui';
 import { AgendaCard } from '../agenda-card';
 import { SuiteExplorer } from '@/components/suite-explorer';
+import { displayOrgName } from '@/lib/demo-name';
 
 export const metadata = { title: 'Painel' };
 
@@ -87,7 +88,7 @@ export default async function Painel({ searchParams }: { searchParams: Promise<{
 
   return (
     <>
-      <PageHeader eyebrow={`Bom dia${first ? `, ${first}` : ''}`} title="O que avançou — e onde agir agora." subtitle={`${ctx.org.name} · ${manager ? 'visão da equipe' : 'seus resultados'} · últimos ${days} dias`}>
+      <PageHeader eyebrow={`Bom dia${first ? `, ${first}` : ''}`} title="O que avançou — e onde agir agora." subtitle={`${displayOrgName(ctx.org)} · ${manager ? 'visão da equipe' : 'seus resultados'} · últimos ${days} dias`}>
         <div className="flex rounded-lg border border-border bg-white p-1 text-sm">
           {Object.keys(RANGES).map((k) => (
             <Link key={k} href={`/painel?dias=${k}`} className={`rounded-md px-3 py-1.5 ${String(days) === k ? 'bg-surface-accent font-medium text-accent' : 'text-muted hover:text-text'}`}>{k} dias</Link>
