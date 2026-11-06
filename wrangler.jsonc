@@ -15,6 +15,8 @@
     "enabled": true
   },
   "vars": {
+    "LINKEDIN_CLIENT_ID": "78x8crnutdo34u",
+    "LINKEDIN_REDIRECT_URI": "https://prospectra.argusprime.com.br/api/integrations/linkedin/callback",
     "MASTER_USER_EMAIL": "atintilio@argusprime.com.br",
     "SESSION_IDLE_MINUTES": "15",
     "PUBLIC_APP_URL": "https://prospectra.argusprime.com.br",
