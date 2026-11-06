@@ -82,7 +82,7 @@ export function LeadsView({ leads, total, page, tags, campaigns, filters, aiOn, 
         {msg && <div className="px-4 pt-3"><FormMessage state={msg} /></div>}
 
         {leads.length === 0 ? (
-          <div className="p-6"><Empty icon={UserSearch} title="Nenhum lead por aqui" text="Use a busca com IA, importe a exportação do Sales Navigator ou cole links de perfis." /></div>
+          <div className="p-6"><Empty icon={UserSearch} title="Nenhum lead por aqui" text="Cadastre um contato ou importe sua planilha CSV." /></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px]">
@@ -104,7 +104,7 @@ export function LeadsView({ leads, total, page, tags, campaigns, filters, aiOn, 
                     <td className="td">{l.tag ? <span className="pill bg-violet-soft text-violet">{l.tag}</span> : <span className="text-muted">—</span>}</td>
                     <td className="td"><StageMenu lead={l} /></td>
                     <td className="td text-muted">{new Date(l.createdAt).toLocaleDateString('pt-BR')}</td>
-                    <td className="td text-right"><a href={l.linkedinUrl} target="_blank" rel="noopener" className="btn-ghost px-2 py-1" aria-label="Abrir no LinkedIn"><ExternalLink className="h-4 w-4" /></a></td>
+                    <td className="td text-right">{l.linkedinUrl && <a href={l.linkedinUrl} target="_blank" rel="noopener" className="btn-ghost px-2 py-1" aria-label="Abrir no LinkedIn"><ExternalLink className="h-4 w-4" /></a>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -225,7 +225,7 @@ function ImportPanel({ onClose }: { onClose: () => void }) {
         <div>
           <label className="label" htmlFor="file">Arquivo CSV</label>
           <input id="file" name="file" type="file" accept=".csv,text/csv" className="input file:mr-3 file:rounded-md file:border-0 file:bg-surface-accent file:px-3 file:py-1 file:text-accent" />
-          <p className="mt-1.5 text-xs text-muted">Aceita exportações do Sales Navigator, Apollo ou planilhas. Precisa de uma coluna com a URL do perfil; nome, cargo, empresa e cidade são lidos se existirem.</p>
+          <p className="mt-1.5 text-xs text-muted">Aceita exportações do Sales Navigator, Apollo ou planilhas. LinkedIn é opcional. Informe ao menos nome, e-mail ou telefone; os demais campos podem ficar vazios.</p>
         </div>
         <div>
           <label className="label" htmlFor="urls">Ou cole URLs de perfis</label>

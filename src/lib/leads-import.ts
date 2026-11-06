@@ -27,7 +27,8 @@ export function normalizaTelefone(raw: string): string {
 export function normalizeLinkedinUrl(raw: string): string | null {
   const m = raw.trim().match(/linkedin\.com\/(in|sales\/lead|sales\/people)\/([^/?#\s,]+)/i);
   if (!m) return null;
-  const slug = decodeURIComponent(m[2]).replace(/\/$/, '');
+  let slug: string;
+  try { slug = decodeURIComponent(m[2]).replace(/\/$/, ''); } catch { return null; }
   return m[1].toLowerCase() === 'in' ? `https://www.linkedin.com/in/${slug.toLowerCase()}` : `https://www.linkedin.com/${m[1].toLowerCase()}/${slug}`;
 }
 
@@ -93,16 +94,17 @@ export function leadsFromCsv(text: string): { leads: ParsedLead[]; invalid: numb
   for (const r of data) {
     const rawUrl = c.url >= 0 ? r[c.url] ?? '' : r.find((v) => /linkedin\.com\//i.test(v)) ?? '';
     const url = normalizeLinkedinUrl(rawUrl);
-    if (!url) { invalid++; continue; }
-    const name = (c.name >= 0 ? r[c.name] : [c.first >= 0 ? r[c.first] : '', c.last >= 0 ? r[c.last] : ''].join(' ')).trim() || nameFromSlug(url);
+    const name = (c.name >= 0 ? r[c.name] ?? '' : [c.first >= 0 ? r[c.first] ?? '' : '', c.last >= 0 ? r[c.last] ?? '' : ''].join(' ')).trim();
+    const email = (c.email >= 0 ? r[c.email] : '')?.trim().toLowerCase() ?? '';
+    const phone = normalizaTelefone((c.phone >= 0 ? r[c.phone] : '') ?? '');
+    if (!url && !name && !email && !phone) { invalid++; continue; }
     out.push({
-      linkedinUrl: url, fullName: name,
+      linkedinUrl: url ?? '', fullName: name || (url ? nameFromSlug(url) : email || phone),
       headline: (c.title >= 0 ? r[c.title] : '')?.trim() ?? '',
       company: (c.company >= 0 ? r[c.company] : '')?.trim() ?? '',
       location: (c.location >= 0 ? r[c.location] : '')?.trim() ?? '',
       // Contato: entra na base para a campanha ter para quem enviar (WhatsApp/e-mail).
-      email: (c.email >= 0 ? r[c.email] : '')?.trim() ?? '',
-      phone: normalizaTelefone((c.phone >= 0 ? r[c.phone] : '') ?? ''),
+      email, phone,
     });
   }
   return { leads: dedupe(out), invalid };
@@ -120,7 +122,20 @@ export function leadsFromUrls(text: string): { leads: ParsedLead[]; invalid: num
   return { leads: dedupe(out), invalid };
 }
 
+export function leadIdentityKeys(lead: Pick<ParsedLead, 'linkedinUrl' | 'email' | 'phone'>): string[] {
+  return [
+    lead.linkedinUrl && 'url:' + lead.linkedinUrl,
+    lead.email && 'email:' + lead.email.toLowerCase(),
+    lead.phone && 'phone:' + normalizaTelefone(lead.phone).replace(/^\+/, ''),
+  ].filter(Boolean) as string[];
+}
+
 function dedupe(list: ParsedLead[]): ParsedLead[] {
   const seen = new Set<string>();
-  return list.filter((l) => (seen.has(l.linkedinUrl) ? false : (seen.add(l.linkedinUrl), true)));
+  return list.filter((lead) => {
+    const keys = leadIdentityKeys(lead);
+    if (keys.some(key => seen.has(key))) return false;
+    keys.forEach(key => seen.add(key));
+    return true;
+  });
 }

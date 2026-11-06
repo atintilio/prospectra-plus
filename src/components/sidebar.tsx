@@ -25,6 +25,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     { href: '/fila', label: 'Fila do dia', icon: ListChecks },
     { href: '/leads', label: 'Leads', icon: UserSearch },
     { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
+    { href: '/canais', label: 'Canais linkados', icon: Share2 },
     { href: '/fluxos', label: 'Fluxos', icon: GitBranch },
   ];
   const groups: NavGroup[] = [
@@ -158,7 +159,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
       </aside>
 
       <nav className="prospectra-mobile-nav fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around gap-1 px-2 pt-2 md:hidden" aria-label="Navegação rápida">
-        {primary.map((item) => {
+        {primary.filter((item) => item.href !== '/canais').map((item) => {
           const Icon = item.icon;
           return <Link key={item.href} href={item.href} aria-current={active(item.href) ? 'page' : undefined}
             className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-medium ${active(item.href) ? 'text-blue-200' : 'text-white/60'}`}>
@@ -182,6 +183,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
               <button type="button" onClick={() => setMobileOpen(false)} aria-label="Fechar menu" className="rounded-full border border-white/10 p-2 text-white/70 hover:bg-white/10"><X className="h-4 w-4" /></button>
             </header>
             <div className="grid gap-5">
+              {drawerLink({ href: '/canais', label: 'Canais linkados', icon: Share2 })}
               {groups.map((group) => {
                 const Icon = group.icon;
                 return <section key={group.id} aria-labelledby={`mobile-group-${group.id}`}>

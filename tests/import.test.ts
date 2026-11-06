@@ -6,11 +6,13 @@ describe('importação de leads', () => {
     expect(normalizeLinkedinUrl('https://br.linkedin.com/in/Ana-Souza-123abc/?trk=x')).toBe('https://www.linkedin.com/in/ana-souza-123abc');
     expect(normalizeLinkedinUrl('https://google.com')).toBeNull();
   });
-  it('lê CSV com ; e aspas, ignora linhas sem perfil e duplicadas', () => {
+  it('lê CSV com ; e aspas, aceita linhas sem perfil e ignora URLs duplicadas', () => {
     const csv = 'Nome;Cargo;Empresa;LinkedIn\n"Souza, Ana";CFO;Acme;https://linkedin.com/in/ana\nSem perfil;CEO;X;\nAna;CFO;Acme;linkedin.com/in/ana/';
     const r = leadsFromCsv(csv);
-    expect(r.leads).toEqual([{ linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Souza, Ana', headline: 'CFO', company: 'Acme', location: '', email: '', phone: '' }]);
-    expect(r.invalid).toBe(1);
+    expect(r.leads[0]).toEqual({ linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Souza, Ana', headline: 'CFO', company: 'Acme', location: '', email: '', phone: '' });
+    expect(r.leads).toHaveLength(2);
+    expect(r.leads[1].fullName).toBe('Sem perfil');
+    expect(r.invalid).toBe(0);
   });
   it('lê URLs coladas e deduz o nome', () => {
     const r = leadsFromUrls('https://www.linkedin.com/in/marcos-lima-8a7b6c5d\n lixo');

@@ -84,7 +84,7 @@ export const leads = pgTable('leads', {
   attributes: jsonb('attributes').notNull().default(sql`'{}'::jsonb`), // atributos personalizados por operação (Fase A)
   createdAt: createdAt(),
 }, (t) => [
-  uniqueIndex('leads_org_url_uq').on(t.orgId, t.linkedinUrl),
+  uniqueIndex('leads_org_url_uq').on(t.orgId, t.linkedinUrl).where(sql`${t.linkedinUrl} <> ''`),
   index('leads_org_stage_idx').on(t.orgId, t.stage),
   index('leads_org_owner_idx').on(t.orgId, t.ownerId),
   index('leads_org_email_idx').on(t.orgId, t.email),

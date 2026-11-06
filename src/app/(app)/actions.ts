@@ -1,6 +1,6 @@
 'use server';
 
-import { and, count, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -19,7 +19,7 @@ import { confirmMeetingAndInvite, cancelMeeting } from '@/lib/scheduling';
 import type { TaskStatus } from '@/db/schema';
 
 const ARGUS_SUPPORT = [process.env.MASTER_USER_EMAIL || 'atintilio@argusprime.com.br', 'mloro@argusprime.com.br'];
-import { leadsFromCsv, leadsFromUrls, normalizaTelefone, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
+import { leadIdentityKeys, leadsFromCsv, leadsFromUrls, normalizaTelefone, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
 import { deleteAuditedLeads, flushDeletionReports } from '@/lib/deletion-audit';
@@ -76,13 +76,37 @@ export async function chooseEnvAction(form: FormData) {
 
 async function insertLeads(orgId: string, ownerId: string, parsed: ParsedLead[], source: 'import' | 'search' | 'manual', tag: string) {
   const db = await getDb();
-  let added = 0;
-  for (let i = 0; i < parsed.length; i += 200) {
-    const chunk = parsed.slice(i, i + 200).map((l) => ({ ...l, orgId, ownerId, source, tag }));
-    const res = await db.insert(schema.leads).values(chunk).onConflictDoNothing().returning({ id: schema.leads.id });
-    added += res.length;
-  }
-  return added;
+  return db.transaction(async tx => {
+    // Serialize imports for this operation so retries cannot duplicate contact-only rows.
+    await tx.select({ id: schema.orgs.id }).from(schema.orgs).where(eq(schema.orgs.id, orgId)).for('update');
+    let added = 0;
+    for (let i = 0; i < parsed.length; i += 200) {
+      const candidates = parsed.slice(i, i + 200);
+      const urls = candidates.map(lead => lead.linkedinUrl).filter(Boolean);
+      const emails = candidates.map(lead => lead.email?.toLowerCase() ?? '').filter(Boolean);
+      const phones = candidates.map(lead => lead.phone?.replace(/\D/g, '') ?? '').filter(Boolean);
+      const identities = [
+        urls.length ? inArray(schema.leads.linkedinUrl, urls) : undefined,
+        emails.length ? inArray(sql<string>`lower(${schema.leads.email})`, emails) : undefined,
+        phones.length ? inArray(sql<string>`regexp_replace(${schema.leads.phone}, '[^0-9]', '', 'g')`, phones) : undefined,
+      ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
+      const existing = identities.length ? await tx.select({
+        linkedinUrl: schema.leads.linkedinUrl, email: schema.leads.email, phone: schema.leads.phone,
+      }).from(schema.leads).where(and(eq(schema.leads.orgId, orgId), or(...identities))) : [];
+      const seen = new Set(existing.flatMap(leadIdentityKeys));
+      const chunk = candidates.filter(lead => {
+        const keys = leadIdentityKeys(lead);
+        if (keys.some(key => seen.has(key))) return false;
+        keys.forEach(key => seen.add(key));
+        return true;
+      }).map(lead => ({ ...lead, orgId, ownerId, source, tag }));
+      if (chunk.length) {
+        const inserted = await tx.insert(schema.leads).values(chunk).onConflictDoNothing().returning({ id: schema.leads.id });
+        added += inserted.length;
+      }
+    }
+    return added;
+  });
 }
 
 export async function importLeadsAction(_: State, form: FormData): Promise<State> {
@@ -102,11 +126,11 @@ export async function importLeadsAction(_: State, form: FormData): Promise<State
     const r = leadsFromUrls(urls);
     parsed = [...parsed, ...r.leads]; invalid += r.invalid;
   }
-  if (!parsed.length) return { error: 'Nenhum perfil do LinkedIn encontrado. O CSV precisa de uma coluna com a URL do perfil.' };
+  if (!parsed.length) return { error: 'Nenhum contato encontrado. Informe ao menos nome, e-mail, telefone ou LinkedIn em cada linha.' };
   const added = await insertLeads(ctx.org.id, ctx.user.id, parsed, 'import', tag);
   revalidatePath('/leads');
   const dup = parsed.length - added;
-  return { ok: `${added} lead${added === 1 ? '' : 's'} adicionado${added === 1 ? '' : 's'}.${dup ? ` ${dup} já estava${dup === 1 ? '' : 'm'} na base.` : ''}${invalid ? ` ${invalid} linha(s) sem perfil válido.` : ''}` };
+  return { ok: `${added} lead${added === 1 ? '' : 's'} adicionado${added === 1 ? '' : 's'}.${dup ? ` ${dup} já estava${dup === 1 ? '' : 'm'} na base.` : ''}${invalid ? ` ${invalid} linha(s) sem dados de identificação.` : ''}` };
 }
 
 export async function addLeadAction(_: State, form: FormData): Promise<State> {
