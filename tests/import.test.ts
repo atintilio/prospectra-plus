@@ -9,7 +9,7 @@ describe('importação de leads', () => {
   it('lê CSV com ; e aspas, ignora linhas sem perfil e duplicadas', () => {
     const csv = 'Nome;Cargo;Empresa;LinkedIn\n"Souza, Ana";CFO;Acme;https://linkedin.com/in/ana\nSem perfil;CEO;X;\nAna;CFO;Acme;linkedin.com/in/ana/';
     const r = leadsFromCsv(csv);
-    expect(r.leads).toEqual([{ linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Souza, Ana', headline: 'CFO', company: 'Acme', location: '' }]);
+    expect(r.leads).toEqual([{ linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Souza, Ana', headline: 'CFO', company: 'Acme', location: '', email: '', phone: '' }]);
     expect(r.invalid).toBe(1);
   });
   it('lê URLs coladas e deduz o nome', () => {

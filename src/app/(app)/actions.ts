@@ -19,7 +19,7 @@ import { confirmMeetingAndInvite, cancelMeeting } from '@/lib/scheduling';
 import type { TaskStatus } from '@/db/schema';
 
 const ARGUS_SUPPORT = [process.env.MASTER_USER_EMAIL || 'atintilio@argusprime.com.br', 'mloro@argusprime.com.br'];
-import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
+import { leadsFromCsv, leadsFromUrls, normalizaTelefone, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
 import { deleteAuditedLeads, flushDeletionReports } from '@/lib/deletion-audit';
@@ -118,6 +118,7 @@ export async function addLeadAction(_: State, form: FormData): Promise<State> {
   const added = await insertLeads(ctx.org.id, ctx.user.id, [{
     linkedinUrl: url, fullName,
     headline: String(form.get('headline') ?? '').trim(), company: String(form.get('company') ?? '').trim(), location: String(form.get('location') ?? '').trim(),
+    email: String(form.get('email') ?? '').trim(), phone: normalizaTelefone(String(form.get('phone') ?? '')),
   }], form.get('source') === 'search' ? 'search' : 'manual', String(form.get('tag') ?? '').trim().slice(0, 40));
   revalidatePath('/leads');
   return added ? { ok: `${fullName} adicionado.` } : { error: 'Este perfil já está na base.' };

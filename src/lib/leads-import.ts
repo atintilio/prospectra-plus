@@ -1,6 +1,28 @@
 // Leitura de CSV (exportação do Sales Navigator, planilhas, listas próprias) e de URLs coladas.
 
-export type ParsedLead = { linkedinUrl: string; fullName: string; headline: string; company: string; location: string };
+export type ParsedLead = {
+  linkedinUrl: string;
+  fullName: string;
+  headline: string;
+  company: string;
+  location: string;
+  /** Contato: e-mail e telefone (WhatsApp). Sem isso o lead não recebe nada. */
+  email?: string;
+  phone?: string;
+};
+
+/**
+ * Normaliza o telefone para o formato internacional (só dígitos com o + da frente).
+ * O gateway valida 8 a 15 dígitos; texto solto ("(49) 9999-8888") é convertido.
+ */
+export function normalizaTelefone(raw: string): string {
+  const texto = (raw ?? '').trim();
+  if (!texto) return '';
+  const digitos = texto.replace(/\D/g, '');
+  if (!digitos) return '';
+  // Número local sem código do país não é adivinhado: fica só com os dígitos.
+  return (texto.startsWith('+') ? '+' : '') + digitos;
+}
 
 export function normalizeLinkedinUrl(raw: string): string | null {
   const m = raw.trim().match(/linkedin\.com\/(in|sales\/lead|sales\/people)\/([^/?#\s,]+)/i);
@@ -46,6 +68,8 @@ const H = {
   title: ['cargo', 'title', 'headline', 'job title', 'position', 'título'],
   company: ['empresa', 'company', 'company name', 'organization', 'organização'],
   location: ['cidade', 'location', 'localização', 'local', 'city'],
+  email: ['email', 'e-mail', 'mail', 'correio', 'e mail'],
+  phone: ['telefone', 'phone', 'whatsapp', 'celular', 'mobile', 'tel', 'contato'],
 };
 
 function findCol(headers: string[], keys: string[]): number {
@@ -62,6 +86,7 @@ export function leadsFromCsv(text: string): { leads: ParsedLead[]; invalid: numb
   const c = {
     url: findCol(headers, H.url), name: findCol(headers, H.name), first: findCol(headers, H.first), last: findCol(headers, H.last),
     title: findCol(headers, H.title), company: findCol(headers, H.company), location: findCol(headers, H.location),
+    email: findCol(headers, H.email), phone: findCol(headers, H.phone),
   };
   const out: ParsedLead[] = [];
   let invalid = 0;
@@ -75,6 +100,9 @@ export function leadsFromCsv(text: string): { leads: ParsedLead[]; invalid: numb
       headline: (c.title >= 0 ? r[c.title] : '')?.trim() ?? '',
       company: (c.company >= 0 ? r[c.company] : '')?.trim() ?? '',
       location: (c.location >= 0 ? r[c.location] : '')?.trim() ?? '',
+      // Contato: entra na base para a campanha ter para quem enviar (WhatsApp/e-mail).
+      email: (c.email >= 0 ? r[c.email] : '')?.trim() ?? '',
+      phone: normalizaTelefone((c.phone >= 0 ? r[c.phone] : '') ?? ''),
     });
   }
   return { leads: dedupe(out), invalid };
