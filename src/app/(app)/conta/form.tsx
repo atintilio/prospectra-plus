@@ -4,7 +4,7 @@ import { useActionState } from 'react';
 import { updateAccountAction } from '../actions';
 import { FormMessage, Submit } from '@/components/form';
 
-export function AccountForm({ me }: { me: { name: string; email: string; linkedinUrl: string | null; dailyInvites: number; dailyMessages: number } }) {
+export function AccountForm({ me }: { me: { name: string; email: string; emailSignature: string; linkedinUrl: string | null; dailyInvites: number; dailyMessages: number } }) {
   const [state, action] = useActionState(updateAccountAction, undefined);
   return (
     <form action={action} className="card max-w-2xl space-y-5 p-6">
@@ -18,6 +18,7 @@ export function AccountForm({ me }: { me: { name: string; email: string; linkedi
           <p className="mt-1 text-xs text-muted">Recomendado: até 20. O LinkedIn restringe contas que exageram.</p></div>
         <div><label className="label" htmlFor="dm">Mensagens por dia</label><input id="dm" name="dailyMessages" type="number" min={1} max={100} className="input" defaultValue={me.dailyMessages} /></div>
       </div>
+      <div><label className="label" htmlFor="emailSignature">Assinatura dos e-mails</label><textarea id="emailSignature" name="emailSignature" rows={5} maxLength={4000} className="input" defaultValue={me.emailSignature} /><p className="mt-1 text-xs text-muted">Adicionada ao final dos e-mails de campanha enviados pela sua conta, sem alterações pela IA.</p></div>
       <FormMessage state={state} />
       <Submit className="btn-primary" pendingText="Salvando…">Salvar</Submit>
     </form>

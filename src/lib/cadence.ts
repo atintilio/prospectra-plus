@@ -9,13 +9,14 @@ import { sendCampaignEmail } from '@/lib/office365/connection';
 import { queueVoiceDelivery } from '@/lib/voice/delivery';
 import { campaignFeatures, stepTypeEnabled } from '@/lib/campaign-features';
 import { resolveSteps, type ResolvedStep } from '@/lib/flows/resolve';
+import { loadCampaignContext } from './campaign-context';
 
 // Motor da cadência (modo assistido).
 // - O scheduler transforma inscrições vencidas em "ações" na Fila do dia de quem executa a campanha.
 // - O usuário marca a ação como feita / pulada; marca resultados do lead (aceitou, respondeu, reunião, venda).
 // - Resposta encerra a cadência do lead. Passos com condição "accepted" esperam o aceite do convite.
 
-export type Generator = (args: { step: CampaignStep; lead: typeof schema.leads.$inferSelect; brief: string }) => Promise<string>;
+export type Generator = (args: { step: CampaignStep; lead: typeof schema.leads.$inferSelect; brief: string; context?: string }) => Promise<string>;
 
 export const defaultGenerator: Generator = async ({ step, lead }) => fillTemplate(step.template, lead);
 
@@ -128,7 +129,12 @@ export async function runScheduler(db: DB, opts: {
     const userId = camp.assignedTo ?? camp.ownerId;
     let body = '';
     if (step.type !== 'react') {
-      body = step.useAi && aiEnabled ? await generate({ step, lead, brief: camp.aiBrief }).catch(() => fillTemplate(step.template, lead)) : fillTemplate(step.template, lead);
+      if (step.useAi && aiEnabled) {
+        try {
+          const context = await loadCampaignContext(db, enr.orgId, camp.id, lead.id, userId);
+          body = await generate({ step, lead, brief: camp.aiBrief, context });
+        } catch { body = fillTemplate(step.template, lead); }
+      } else body = fillTemplate(step.template, lead);
       if (step.type === 'invite') body = body.slice(0, 300); // limite da nota de convite do LinkedIn
     }
     const [action] = await db.insert(schema.actions).values({

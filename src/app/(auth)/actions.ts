@@ -8,6 +8,7 @@ import { hashPassword, sha256, verifyPassword } from '@/lib/crypto';
 import { sendAccessEmail } from '@/lib/mailer';
 import { findLegacyUser } from '@/lib/legacy';
 import { ensureMasterOrg, ensureTeam } from '@/lib/membership';
+import { verifyLoginAttempt } from '@/lib/login-attempts';
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -52,7 +53,7 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
         [user] = await db.update(schema.users).set({ passwordHash: legacy.passwordHash, status: 'active', ...(legacy.name && !user.name ? { name: legacy.name } : {}) }).where(eq(schema.users.id, user.id)).returning();
       }
     }
-    if (!user || user.status !== 'active' || !(await verifyPassword(password, user.passwordHash))) {
+    if (!user || !(await verifyLoginAttempt(db, user.id, password))) {
       return { error: 'E-mail ou senha incorretos.' };
     }
     if (isMasterEmail(email)) {
@@ -123,7 +124,7 @@ export async function setPasswordAction(_: FormState, form: FormData): Promise<F
   if (!row) return { error: 'Este link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".' };
   await db.update(schema.authTokens).set({ usedAt: new Date() }).where(eq(schema.authTokens.id, row.id));
   await db.update(schema.users)
-    .set({ passwordHash: await hashPassword(password), status: 'active', ...(name ? { name } : {}) })
+    .set({ passwordHash: await hashPassword(password), status: 'active', failedLoginAttempts: 0, loginLockedUntil: null, ...(name ? { name } : {}) })
     .where(eq(schema.users.id, row.userId));
   await db.delete(schema.sessions).where(eq(schema.sessions.userId, row.userId));
   await createSession(row.userId, await entryOrgOf(row.userId));

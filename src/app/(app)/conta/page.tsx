@@ -11,7 +11,7 @@ export default async function ContaPage() {
   return (
     <>
       <PageHeader title="Minha conta" subtitle="Seus dados e os limites que protegem sua conta do LinkedIn." />
-      <AccountForm me={{ name: user.name, email: user.email, linkedinUrl: user.linkedinUrl, dailyInvites: user.dailyInvites, dailyMessages: user.dailyMessages }} />
+      <AccountForm me={{ name: user.name, email: user.email, emailSignature: user.emailSignature, linkedinUrl: user.linkedinUrl, dailyInvites: user.dailyInvites, dailyMessages: user.dailyMessages }} />
       <section className="card mt-6 max-w-2xl p-6" aria-labelledby="integracoes">
         <h2 id="integracoes" className="text-base font-semibold">Integrações</h2>
         <LinkedInShortcut />

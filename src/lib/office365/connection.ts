@@ -8,6 +8,24 @@ export const STATE_COOKIE = 'prospectra_office365_state';
 export const STATE_TTL_SECONDS = 600;
 type Scope = { orgId: string; userId: string; sessionId: string };
 
+export async function canUseOffice365(db: DB, scope: Pick<Scope, 'orgId' | 'userId'>): Promise<boolean> {
+  const [row] = await db.select({
+    orgActive: schema.orgs.active,
+    orgDemo: schema.orgs.isDemo,
+    userStatus: schema.users.status,
+    platformRole: schema.users.platformRole,
+    memberUserId: schema.memberships.userId,
+  }).from(schema.users)
+    .innerJoin(schema.orgs, eq(schema.orgs.id, scope.orgId))
+    .leftJoin(schema.memberships, and(eq(schema.memberships.orgId, schema.orgs.id), eq(schema.memberships.userId, schema.users.id)))
+    .where(eq(schema.users.id, scope.userId)).limit(1);
+  return Boolean(row?.orgActive && !row.orgDemo && row.userStatus === 'active' && (row.platformRole === 'admin' || row.memberUserId));
+}
+
+export async function assertOffice365Access(db: DB, scope: Pick<Scope, 'orgId' | 'userId'>): Promise<void> {
+  if (!(await canUseOffice365(db, scope))) throw new Error('OFFICE365_ACCESS_DENIED');
+}
+
 export function office365Config() {
   const tenant = process.env.OFFICE365_TENANT_ID?.trim() || process.env.MS_TENANT_ID?.trim();
   const clientId = process.env.OFFICE365_CLIENT_ID?.trim() || process.env.MS_CLIENT_ID?.trim();
@@ -89,6 +107,7 @@ async function tokenRequest(tenant: string, body: URLSearchParams): Promise<Toke
 }
 
 export async function connect(code: string, verifier: string, scope: Scope, db: DB) {
+  await assertOffice365Access(db, scope);
   const config = office365Config();
   if (!config) throw new Error('OFFICE365_CONNECTION_NOT_CONFIGURED');
   const token = await tokenRequest(config.tenant, new URLSearchParams({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: config.redirectUri }));
@@ -105,6 +124,7 @@ export async function connect(code: string, verifier: string, scope: Scope, db: 
 }
 
 export async function status(scope: Pick<Scope, 'orgId' | 'userId'>, db: DB) {
+  if (!(await canUseOffice365(db, scope))) return { status: 'disconnected' };
   if (!office365Config()) return { status: 'configuration_required' };
   const [row] = await db.select({ email: schema.office365Connections.email, name: schema.office365Connections.name, connectedAt: schema.office365Connections.connectedAt }).from(schema.office365Connections).where(and(eq(schema.office365Connections.orgId, scope.orgId), eq(schema.office365Connections.userId, scope.userId))).limit(1);
   return row ? { status: 'connected', email: row.email, name: row.name, connectedAt: row.connectedAt.toISOString() } : { status: 'disconnected' };
@@ -140,7 +160,11 @@ async function accessToken(scope: Pick<Scope, 'orgId' | 'userId'>, db: DB): Prom
 }
 
 export async function sendCampaignEmail(db: DB, scope: Pick<Scope, 'orgId' | 'userId'>, to: string, subject: string, body: string) {
+  await assertOffice365Access(db, scope);
   const token = await accessToken(scope, db);
-  const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: { subject: subject.slice(0, 200), body: { contentType: 'Text', content: body }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: true }), signal: AbortSignal.timeout(15000) });
+  const [sender] = await db.select({ signature: schema.users.emailSignature }).from(schema.users).where(eq(schema.users.id, scope.userId));
+  const signature = sender?.signature.trim();
+  const content = signature ? `${body.trimEnd()}\n\n${signature}` : body;
+  const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: { subject: subject.slice(0, 200), body: { contentType: 'Text', content }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: true }), signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error(`OFFICE365_SEND_FAILED_${response.status}`);
 }

@@ -1,4 +1,5 @@
 'use server';
+import { campaignStepSchema } from '@/lib/campaign-step';
 
 import { and, count, eq, gte, inArray, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -140,7 +141,8 @@ export async function addLeadAction(_: State, form: FormData): Promise<State> {
   if (!url) return { error: 'Cole a URL do perfil (linkedin.com/in/...).' };
   if (!fullName) return { error: 'Informe o nome.' };
   const added = await insertLeads(ctx.org.id, ctx.user.id, [{
-    linkedinUrl: url, fullName,
+    linkedinUrl: url,
+    fullName,
     headline: String(form.get('headline') ?? '').trim(), company: String(form.get('company') ?? '').trim(), location: String(form.get('location') ?? '').trim(),
     email: String(form.get('email') ?? '').trim(), phone: normalizaTelefone(String(form.get('phone') ?? '')),
   }], form.get('source') === 'search' ? 'search' : 'manual', String(form.get('tag') ?? '').trim().slice(0, 40));
@@ -188,20 +190,11 @@ export async function aiSearchAction(prompt: string): Promise<{ plan?: SearchPla
 
 // ---------- Campanhas ----------
 
-const stepSchema = z.object({
-  id: z.string().min(1).max(40),
-  type: z.enum(['react', 'comment', 'invite', 'message']),
-  delayDays: z.coerce.number().int().min(0).max(60),
-  condition: z.enum(['always', 'accepted']),
-  template: z.string().max(1500),
-  useAi: z.boolean(),
-  name: z.string().trim().max(60).optional(), // rótulo da etapa no mini-mapa do fluxo (RF7)
-});
 const campaignSchema = z.object({
   name: z.string().trim().min(2, 'Dê um nome à campanha.').max(80),
   aiBrief: z.string().max(1200),
   assignedTo: z.string().uuid().nullable(),
-  steps: z.array(stepSchema).min(1, 'Adicione pelo menos um passo.').max(12),
+  steps: z.array(campaignStepSchema).min(1, 'Adicione pelo menos um passo.').max(12),
 });
 
 export async function saveCampaignAction(id: string | null, input: unknown): Promise<{ error?: string; id?: string }> {
@@ -402,6 +395,7 @@ export async function updateAccountAction(_: State, form: FormData): Promise<Sta
   await db.update(schema.users).set({
     name: String(form.get('name') ?? '').trim().slice(0, 80),
     linkedinUrl: url,
+    emailSignature: String(form.get('emailSignature') ?? '').trim().slice(0, 4000),
     dailyInvites: Math.min(40, Math.max(1, Number(form.get('dailyInvites')) || 15)),
     dailyMessages: Math.min(100, Math.max(1, Number(form.get('dailyMessages')) || 40)),
   }).where(eq(schema.users.id, ctx.user.id));

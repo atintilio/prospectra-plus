@@ -4,6 +4,9 @@ import { akgConfig } from '@/lib/whatsapp/akg';
 import { LinkedInView } from '../linkedin/linkedin-view';
 import { WhatsAppView } from '../whatsapp/view';
 import { Office365Connection } from '@/components/office365-connection';
+import { LinkedInMark, LINKEDIN_BRAND_BUTTON_CLASS } from '@/components/linkedin-mark';
+import { WhatsAppMark } from '@/components/whatsapp-mark';
+import { Office365Mark } from '@/components/office365-mark';
 
 export const metadata = { title: 'Canais linkados' };
 
@@ -14,13 +17,9 @@ export default async function CanaisPage() {
     <>
       <PageHeader title="Canais linkados" subtitle="Conecte e gerencie suas contas em um só lugar." />
       <nav aria-label="Escolha um canal" className="mb-8 grid gap-3 sm:grid-cols-3">
-        {[
-          { name: 'LinkedIn', id: 'canal-0' },
-          { name: 'WhatsApp', id: 'canal-1' },
-          { name: 'Office 365', id: 'canal-2' },
-        ].map(({ name, id }) => (
-          <a key={id} href={`#${id}`} className="btn-primary min-h-16 justify-center text-base">{name}</a>
-        ))}
+        <a href="#canal-0" className={`${LINKEDIN_BRAND_BUTTON_CLASS} min-h-16 text-base`}><LinkedInMark size={22} decorative />LinkedIn</a>
+        <a href="#canal-1" className="inline-flex min-h-16 items-center justify-center gap-2 rounded-xl bg-[#075E54] px-4 py-2 text-base font-medium text-white shadow-sm transition-colors hover:bg-[#064E46] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#075E54] focus-visible:ring-2 focus-visible:ring-white"><span aria-hidden="true"><WhatsAppMark size={22} /></span>WhatsApp</a>
+        <a href="#canal-2" className="inline-flex min-h-16 items-center justify-center gap-2 rounded-xl bg-[#D83B01] px-4 py-2 text-base font-medium text-white shadow-sm transition-colors hover:bg-[#B73201] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D83B01] focus-visible:ring-2 focus-visible:ring-white"><Office365Mark size={22} />Office 365</a>
       </nav>
       <section id="canal-0" className="scroll-mt-6 mb-10" aria-labelledby="linkedin-title">
         <h2 id="linkedin-title" className="mb-4 text-xl font-semibold">LinkedIn</h2>

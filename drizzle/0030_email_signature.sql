@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_signature text NOT NULL DEFAULT '';

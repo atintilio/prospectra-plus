@@ -204,6 +204,20 @@
       "when": 1794312000000,
       "tag": "0028_office365_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794315600000,
+      "tag": "0029_login_lockout",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794319200000,
+      "tag": "0030_email_signature",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react';
 import type { CampaignStep, StepType } from '@/db/schema';
 import { stepTypeEnabled, type CampaignFeatures } from '@/lib/campaign-features';
 import { saveCampaignAction, setCampaignFlowAction } from '../actions';
+import { suggestCampaignAction } from './suggestion-action';
 
 export const DEFAULT_STEPS: CampaignStep[] = [
   { id: 's1', type: 'react', delayDays: 0, condition: 'always', template: '', useAi: false },
@@ -91,6 +92,9 @@ export function CampaignEditor({ id, initial, members, aiOn, features, flows = [
   const [flowChoice, setFlowChoice] = useState<string>(linkedFlow?.id ?? '');
   const [flowMsg, setFlowMsg] = useState<{ ok?: string; error?: string }>();
   const [flowPending, startFlow] = useTransition();
+  const [suggestPending, startSuggestion] = useTransition();
+  const [suggestedSteps, setSuggestedSteps] = useState<EditableStep[] | null>(null);
+  const [suggestionMessage, setSuggestionMessage] = useState('');
 
   const setStep = (i: number, patch: Partial<EditableStep>) => { setSaved(false); setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) })); };
   const move = (i: number, d: -1 | 1) => setForm((f) => { const s = [...f.steps]; [s[i], s[i + d]] = [s[i + d], s[i]]; return { ...f, steps: s }; });
@@ -102,6 +106,15 @@ export function CampaignEditor({ id, initial, members, aiOn, features, flows = [
     if (r.error) return setError(r.error);
     setSaved(true);
     if (!id && r.id) router.push(`/campanhas/${r.id}`); else router.refresh();
+  });
+  const suggest = () => startSuggestion(async () => {
+    setSuggestionMessage('');
+    setSuggestedSteps(null);
+    try {
+      const result = await suggestCampaignAction({ brief: form.aiBrief, assignedTo: form.assignedTo });
+      if (result.steps) setSuggestedSteps(result.steps);
+      else setSuggestionMessage(result.error ?? 'Não foi possível sugerir etapas.');
+    } catch { setSuggestionMessage('Não foi possível sugerir etapas agora.'); }
   });
   const linkFlow = () => startFlow(async () => {
     if (!id || !flowChoice) return;
@@ -239,6 +252,17 @@ export function CampaignEditor({ id, initial, members, aiOn, features, flows = [
           <div><label className="label" htmlFor="brief">Contexto para a IA</label>
             <textarea id="brief" rows={5} className="input text-sm" value={form.aiBrief} onChange={(e) => setForm({ ...form, aiBrief: e.target.value })}
               placeholder="O que você oferece, para quem, tom de voz, o que evitar. Ex.: recuperação de créditos tributários para indústrias do Lucro Real; tom consultivo, sem citar preços." /></div>
+          <button type="button" className="btn-outline w-full" onClick={suggest} disabled={!aiOn || Boolean(flowId) || suggestPending}>
+            <Sparkles className="h-4 w-4" />{suggestPending ? 'Criando sugestão…' : 'Sugerir sequência com IA'}
+          </button>
+          {flowId && <p className="text-xs text-muted">Desvincule o fluxo para usar etapas próprias nesta campanha.</p>}
+          {suggestionMessage && <p role="alert" className="text-sm text-danger">{suggestionMessage}</p>}
+          {suggestedSteps && <div className="rounded-lg border border-border p-3 text-sm space-y-2">
+            <p className="font-medium">Sugestão para revisar</p>
+            <ol className="list-decimal pl-5">{suggestedSteps.map((step) => <li key={step.id}>{step.name} · {TYPES[step.type].short}</li>)}</ol>
+            <p className="text-xs text-muted">Substitui as etapas no editor. Nada será salvo ou enviado até você revisar e salvar a campanha.</p>
+            <button type="button" className="btn-outline" onClick={() => { setForm((current) => ({ ...current, steps: suggestedSteps })); setSuggestedSteps(null); setSaved(false); }} disabled={Boolean(flowId)}>Usar sugestão no editor</button>
+          </div>}
           <p className="rounded-lg bg-surface px-3 py-2 text-xs text-muted">Variáveis: {'{nome}'} {'{nome_completo}'} {'{cargo}'} {'{empresa}'} {'{cidade}'}</p>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{error}</p>}
           <button className="btn-primary w-full" onClick={save} disabled={pending}>{pending ? 'Salvando…' : saved ? 'Salvo ✓' : id ? 'Salvar alterações' : 'Criar campanha'}</button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Office365Mark } from '@/components/office365-mark';
 
 type Connection = { status: 'connected' | 'disconnected' | 'configuration_required' | 'unavailable'; email?: string; name?: string; connectedAt?: string };
 const API = '/api/integrations/office365/connect';
@@ -60,7 +61,7 @@ export function Office365Connection() {
     <div className="mt-4 flex gap-2">
       {connection.status === 'connected'
         ? <button type="button" className="btn-outline" disabled={busy} onClick={() => void remove()}>{busy ? 'Desvinculando…' : 'Desvincular conta'}</button>
-        : <button type="button" className="btn-primary" disabled={busy || connection.status === 'configuration_required'} onClick={begin}>{busy ? 'Aguardando Microsoft…' : 'Conectar minha conta'}</button>}
+        : <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D83B01] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#B73201] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D83B01] focus-visible:ring-2 focus-visible:ring-white disabled:pointer-events-none disabled:opacity-50" disabled={busy || connection.status === 'configuration_required'} onClick={begin}><Office365Mark size={18} />{busy ? 'Aguardando Microsoft…' : 'Conectar minha conta'}</button>}
     </div>
   </section>;
 }
