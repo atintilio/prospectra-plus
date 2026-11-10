@@ -32,6 +32,7 @@ import { upsertSchedule, parseMinute } from '@/lib/support-schedule';
 import { createAttributeDef, deleteAttributeDef } from '@/lib/lead-attributes';
 import { createWebhook, updateWebhook, deleteWebhook } from '@/lib/webhooks';
 import { recordAudit } from '@/lib/audit';
+import { validateSignatureImage } from '@/lib/email-message';
 
 type State = { error?: string; ok?: string } | undefined;
 
@@ -392,6 +393,20 @@ export async function updateAccountAction(_: State, form: FormData): Promise<Sta
   const url = linkedin ? normalizeLinkedinUrl(linkedin) : null;
   if (linkedin && !url) return { error: 'URL do LinkedIn inválida.' };
   const db = await getDb();
+  const file = form.get('signatureImage');
+  let image: { contentType: string; data: string } | null = null;
+  if (file instanceof File && file.size > 0) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const check = validateSignatureImage(bytes);
+    if (!check.ok) return { error: check.error };
+    image = { contentType: check.contentType, data: Buffer.from(bytes).toString('base64') };
+  }
+  if (image) {
+    await db.insert(schema.userSignatureImages).values({ userId: ctx.user.id, ...image })
+      .onConflictDoUpdate({ target: schema.userSignatureImages.userId, set: { ...image, updatedAt: new Date() } });
+  } else if (form.get('removeSignatureImage')) {
+    await db.delete(schema.userSignatureImages).where(eq(schema.userSignatureImages.userId, ctx.user.id));
+  }
   await db.update(schema.users).set({
     name: String(form.get('name') ?? '').trim().slice(0, 80),
     linkedinUrl: url,

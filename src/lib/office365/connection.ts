@@ -2,6 +2,7 @@ import 'server-only';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { getDb, schema, type DB } from '@/db';
+import { buildCampaignMessage } from '@/lib/email-message';
 
 const SCOPES = 'offline_access User.Read Mail.Send';
 export const STATE_COOKIE = 'prospectra_office365_state';
@@ -163,8 +164,9 @@ export async function sendCampaignEmail(db: DB, scope: Pick<Scope, 'orgId' | 'us
   await assertOffice365Access(db, scope);
   const token = await accessToken(scope, db);
   const [sender] = await db.select({ signature: schema.users.emailSignature }).from(schema.users).where(eq(schema.users.id, scope.userId));
-  const signature = sender?.signature.trim();
-  const content = signature ? `${body.trimEnd()}\n\n${signature}` : body;
-  const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: { subject: subject.slice(0, 200), body: { contentType: 'Text', content }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: true }), signal: AbortSignal.timeout(15000) });
+  const [image] = await db.select({ contentType: schema.userSignatureImages.contentType, data: schema.userSignatureImages.data })
+    .from(schema.userSignatureImages).where(eq(schema.userSignatureImages.userId, scope.userId));
+  const message = buildCampaignMessage({ to, subject, body, signature: sender?.signature, image });
+  const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ message, saveToSentItems: true }), signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error(`OFFICE365_SEND_FAILED_${response.status}`);
 }
