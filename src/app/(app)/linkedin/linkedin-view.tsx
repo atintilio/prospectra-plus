@@ -295,14 +295,14 @@ export function LinkedInView({ demo = false }: { demo?: boolean }) {
         </div>
         <ol className="space-y-3 text-sm text-muted">
           <li><span className="font-medium text-text">1. Você autoriza.</span> A senha e a verificação em dois fatores são informadas só ao LinkedIn — nunca passam pelo Prospectra.</li>
-          <li><span className="font-medium text-text">2. A operação libera o piloto.</span> O administrador da operação liga o piloto automático; ninguém é acionado sem isso.</li>
-          <li><span className="font-medium text-text">3. Você revisa.</span> Convites e mensagens respeitam os seus limites diários de convites e mensagens.</li>
+          <li><span className="font-medium text-text">2. A operação configura os envios.</span> A disponibilidade depende da configuração desta operação.</li>
+          <li><span className="font-medium text-text">3. Os limites são respeitados.</span> Convites e mensagens seguem os limites diários da conta.</li>
         </ol>
         <p className="rounded-xl bg-surface px-3 py-2 text-xs text-muted">
           O token da conta fica no servidor do Prospectra. A tela só mostra o que já está vinculado a você.
         </p>
         <p className="text-xs text-muted">
-          A automação segue os termos de uso do LinkedIn e a cadência é assistida:{' '}
+          Os envios seguem os termos de uso do LinkedIn:{' '}
           <a href="https://www.linkedin.com/legal/user-agreement" target="_blank" rel="noreferrer noopener" className="underline underline-offset-2 hover:text-text">
             contrato do LinkedIn
           </a>

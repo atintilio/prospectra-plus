@@ -40,11 +40,10 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
       ],
     },
     {
-      id: 'relationship', label: 'Relacionamento', icon: MessageCircle,
+      id: 'service', label: 'Atendimento e suporte', icon: Headset,
       items: [
         { href: '/agenda', label: 'Agenda', icon: CalendarDays },
         { href: '/atendimento', label: 'Atendimento', icon: Timer },
-        { href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
         { href: '/voz', label: 'Minha voz', icon: Mic },
         { href: '/suporte', label: 'Suporte', icon: LifeBuoy },
         { href: '/ajuda', label: 'Central de ajuda', icon: BookOpen },
@@ -147,10 +146,10 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
             })}
           </div>
         </nav>
-        <div className="prospectra-sidebar-status mt-3">
-          <p className="flex items-center gap-2 text-[11px] font-semibold"><span className={`h-1.5 w-1.5 rounded-full ${isDemo ? 'bg-violet-300' : 'bg-emerald-300'}`} />{isDemo ? 'Simulação ativa' : 'Modo assistido'}</p>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">{isDemo ? 'Nada é enviado neste ambiente.' : 'Você revisa e aprova cada envio.'}</p>
-        </div>
+        {isDemo && <div className="prospectra-sidebar-status mt-3">
+          <p className="flex items-center gap-2 text-[11px] font-semibold"><span className="h-1.5 w-1.5 rounded-full bg-violet-300" />Simulação ativa</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">Nada é enviado neste ambiente.</p>
+        </div>}
         <form action={logoutAction} className="mt-2">
           <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/58 hover:bg-white/[.07] hover:text-white">
             <LogOut className="h-[18px] w-[18px]" aria-hidden="true" /> Sair

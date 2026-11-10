@@ -59,7 +59,7 @@ export const LINKEDIN_STATUS_VIEW: Record<LinkedInStatus, { label: string; tone:
   authenticated: {
     label: 'Conta conectada',
     tone: 'good',
-    hint: 'O Prospectra usa esta conta para convites e mensagens. Você revisa e aprova cada envio.',
+    hint: 'Esta conta do LinkedIn está conectada ao Prospectra.',
   },
   configuration_required: {
     label: 'Configuração pendente',

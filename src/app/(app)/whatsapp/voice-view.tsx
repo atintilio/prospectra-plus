@@ -1,11 +1,17 @@
 'use client';
-import {useActionState} from 'react';
+import {useActionState,useState} from 'react';
 import {registerVoiceAction,queueVoiceAction,revokeVoiceAction,deleteVoiceProfileAction} from './voice-actions';
 import {WhatsAppMark} from '@/components/whatsapp-mark';
+import {VoiceRecorder} from '@/components/voice-recorder';
 type Job={id:string;state:string;recipient:string};
 const states:Record<string,string>={queued:'Na fila',running:'Gerando e enviando',sent:'Aceito pelo WhatsApp',unknown:'Sem confirmação — confira no WhatsApp',failed:'Não concluído',waiting_transport:'Aguardando transporte de chamadas'};
 export function VoicePanel({available,deliveryEnabled,hasProfile,commandId,demo,jobs}:{available:boolean;deliveryEnabled:boolean;hasProfile:boolean;commandId:string;demo:boolean;jobs:Job[]}){
- const [registration,register,registering]=useActionState(registerVoiceAction,{message:''});
+ const [recording,setRecording]=useState<File|null>(null);
+ const [registration,register,registering]=useActionState((previous: {message:string},form:FormData)=>{
+  if(!recording)return Promise.resolve({message:'Grave sua voz antes de salvar.'});
+  form.set('reference',recording);
+  return registerVoiceAction(previous,form);
+ },{message:''});
  const [delivery,queue,sending]=useActionState(queueVoiceAction,{message:''});
  return <section className="card mt-6 space-y-5 p-6">
   <h2 className="flex items-center gap-2 text-lg font-semibold"><WhatsAppMark size={22}/>Sua voz no WhatsApp</h2>
@@ -13,10 +19,10 @@ export function VoicePanel({available,deliveryEnabled,hasProfile,commandId,demo,
   {demo&&<p className="rounded-lg border border-border bg-surface-2 p-3 text-sm">Demonstração: você pode <strong>gravar e clonar a sua voz aqui mesmo</strong> — a clonagem é feita pelo seu próprio servidor de voz. Nenhuma mensagem é enviada a ninguém.</p>}
   {!available&&<p className="text-sm text-muted">O serviço de voz ainda precisa ser configurado pelo administrador.</p>}
   <form action={register} className="space-y-3">
-   <label className="label">Gravação limpa da sua voz, até 3 MB<input className="input mt-1" type="file" name="reference" accept="audio/wav,audio/x-wav,audio/ogg,audio/webm,audio/mpeg,audio/mp4" required disabled={!available||registering}/></label>
+   <VoiceRecorder onChange={setRecording} disabled={!available||registering}/>
    <label className="label">O que foi dito na gravação<textarea name="transcript" className="input mt-1" maxLength={4000} required disabled={!available||registering}/></label>
    <label className="flex gap-2 text-sm"><input name="voiceConsent" type="checkbox" required disabled={!available||registering}/>Esta gravação é minha ou tenho autorização para usar esta voz nas mensagens desta operação.</label>
-   <button className="btn-primary" disabled={!available||registering}>{registering?'Cadastrando…':hasProfile?'Atualizar minha voz':'Cadastrar minha voz'}</button>
+   <button className="btn-primary" disabled={!available||registering||!recording}>{registering?'Cadastrando…':hasProfile?'Atualizar minha voz':'Cadastrar minha voz'}</button>
    {registration.message&&<p role="status" className="text-sm">{registration.message}</p>}
   </form>
   {hasProfile&&<div className="flex flex-wrap gap-3">

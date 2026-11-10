@@ -18,7 +18,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                 <p className="auth-kicker">O sinal vem primeiro. A relação, sempre humana.</p>
                 <h1>A próxima conversa começa antes do primeiro <span>“oi”.</span></h1>
                 <p>O Prospectra+ transforma sinais de mercado em contexto e timing para uma abordagem relevante — sem scripts genéricos. Sua equipe conduz a relação.</p>
-                <p className="auth-promise"><span aria-hidden="true" /> Cada envio passa pela sua aprovação.</p>
               </div>
               <ProspectingMotion />
             </div>

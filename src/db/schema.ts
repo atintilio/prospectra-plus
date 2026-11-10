@@ -454,6 +454,22 @@ export const linkedinConnections=pgTable('linkedin_connections',{
  updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
 },t=>[uniqueIndex('linkedin_connections_org_user_uq').on(t.orgId,t.userId)]);
 
+export const office365Connections = pgTable('office365_connections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  microsoftUserId: text('microsoft_user_id').notNull(),
+  tenantId: text('tenant_id').notNull(),
+  email: text('email').notNull(),
+  name: text('name').notNull().default(''),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  refreshLockUntil: timestamp('refresh_lock_until', { withTimezone: true }),
+  connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [uniqueIndex('office365_connections_org_user_uq').on(t.orgId, t.userId)]);
+
 // Suporte (Helpin nativo, fase 1): inbox compartilhada de conversas, nativa no Prospectra+.
 // `audience` cobre os dois casos decididos: 'customer' (cliente do parceiro ↔ equipe) e
 // 'product' (usuário do Prospectra+ ↔ suporte Argus). `channel` já prevê web e whatsapp.

@@ -5,7 +5,7 @@ import type { CampaignStep, EventType, LeadStage } from '@/db/schema';
 import { fillTemplate } from './template';
 import { sendWhatsAppCommand } from '@/lib/whatsapp/commands';
 import { AkgGateway, akgConfig } from '@/lib/whatsapp/akg';
-import { sendSupportMail, mailerConfigured } from '@/lib/mailer';
+import { sendCampaignEmail } from '@/lib/office365/connection';
 import { queueVoiceDelivery } from '@/lib/voice/delivery';
 import { campaignFeatures, stepTypeEnabled } from '@/lib/campaign-features';
 import { resolveSteps, type ResolvedStep } from '@/lib/flows/resolve';
@@ -141,7 +141,7 @@ export async function runScheduler(db: DB, opts: {
     // assistido na Fila), sem reenvio automático. Delays/limites vêm do passo e do usuário, não inventados.
     if (action && step.type === 'email') {
       const to = (lead.email ?? '').trim();
-      const send = opts.sendEmail ?? (mailerConfigured() ? (t: string, s: string, b: string) => sendSupportMail([t], s, b) : null);
+      const send = opts.sendEmail ?? ((t: string, s: string, b: string) => sendCampaignEmail(db, { orgId: enr.orgId, userId }, t, s, b));
       if (to && send) {
         const subject = (step.subject && fillTemplate(step.subject, lead).trim()) || `Contato — ${lead.company || lead.fullName}`;
         try { await send(to, subject, body); await completeAction(db, enr.orgId, userId, action.id, 'done', body, now); continue; }

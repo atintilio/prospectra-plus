@@ -52,8 +52,8 @@ export default async function FilaPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Modo assistido" title="Fila do dia"
-        subtitle={`O texto já vem pronto. Abra no LinkedIn, cole e marque como feito. Hoje ainda cabem ${invitesLeft} convites e ${messagesLeft} mensagens.`} />
+      <PageHeader title="Fila do dia"
+        subtitle={`Ações previstas para hoje. Limites disponíveis: ${invitesLeft} convites e ${messagesLeft} mensagens.`} />
       <Queue items={items} waiting={waiting.map(slim)} connected={connected.map(slim)} meetings={meetings} suggestedMeetingSlots={suggestedMeetingSlots} limits={{ invitesLeft, messagesLeft }} />
     </>
   );
