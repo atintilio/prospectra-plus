@@ -11,12 +11,14 @@ export function assertWhatsAppAccess(ctx:Access):Scope {
  return {orgId:ctx.org.id,userId:ctx.user.id};
 }
 export function sessionIdFor(scope:Scope):string {
- // Sessao fixa por instalacao (WA_AKG_SESSION_ID): o numero do WhatsApp e
- // unico e ja esta pareado no WA-AKG. O hash por escopo so serve quando ha
- // varios numeros; se o banco for recriado, o id da operacao muda e a sessao
- // pareada deixa de bater.
+ // Preserve the existing pairing only for its explicitly assigned seller and operation.
  const fixed=process.env.WA_AKG_SESSION_ID?.trim();
- if(fixed)return fixed;
+ if(fixed){
+  try{
+   const owner=JSON.parse(process.env.WA_AKG_SESSION_SCOPE||'null');
+   if(owner?.orgId===scope.orgId&&owner?.userId===scope.userId)return fixed;
+  }catch{}
+ }
  return 'prospectra-'+createHash('sha256').update(JSON.stringify([scope.orgId,scope.userId])).digest('hex').slice(0,40);
 }
 export function akgConfig() {
@@ -83,7 +85,9 @@ export class AkgGateway {
   const bot=await this.request(this.path(scope)+'/bot-config','POST',{enabled:false,enablePing:false,enableUptime:false,enableSticker:false,enableVideoSticker:false,autoRead:false,alwaysOnline:false});
   if(bot.data?.enabled!==false)throw Error('Atualize o WA-AKG com os ajustes Prospectra antes de conectar: bot interno ainda ativo.');
   await this.request(this.path(scope)+'/start','POST',{});
-  return this.status(scope);
+  const status=await this.status(scope);
+  // Starting is asynchronous; a stale STOPPED row must not cancel QR polling.
+  return status.state==='disconnected'?{state:'connecting',checkedAt:status.checkedAt}:status;
  }
  async disconnect(scope:Scope):Promise<WhatsAppStatus>{
   await this.request(this.path(scope)+'/logout','POST',{});

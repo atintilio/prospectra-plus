@@ -14,7 +14,7 @@ export function WhatsAppView({enabled,seller,reason}:{enabled:boolean;seller:str
  const refresh=useCallback(async()=>{
   if(!enabled||inflight.current)return;
   inflight.current=true;const current=generation.current;
-  try{const result=await whatsappAction('status');if(active.current&&current===generation.current)setStatus(result);}finally{inflight.current=false;}
+  try{const result=await whatsappAction('status');if(active.current&&current===generation.current)setStatus(previous=>result.state==='disconnected'&&['connecting','qr_ready'].includes(previous.state)&&Date.now()<deadline.current?{state:'connecting',checkedAt:result.checkedAt}:result);}catch{if(active.current&&current===generation.current)setStatus({state:'error',checkedAt:new Date().toISOString(),message:'Não foi possível atualizar a conexão. Tente novamente.'});}finally{inflight.current=false;}
  },[enabled]);
  useEffect(()=>{active.current=true;void refresh();return()=>{active.current=false;generation.current++;};},[refresh]);
  useEffect(()=>{
@@ -24,7 +24,7 @@ export function WhatsAppView({enabled,seller,reason}:{enabled:boolean;seller:str
  },[enabled,status.state,refresh]);
  async function action(kind:'connect'|'disconnect'){
   generation.current++;setBusy(true);setNotice('');deadline.current=Date.now()+120000;
-  try{const result=await whatsappAction(kind);setStatus(result);}finally{setBusy(false);}
+  try{const result=await whatsappAction(kind);setStatus(result);}catch{setStatus({state:'error',checkedAt:new Date().toISOString(),message:'Não foi possível concluir a conexão. Tente novamente.'});}finally{setBusy(false);}
  }
  async function send(event:React.FormEvent){
   event.preventDefault();if(locked||busy)return;

@@ -10,7 +10,7 @@ test('reverse proxy prefix is preserved for session, QR and send requests',async
  expect(await api.sendText(scope,'5511999999999','Teste')).toEqual({providerMessageId:'msg-prefix'});
  for(const [url,options] of fetcher.mock.calls as unknown as Array<[string,RequestInit]>){
   expect(url).toMatch(/^https:\/\/gateway\.example\.test\/prospectra-whatsapp\/api\//);
-  expect(options.redirect).toBe('error');
+  expect(options.redirect).toBe('manual');
  }
 });
 test('gateway configuration rejects insecure URLs and ambiguous prefixes',()=>{
@@ -27,14 +27,20 @@ test('session identity is stable and isolated by seller and operation',()=>{
  expect(sessionIdFor(scope)).not.toBe(sessionIdFor({...scope,userId:'other'}));
  expect(sessionIdFor(scope)).not.toBe(sessionIdFor({...scope,orgId:'other'}));
 });
-test('a sessao fixa da instalacao (WA_AKG_SESSION_ID) vale para todos os escopos',()=>{
- const anterior=process.env.WA_AKG_SESSION_ID;
- process.env.WA_AKG_SESSION_ID='prospectra-30592258160abd52e895f911450114df631a2bf9';
+test('existing pairing belongs only to its assigned seller and operation',()=>{
+ vi.stubEnv('WA_AKG_SESSION_ID','legacy-pairing');
+ vi.stubEnv('WA_AKG_SESSION_SCOPE',JSON.stringify(scope));
  try{
-  expect(sessionIdFor(scope)).toBe('prospectra-30592258160abd52e895f911450114df631a2bf9');
-  expect(sessionIdFor({...scope,userId:'other'})).toBe(sessionIdFor(scope));
-  expect(sessionIdFor({...scope,orgId:'other'})).toBe(sessionIdFor(scope));
- }finally{ if(anterior===undefined)delete process.env.WA_AKG_SESSION_ID; else process.env.WA_AKG_SESSION_ID=anterior; }
+  expect(sessionIdFor(scope)).toBe('legacy-pairing');
+  expect(sessionIdFor({...scope,userId:'other'})).not.toBe('legacy-pairing');
+  expect(sessionIdFor({...scope,orgId:'other'})).not.toBe('legacy-pairing');
+  vi.stubEnv('WA_AKG_SESSION_SCOPE','invalid');
+  expect(sessionIdFor(scope)).not.toBe('legacy-pairing');
+ }finally{vi.unstubAllEnvs();}
+});
+test('accepted asynchronous start keeps polling despite a stale disconnected status',async()=>{
+ const {api}=gateway([[200,{status:true,data:[{sessionId:sessionIdFor(scope)}]}],[200,{status:true,data:{enabled:false}}],[200,{status:true}],[200,{status:true,data:{status:'STOPPED',hasInstance:false}}]]);
+ expect((await api.connect(scope)).state).toBe('connecting');
 });
 test('inactive accounts, inactive operations and demo never call the real gateway',()=>{
  expect(()=>assertWhatsAppAccess({user:{id:'a',status:'disabled'},org:{id:'b',active:true,isDemo:false}})).toThrow();
