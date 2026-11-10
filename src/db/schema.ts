@@ -651,3 +651,11 @@ export const webhookEndpoints = pgTable('webhook_endpoints', {
   active: boolean('active').notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [index('webhook_endpoints_org_idx').on(t.orgId, t.active)]);
+
+/** Assinatura de e-mail em imagem (PNG/JPG/GIF), uma por vendedor; `data` em base64. */
+export const userSignatureImages = pgTable('user_signature_images', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  contentType: text('content_type').notNull(),
+  data: text('data').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
