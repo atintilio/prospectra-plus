@@ -65,6 +65,8 @@ type Carga =
   | { tipo: 'mover'; id: string }
   | { tipo: 'novo'; bloco: FlowStepType };
 
+const FLOW_DRAG_TYPE = 'application/x-prospectra-flow-step';
+
 function newId(): string {
   return `novo-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -157,7 +159,7 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
     // `dropEffect` do alvo estiver permitido pelo `effectAllowed` da origem.
     e.dataTransfer.effectAllowed = 'copyMove';
     try {
-      e.dataTransfer.setData('text/plain', JSON.stringify(carga));
+      e.dataTransfer.setData(FLOW_DRAG_TYPE, JSON.stringify(carga));
     } catch {
       /* navegador sem suporte: o drop usa o estado local */
     }
@@ -178,7 +180,7 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
     setDraggingId(null);
 
     let carga: Carga | null = null;
-    const raw = e.dataTransfer.getData('text/plain');
+    const raw = e.dataTransfer.getData(FLOW_DRAG_TYPE);
     if (raw) {
       try {
         carga = JSON.parse(raw) as Carga;
@@ -189,9 +191,10 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
     if (!carga) return;
 
     if (carga.tipo === 'novo') {
-      addBlock(carga.bloco, index);
+      if (available.includes(carga.bloco)) addBlock(carga.bloco, index);
       return;
     }
+    if (carga.tipo !== 'mover') return;
 
     setSteps((current) => {
       const from = current.findIndex((step) => step.id === carga.id);
@@ -333,16 +336,21 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* Canvas: a sequência arrastável */}
-        <section className="card p-5" aria-label="Sequência do fluxo">
+        <section className="card min-w-0 p-5" aria-label="Sequência do fluxo">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-sm font-semibold">Sequência</h2>
-            <p className="text-xs text-muted">Arraste a alça para reordenar · solte entre os blocos.</p>
+            <h2 className="text-sm font-semibold">Canvas do fluxo</h2>
+            <p className="text-xs text-muted">Arraste um bloco para uma conexão.</p>
           </div>
 
-          <ol className="mt-4">
+          <ol className="mt-4 flex min-h-56 items-center overflow-x-auto rounded-xl border border-border bg-surface px-4 py-8 [background-image:radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]">
             {steps.length === 0 ? (
-              <li className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
-                Nenhum bloco ainda. Arraste um bloco de cima para cá.
+              <li className="flex min-w-full items-center rounded-xl border border-dashed border-border bg-white text-sm text-muted">
+                <Vao index={0} hot={hotGap === 0} onHot={setHotGap} onDrop={dropAt} />
+                <div className="flex-1 py-8 text-center" onDragOver={(e) => {
+                  if (e.dataTransfer.types.includes(FLOW_DRAG_TYPE)) e.preventDefault();
+                }} onDrop={(e) => dropAt(0, e)}>
+                  Arraste um bloco para começar.
+                </div>
               </li>
             ) : null}
             {steps.map((step, index) => {
@@ -350,7 +358,7 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
               const canal = CANAL[step.type];
               const isSelected = step.id === selectedId;
               return (
-                <li key={step.id}>
+                <li key={step.id} className="flex shrink-0 items-center">
                   <Vao
                     index={index}
                     hot={hotGap === index}
@@ -358,9 +366,11 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
                     onDrop={dropAt}
                   />
                   <article
-                    className={`rounded-2xl border bg-white transition ${isSelected ? 'border-accent/60 ring-2 ring-accent/20' : 'border-border'} ${draggingId === step.id ? 'opacity-45' : ''}`}
+                    className={`relative w-60 rounded-2xl border bg-white shadow-sm transition ${isSelected ? 'border-accent/60 ring-2 ring-accent/20' : 'border-border'} ${draggingId === step.id ? 'opacity-45' : ''}`}
                   >
-                    <div className="flex items-center gap-3 px-4 py-3">
+                    <span aria-hidden="true" className="pointer-events-none absolute -left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-accent bg-white" />
+                    <span aria-hidden="true" className="pointer-events-none absolute -right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-accent bg-white" />
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-3">
                       <span
                         className="cursor-grab text-muted hover:bg-surface-accent hover:text-accent active:cursor-grabbing"
                         draggable
@@ -393,11 +403,11 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
                         {step.condition === 'accepted' ? <span className="pill bg-surface-accent text-accent">se aceitar</span> : null}
                         {step.useAi ? <span className="pill bg-surface-accent text-accent">IA</span> : null}
                         <span className="flex items-center">
-                          <button type="button" onClick={() => move(step.id, -1)} disabled={index === 0} className="rounded-lg p-1.5 text-muted hover:bg-surface hover:text-text disabled:opacity-30" aria-label="Subir bloco">
-                            <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                          <button type="button" onClick={() => move(step.id, -1)} disabled={index === 0} className="rounded-lg p-1.5 text-muted hover:bg-surface hover:text-text disabled:opacity-30" aria-label="Mover para a esquerda">
+                            <ArrowUp className="h-3.5 w-3.5 -rotate-90" aria-hidden="true" />
                           </button>
-                          <button type="button" onClick={() => move(step.id, 1)} disabled={index === steps.length - 1} className="rounded-lg p-1.5 text-muted hover:bg-surface hover:text-text disabled:opacity-30" aria-label="Descer bloco">
-                            <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+                          <button type="button" onClick={() => move(step.id, 1)} disabled={index === steps.length - 1} className="rounded-lg p-1.5 text-muted hover:bg-surface hover:text-text disabled:opacity-30" aria-label="Mover para a direita">
+                            <ArrowDown className="h-3.5 w-3.5 -rotate-90" aria-hidden="true" />
                           </button>
                           <button type="button" onClick={() => duplicateBlock(step.id)} className="rounded-lg p-1.5 text-muted hover:bg-surface hover:text-text" aria-label="Duplicar bloco">
                             <Copy className="h-3.5 w-3.5" aria-hidden="true" />
@@ -413,9 +423,9 @@ export function FlowBuilder({ flowId, initialName, initialStatus, initialSteps, 
               );
             })}
             {steps.length > 0 ? (
-              <li>
+              <li className="flex shrink-0 items-center">
                 <Vao index={steps.length} hot={hotGap === steps.length} onHot={setHotGap} onDrop={dropAt} />
-                <p className="pb-1 text-center text-xs text-muted">Solte aqui para adicionar ao final</p>
+                <span className="text-xs text-muted">Fim</span>
               </li>
             ) : null}
           </ol>
@@ -493,6 +503,7 @@ function Vao({
     <div
       data-gap={index}
       onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(FLOW_DRAG_TYPE)) return;
         e.preventDefault();
         const permitido = e.dataTransfer.effectAllowed;
         e.dataTransfer.dropEffect = permitido.includes('copy') && !permitido.includes('move') ? 'copy' : 'move';
@@ -500,8 +511,11 @@ function Vao({
       }}
       onDragLeave={() => onHot(null)}
       onDrop={(e) => onDrop(index, e)}
-      className={`my-1 h-4 rounded-full transition ${hot ? 'bg-accent/20 ring-1 ring-accent/40' : ''}`}
+      className={`flex h-16 w-12 shrink-0 items-center rounded-lg transition ${hot ? 'bg-accent/15 ring-1 ring-accent/40' : ''}`}
       aria-hidden="true"
-    />
+    >
+      <span className="pointer-events-none h-0.5 flex-1 bg-accent/55" />
+      <span className="pointer-events-none mr-1 h-2 w-2 rotate-45 border-r-2 border-t-2 border-accent/70" />
+    </div>
   );
 }
