@@ -29,9 +29,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initials = (ctx.user.name || ctx.user.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('');
   const roleLabel = ctx.user.platformRole === 'admin' ? 'Admin master' : ({ owner: 'Dono', manager: 'Gestor', sdr: 'SDR', closer: 'Closer' } as const)[ctx.role ?? 'sdr'];
   return (
-    <div className="prospectra-shell relative flex min-h-dvh overflow-hidden">
-      <AmbientVideo className="prospectra-ambient" />
-      <div className="prospectra-ambient-scrim" aria-hidden="true" />
+    <div className="prospectra-shell relative isolate flex min-h-dvh overflow-x-clip">
+      <AmbientVideo className="prospectra-navigation-video" />
       <Sidebar isDemo={isDemo} isAdmin={ctx.user.platformRole === 'admin'} canManage={ctx.role === 'owner' || ctx.role === 'manager'} />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <GuardaSessao />
