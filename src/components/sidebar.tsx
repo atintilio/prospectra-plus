@@ -27,6 +27,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
     { href: '/canais', label: 'Canais linkados', icon: Share2 },
     { href: '/fluxos', label: 'Fluxos', icon: GitBranch },
+    { href: '/agenda', label: 'Agenda', icon: CalendarDays },
   ];
   const groups: NavGroup[] = [
     {
@@ -34,6 +35,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
       items: [
         { href: '/inteligencia', label: 'Inteligência comercial', icon: Sparkles },
         { href: '/comunicacao', label: 'Perfil de comunicação', icon: MessageCircle },
+        { href: '/voz', label: 'Minha voz', icon: Mic },
         { href: '/linkedin', label: 'LinkedIn', icon: Share2 },
         { href: '/leads/atributos', label: 'Campos', icon: SlidersHorizontal },
         ...(isDemo ? [{ href: '/automacao', label: 'Piloto automático', icon: Bot }] : []),
@@ -42,9 +44,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
     {
       id: 'service', label: 'Atendimento e suporte', icon: Headset,
       items: [
-        { href: '/agenda', label: 'Agenda', icon: CalendarDays },
         { href: '/atendimento', label: 'Atendimento', icon: Timer },
-        { href: '/voz', label: 'Minha voz', icon: Mic },
         { href: '/suporte', label: 'Suporte', icon: LifeBuoy },
         { href: '/ajuda', label: 'Central de ajuda', icon: BookOpen },
       ],
@@ -183,6 +183,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
             </header>
             <div className="grid gap-5">
               {drawerLink({ href: '/canais', label: 'Canais linkados', icon: Share2 })}
+              {drawerLink({ href: '/agenda', label: 'Agenda', icon: CalendarDays })}
               {groups.map((group) => {
                 const Icon = group.icon;
                 return <section key={group.id} aria-labelledby={`mobile-group-${group.id}`}>

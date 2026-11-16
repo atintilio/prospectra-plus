@@ -15,17 +15,22 @@ export type VoiceState = { ok?: string; error?: string; transcript?: string } | 
  * Transcreve a gravação de referência pelo Voice Studio.
  * O MOSS-TTS-Nano precisa do texto exato do áudio — transcrever evita erro de alinhamento.
  */
-export async function transcreverVozAction(form: FormData): Promise<string> {
+export async function transcreverVozAction(form: FormData): Promise<{ transcript: string } | { error: string }> {
   const ctx = await requireOrg();
   const config = voiceConfig();
-  if (!config) throw new Error('Voice Studio não configurado.');
-  assertWhatsAppAccess(ctx);
-  const file = form.get('reference');
-  const uploaded=arquivoDoFormulario(file);if(!uploaded||!uploaded.size) throw new Error('Envie a gravação.');
-  const gateway = new VoiceStudioGateway(config);
-  const text = await gateway.transcribe(uploaded);
-  revalidatePath('/voz');
-  return text;
+  if (!config || !ctx.org.active || !ctx.org.aiEnabled || ctx.user.status !== 'active') {
+    return { error: 'A transcrição está indisponível para esta conta.' };
+  }
+  const recording = arquivoDoFormulario(form.get('reference'));
+  if (!recording?.size) return { error: 'Grave sua voz antes de transcrever.' };
+  try {
+    const transcript = await new VoiceStudioGateway(config).transcribe(recording);
+    if (transcript.length > 4000) return { error: 'A transcrição ficou longa demais. Grave uma amostra mais curta.' };
+    return { transcript };
+  } catch (error) {
+    console.error('[voz] falha na transcrição:', error instanceof Error ? error.message : String(error));
+    return { error: 'Não foi possível transcrever esta gravação. Tente novamente.' };
+  }
 }
 
 /** Cria o perfil de voz clonada a partir da gravação enviada pelo dono. */
