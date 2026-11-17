@@ -1,45 +1,313 @@
 import 'server-only';
-import type { CampaignStep } from '@/db/schema';
 import type { Generator } from './cadence';
 import { fillTemplate } from './template';
 
-const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-const DEFAULT_MODEL = 'z-ai/glm-5.3-flash'; // GLM 5.3 flash: faixa mais barata do OpenRouter (centavos por milhão)
-const FALLBACK_MODEL = 'openrouter/free';
+// Provedor de IA genérico (API compatível com OpenAI): Z.AI/GLM, OpenRouter, etc.
+// A configuração (endpoint, chave, modelos) é lida a cada chamada: o provedor pode mudar
+// em runtime e o fallback por saldo/rate limit precisa refletir o estado real da conta.
+const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_MODEL = 'qwen/qwen3-30b-a3b:free';
+/** Modelos gratuitos do catálogo da Z.AI: funcionam mesmo com a conta sem saldo. */
+const ZAI_FREE_MODELS = ['glm-4.5-flash', 'glm-5.3-flash'];
+/** Rede de segurança da Z.AI: o glm-5.3-flash vem primeiro entre os gratuitos, depois os 4.x. */
+const ZAI_FALLBACK_MODELS = ['glm-5.3-flash', 'glm-4.7-flash', 'glm-4.5-flash'];
+const OPENROUTER_FREE_MODEL = 'openrouter/free';
+/** Máximo de modelos tentados em uma chamada. */
+const MAX_ATTEMPTS = 3;
+/** Código do provedor que significa "sem saldo / sem pacote de recursos". */
+const ACCOUNT_ERROR_CODES = new Set(['1113']);
+/** Códigos do provedor que significam "limite de requisições". */
+const RATE_LIMIT_ERROR_CODES = new Set(['1302', '1305', '429']);
+
+export type AiProvider = { endpoint: string; isOpenRouter: boolean; isZai: boolean; key?: string };
+
+function aiKey(): string | undefined {
+  return (process.env.AI_API_KEY || process.env.OPENROUTER_API_KEY)?.trim() || undefined;
+}
+
+/**
+ * Normaliza o endpoint da IA.
+ *
+ * O `AI_BASE_URL` pode vir so com a base (`https://api.z.ai/api/paas/v4`).
+ * A API responde em `/chat/completions`: sem esse sufixo a chamada vai para
+ * uma rota que nao existe e a IA falha (com "Não foi possível gerar ou
+ * salvar agora" na tela). Anexar o caminho aqui evita depender de a
+ * configuracao estar completa.
+ */
+function normalizaEndpointAi(endpoint: string): string {
+  const base = endpoint.replace(/\/+$/, '');
+  if (!base.includes('/chat/completions')) return base + '/chat/completions';
+  return base;
+}
+
+function hostname(endpoint: string): string {
+  try {
+    return new URL(endpoint).hostname.toLowerCase();
+  } catch {
+    return endpoint.toLowerCase();
+  }
+}
+
+/** Provedor configurado no ambiente (lido a cada chamada). */
+export function aiProvider(): AiProvider {
+  const endpoint = normalizaEndpointAi(process.env.AI_BASE_URL?.trim() || OPENROUTER_ENDPOINT);
+  const host = hostname(endpoint);
+  return {
+    endpoint,
+    isOpenRouter: host === 'openrouter.ai' || host.endsWith('.openrouter.ai'),
+    isZai: host === 'z.ai' || host.endsWith('.z.ai') || host.endsWith('bigmodel.cn'),
+    key: aiKey(),
+  };
+}
 
 export function aiConfigured(): boolean {
-  return Boolean(process.env.OPENROUTER_API_KEY?.trim());
+  return Boolean(aiKey());
 }
 
-async function chat(system: string, user: string, maxTokens = 400): Promise<string> {
-  const key = process.env.OPENROUTER_API_KEY?.trim();
+/** Modelo principal: o configurado no ambiente. */
+function primaryModel(): string {
+  return process.env.AI_MODEL?.trim() || DEFAULT_MODEL;
+}
+
+/** Fallbacks declarados no ambiente (lista separada por vírgula). */
+function envFallbacks(): string[] {
+  return (process.env.AI_FALLBACK_MODELS || '')
+    .split(',')
+    .map((model) => model.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Cadeia de modelos de uma chamada: principal -> fallbacks do ambiente -> padrão do provedor.
+ * Sem repetição e no máximo MAX_ATTEMPTS tentativas.
+ */
+export function aiModelChain(): string[] {
+  const provider = aiProvider();
+  const configured = envFallbacks();
+  const defaults = provider.isOpenRouter ? [OPENROUTER_FREE_MODEL] : ZAI_FALLBACK_MODELS;
+  const chain: string[] = [];
+  for (const model of [primaryModel(), ...(configured.length ? configured : defaults)]) {
+    if (!chain.includes(model)) chain.push(model);
+  }
+  return chain.slice(0, MAX_ATTEMPTS);
+}
+
+/**
+ * Cadeia de modelos gratuitos do provedor atual — usada pelo Harvey, que nunca deve pagar.
+ * Z.AI: glm-4.5-flash. OpenRouter: o configurado, se for `:free`, senão `openrouter/free`.
+ */
+export function aiFreeModelChain(): string[] {
+  const provider = aiProvider();
+  const configured = process.env.AI_MODEL?.trim() || '';
+  if (provider.isOpenRouter) {
+    if (configured && (configured === OPENROUTER_FREE_MODEL || configured.endsWith(':free'))) return [configured];
+    return [OPENROUTER_FREE_MODEL];
+  }
+  if (provider.isZai) {
+    return ZAI_FREE_MODELS.filter((model) => model === configured).length ? [configured] : ZAI_FREE_MODELS.slice();
+  }
+  return [];
+}
+
+/** Falha do provedor: o código vem do corpo da resposta (ex.: {"error":{"code":"1113"}}). */
+class AiProviderError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly retryable: boolean;
+  readonly detail: string;
+
+  constructor(code: string, detail: string, status: number, retryable: boolean) {
+    super(`AI_UNAVAILABLE_${code}`);
+    this.name = 'AiProviderError';
+    this.code = code;
+    this.detail = detail;
+    this.status = status;
+    this.retryable = retryable;
+  }
+}
+
+/** Lê o código e a mensagem do erro no corpo da resposta (inclusive quando HTTP é 200). */
+function readError(body: unknown): { code?: string; message?: string } {
+  if (!body || typeof body !== 'object') return {};
+  const root = body as Record<string, unknown>;
+  const error = root.error;
+  if (error && typeof error === 'object') {
+    const detail = error as Record<string, unknown>;
+    return {
+      code: typeof detail.code === 'string' || typeof detail.code === 'number' ? String(detail.code) : undefined,
+      message: typeof detail.message === 'string' ? detail.message : undefined,
+    };
+  }
+  if (typeof error === 'string') return { message: error };
+  return {
+    code: typeof root.code === 'string' || typeof root.code === 'number' ? String(root.code) : undefined,
+    message: typeof root.message === 'string' ? root.message : undefined,
+  };
+}
+
+/** Só conta/saldo e rate limit justificam tentar outro modelo; 401/403/400 falham direto. */
+function providerFailure(res: Response, body: unknown): AiProviderError {
+  const { code, message } = readError(body);
+  if (code) {
+    const retryable = ACCOUNT_ERROR_CODES.has(code) || RATE_LIMIT_ERROR_CODES.has(code);
+    return new AiProviderError(code, message || '', res.status, retryable);
+  }
+  if (!res.ok) {
+    return new AiProviderError(String(res.status), message || '', res.status, res.status === 429);
+  }
+  return new AiProviderError('EMPTY_RESPONSE', message || '', res.status, false);
+}
+
+function networkFailure(error: unknown): AiProviderError {
+  const name = error instanceof Error ? error.name : '';
+  const code = name === 'TimeoutError' || name === 'AbortError' ? 'TIMEOUT' : 'NETWORK';
+  return new AiProviderError(code, error instanceof Error ? error.message : '', 0, false);
+}
+
+async function callModel(
+  provider: AiProvider,
+  key: string,
+  model: string,
+  system: string,
+  user: string,
+  maxTokens: number,
+  temperature: number,
+): Promise<string> {
+  const res = await fetch(provider.endpoint, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'Prospectra' },
+    body: JSON.stringify({
+      model,
+      // modelos com raciocínio forçado (ex.: GLM-4.7) gastam tokens pensando;
+      // o piso é generoso porque, com orçamento curto, o modelo consome tudo
+      // pensando e devolve a resposta vazia (o "content" chega como '').
+      max_tokens: provider.isOpenRouter ? maxTokens : Math.max(maxTokens, 4096),
+      temperature,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      ...(provider.isOpenRouter ? {} : { reasoning_effort: 'low' }),
+    }),
+    signal: AbortSignal.timeout(provider.isOpenRouter ? 25_000 : 60_000),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    choices?: { message?: { content?: unknown; reasoning_content?: unknown } }[];
+    error?: unknown;
+  };
+  const raw = body.choices?.[0]?.message?.content;
+  const raciocinio = body.choices?.[0]?.message?.reasoning_content;
+  const semThink = (v: unknown) => (typeof v === 'string' ? v.replace(/<think>[\s\S]*?<\/think>/g, '').trim() : '');
+  // Resposta normal; se o modelo só "pensou" e não escreveu nada, o texto do
+  // raciocínio é usado como fonte (a extração do JSON treats as duas).
+  const text = semThink(raw) || semThink(raciocinio);
+  if (res.ok && text) return text;
+  throw providerFailure(res, body);
+}
+
+/**
+ * Extrai o objeto JSON de uma resposta de modelo.
+ *
+ * Os modelos devolvem o JSON dentro de cerca de markdown (```json ... ```),
+ * com texto antes ou depois, ou só dentro do raciocínio. Sem esta extração,
+ * uma resposta válida vira "a IA não passou na validação".
+ */
+export function extrairJson<T = unknown>(texto: string): T | null {
+  const limpo = texto.replace(/```(?:json|JSON)?/g, '').replace(/```/g, '').trim();
+  if (!limpo) return null;
+  try { return JSON.parse(limpo) as T; } catch { /* tenta o bloco interno */ }
+  const inicio = limpo.indexOf('{');
+  if (inicio < 0) return null;
+  for (let fim = limpo.lastIndexOf('}'); fim > inicio; fim = limpo.lastIndexOf('}', fim - 1)) {
+    try { return JSON.parse(limpo.slice(inicio, fim + 1)) as T; } catch { /* tenta o próximo */ }
+  }
+  return null;
+}
+
+/**
+ * Disjuntor por modelo: quando a conta do provedor está sem saldo (1113), o
+ * modelo principal não vai voltar sozinho — só com recarga. Pular a chamada
+ * durante alguns minutos economiza latência (cada tentativa custa segundos) e
+ * quota; quando a conta for recarregada, o modelo volta sozinho.
+ */
+const MODEL_COOLDOWN_MS = 10 * 60 * 1000;
+const modelCooldown = new Map<string, { until: number; code: string }>();
+
+/** Limpa a pausa dos modelos (troca de chave/provedor ou reinício de teste). */
+export function resetAiCooldowns(): void {
+  modelCooldown.clear();
+}
+
+/** Código do modelo em indisponibilidade conhecida, ou null se ele pode ser tentado. */
+function cooldownOf(model: string): string | null {
+  const entry = modelCooldown.get(model);
+  if (!entry) return null;
+  if (Date.now() >= entry.until) {
+    modelCooldown.delete(model);
+    return null;
+  }
+  return entry.code;
+}
+
+/**
+ * Chama o provedor com a cadeia de modelos: só troca de modelo em falha de conta (1113)
+ * ou rate limit (1302/1305/429). Se todos falharem, o erro diz o que houve (AI_UNAVAILABLE_1113...).
+ */
+async function chatWithModels(system: string, user: string, models: string[], maxTokens: number, temperature: number): Promise<string> {
+  const provider = aiProvider();
+  const key = provider.key;
   if (!key) throw new Error('AI_NOT_CONFIGURED');
-  const models = [process.env.AI_MODEL?.trim() || DEFAULT_MODEL, 'qwen/qwen3-30b-a3b:free', FALLBACK_MODEL];
-  let lastErr: unknown;
+  if (!models.length) throw new Error('AI_NO_MODEL');
+  let firstFailure: AiProviderError | undefined;
   for (const model of models) {
+    const cooling = cooldownOf(model);
+    if (cooling) {
+      console.warn(`[ai] modelo ${model} está em indisponibilidade conhecida (${cooling}); pulando.`);
+      if (!firstFailure) firstFailure = new AiProviderError(cooling, 'modelo em indisponibilidade conhecida', 0, true);
+      continue;
+    }
     try {
-      const res = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'Prospectra' },
-        body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.6, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
-        signal: AbortSignal.timeout(25_000),
-      });
-      const data = (await res.json().catch(() => ({}))) as { choices?: { message?: { content?: string } }[] };
-      const text = data.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-      if (res.ok && text) return text;
-      lastErr = new Error(`AI_HTTP_${res.status}`);
-    } catch (e) {
-      lastErr = e;
+      const text = await callModel(provider, key, model, system, user, maxTokens, temperature);
+      modelCooldown.delete(model);
+      return text;
+    } catch (error) {
+      const failure = error instanceof AiProviderError ? error : networkFailure(error);
+      if (!firstFailure) firstFailure = failure;
+      console.warn(`[ai] modelo ${model} falhou (${failure.code}${failure.detail ? `: ${failure.detail}` : ''}); ${failure.retryable ? 'tentando o próximo modelo' : 'sem troca de modelo'}.`);
+      // Falha de conta não se resolve sozinha: guarda o modelo por um tempo.
+      if (ACCOUNT_ERROR_CODES.has(failure.code)) modelCooldown.set(model, { until: Date.now() + MODEL_COOLDOWN_MS, code: failure.code });
+      if (!failure.retryable) throw failure;
     }
   }
-  throw lastErr;
+  throw firstFailure ?? new Error('AI_UNAVAILABLE');
 }
 
-const STEP_GOAL: Record<CampaignStep['type'], string> = {
+/** Chamada genérica à IA configurada (usa a cadeia de modelos com fallback). */
+async function chat(system: string, user: string, maxTokens = 400): Promise<string> {
+  return chatWithModels(system, user, aiModelChain(), maxTokens, 0.6);
+}
+
+/** Chamada genérica à IA configurada (usada pela descoberta de perfil DISC). */
+export async function aiComplete(system: string, user: string, maxTokens = 400): Promise<string> {
+  return chat(system, user, maxTokens);
+}
+
+/** Completa usando apenas modelo gratuito do provedor atual (Harvey: o custo é controlado de propósito). */
+export async function aiCompleteFree(system: string, user: string, maxTokens = 700): Promise<string> {
+  const models = aiFreeModelChain();
+  if (!models.length) throw new Error('AI_FREE_MODEL_REQUIRED');
+  return chatWithModels(system, user, models, maxTokens, 0);
+}
+
+/** Objetivo de cada tipo de ação. As entradas além do StepType atual (e-mail, WhatsApp,
+ * voz, imagem, ligação) ficam registradas para os próximos tipos de passo do fluxo. */
+const STEP_GOAL: Record<string, string> = {
   invite: 'nota de convite de conexão do LinkedIn, no máximo 280 caracteres, sem vender nada, tom de interesse genuíno',
   message: 'mensagem direta no LinkedIn após a conexão, 2 a 4 frases, uma pergunta aberta no final, sem parecer template',
   comment: 'comentário curto e relevante para um post recente do lead, 1 a 2 frases, sem pitch',
   react: '',
+  email: 'e-mail de prospecção B2B curto e pessoal, 3 a 5 frases, uma pergunta ou CTA leve no final, sem parecer template',
+  whatsapp: 'mensagem de WhatsApp curta e cordial, 2 a 3 frases, tom próximo e direto, uma pergunta no final',
+  voice: 'roteiro curto para áudio de WhatsApp, 2 a 3 frases faladas de forma natural, tom próximo, sem soar roteirizado',
+  image: 'legenda curta para uma imagem/informativo enviado no WhatsApp, 1 a 2 frases, tom próximo, sem soar template',
+  call: 'roteiro curto para uma ligação de WhatsApp com o lead: abertura, 1 pergunta de descoberta e um próximo passo; tópicos falados, não um texto para ler',
 };
 
 export const aiGenerator: Generator = async ({ step, lead, brief }) => {
@@ -78,7 +346,7 @@ export async function planSearch(prompt: string): Promise<SearchPlan> {
         'Extraia filtros de busca de pessoas no LinkedIn. Responda apenas JSON: {"keywords":"...","titles":["..."],"locations":["..."],"industries":["..."]}. keywords: até 6 palavras para a busca do LinkedIn. titles: cargos em português e inglês.',
         prompt, 300,
       );
-      const json = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+      const json = extrairJson<Record<string, unknown>>(raw) ?? {};
       plan = {
         keywords: String(json.keywords || prompt).slice(0, 120),
         titles: Array.isArray(json.titles) ? json.titles.map(String).slice(0, 6) : [],
