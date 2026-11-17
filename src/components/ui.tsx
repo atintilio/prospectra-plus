@@ -5,14 +5,9 @@ export function PageHeader({ title, subtitle, eyebrow, children }: { title: stri
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        {eyebrow && (
-          <p className="eyebrow mb-2 flex items-center gap-2 text-violet">
-            <span className="h-1.5 w-1.5 rounded-full bg-violet shadow-[0_0_8px_rgba(124,58,237,.8)]" />
-            {eyebrow}
-          </p>
-        )}
-        <h1 className="font-display heading-gradient text-2xl font-semibold tracking-tight md:text-[28px]">{title}</h1>
-        {subtitle && <p className="mt-1.5 text-sm text-muted">{subtitle}</p>}
+        {eyebrow && <p className="mb-1 text-sm font-medium text-accent">{eyebrow}</p>}
+        <h1 className="heading-gradient text-2xl font-semibold tracking-tight md:text-[28px]">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>
@@ -24,13 +19,13 @@ export function KpiCard({ icon: Icon, label, value, hint, delta, tone = 'accent'
 }) {
   return (
     <div className="card p-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="eyebrow text-muted">{label}</p>
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone === 'violet' ? 'bg-violet-soft text-violet' : 'bg-surface-accent text-accent'}`}>
-          <Icon className="h-4 w-4" />
+      <div className="flex items-center gap-3">
+        <span className={`flex h-10 w-10 items-center justify-center rounded-full ${tone === 'violet' ? 'bg-violet-soft text-violet' : 'bg-surface-accent text-accent'}`}>
+          <Icon className="h-5 w-5" />
         </span>
+        <p className="text-sm font-medium text-muted">{label}</p>
       </div>
-      <p className="font-display mt-3 text-[30px] font-semibold leading-none tracking-tight">{value}</p>
+      <p className="mt-4 text-[32px] font-semibold leading-none tracking-tight">{value}</p>
       <div className="mt-3 flex items-center gap-2 text-xs">
         {delta != null && (
           <span className={`inline-flex items-center gap-0.5 font-medium ${delta >= 0 ? 'text-success' : 'text-danger'}`}>
@@ -47,8 +42,8 @@ export function Card({ title, icon: Icon, action, children, className = '' }: { 
   return (
     <section className={`card ${className}`}>
       {title && (
-        <header className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="eyebrow flex items-center gap-2 text-text">{Icon && <Icon className="h-3.5 w-3.5 text-violet" />}{title}</h2>
+        <header className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold">{Icon && <Icon className="h-[18px] w-[18px] text-accent" />}{title}</h2>
           {action}
         </header>
       )}
@@ -59,9 +54,9 @@ export function Card({ title, icon: Icon, action, children, className = '' }: { 
 
 export function Empty({ icon: Icon, title, text, children }: { icon: LucideIcon; title: string; text: string; children?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-6 py-14 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-soft text-violet"><Icon className="h-6 w-6" /></span>
-      <p className="font-display mt-4 font-semibold">{title}</p>
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-accent text-accent"><Icon className="h-6 w-6" /></span>
+      <p className="mt-4 font-semibold">{title}</p>
       <p className="mt-1 max-w-sm text-sm text-muted">{text}</p>
       {children && <div className="mt-5 flex gap-2">{children}</div>}
     </div>
