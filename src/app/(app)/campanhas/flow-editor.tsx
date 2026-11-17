@@ -7,7 +7,7 @@
 
 import { Heart, MessageCircle, MousePointerClick, Send, Sparkles, Trash2, UserPlus, Workflow, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import type { FlowActionType, FlowEdge, FlowGraph, FlowNode } from '@/lib/flow';
 import { saveCampaignAction } from '../actions';
 
@@ -56,6 +56,12 @@ export function FlowEditor({ id, initial, members, aiOn, accounts = [] }: {
   };
   const removeEdge = (eid: string) => { setSaved(false); setEdges((es) => es.filter((e) => e.id !== eid)); };
 
+  useEffect(() => {
+    const cancelConnection = (e: KeyboardEvent) => { if (e.key === 'Escape') setConnect(null); };
+    window.addEventListener('keydown', cancelConnection);
+    return () => window.removeEventListener('keydown', cancelConnection);
+  }, []);
+
   const addNode = (kind: 'action' | 'branch', action?: FlowActionType) => {
     setSaved(false);
     const count = nodes.filter((n) => n.type === 'action').length;
@@ -79,6 +85,7 @@ export function FlowEditor({ id, initial, members, aiOn, accounts = [] }: {
 
   const connectTo = (to: string) => {
     if (!connect) return;
+    if (to === 'trigger') { setError('O gatilho não possui entrada.'); setConnect(null); return; }
     if (connect.from === to || reaches(connect.from, to)) { setError('Esta conexão criaria um loop no fluxo.'); setConnect(null); return; }
     setError(undefined); setSaved(false);
     setEdges((es) => [
@@ -181,7 +188,7 @@ export function FlowEditor({ id, initial, members, aiOn, accounts = [] }: {
             <button key={k} className="btn-outline py-1.5" onClick={() => addNode('action', k as FlowActionType)}><v.icon className="h-4 w-4" />{v.label}</button>
           ))}
           <button className="btn-outline py-1.5" onClick={() => addNode('branch')}><MousePointerClick className="h-4 w-4" />Condição</button>
-          {connect && <span className="pill bg-violet text-white">clique no destino da conexão · <button onClick={() => setConnect(null)}>cancelar</button></span>}
+          {connect && <span className="pill bg-violet text-white">clique no destino da conexão · <button type="button" onClick={() => setConnect(null)}>cancelar</button></span>}
         </div>
 
         <div ref={canvasRef} className="relative overflow-auto rounded-2xl border border-dashed border-border bg-surface/60" style={{ height: 520 }}
@@ -265,13 +272,13 @@ export function FlowEditor({ id, initial, members, aiOn, accounts = [] }: {
 
         <div className="card space-y-4 p-5">
           <div><label className="label" htmlFor="name">Nome da campanha</label>
-            <input id="name" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex.: CFOs indústria SC" /></div>
+            <input id="name" className="input" value={form.name} onChange={(e) => { setSaved(false); setForm({ ...form, name: e.target.value }); }} placeholder="Ex.: CFOs indústria SC" /></div>
           <div><label className="label" htmlFor="assigned">Quem executa</label>
-            <select id="assigned" className="input" value={form.assignedTo ?? ''} onChange={(e) => setForm({ ...form, assignedTo: e.target.value || null })}>
+            <select id="assigned" className="input" value={form.assignedTo ?? ''} onChange={(e) => { setSaved(false); setForm({ ...form, assignedTo: e.target.value || null }); }}>
               {members.map((m) => <option key={m.id} value={m.id}>{m.name || m.email}</option>)}
             </select></div>
           <div><label className="label" htmlFor="account">Conta LinkedIn</label>
-            <select id="account" className="input" value={form.linkedinAccountId ?? ''} onChange={(e) => setForm({ ...form, linkedinAccountId: e.target.value || null })}>
+            <select id="account" className="input" value={form.linkedinAccountId ?? ''} onChange={(e) => { setSaved(false); setForm({ ...form, linkedinAccountId: e.target.value || null }); }}>
               <option value="">Sem conta específica (modo assistido)</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.label} · {a.userName}{a.demo ? ' (demo)' : ''} — {a.status === 'connected' ? 'conectada' : a.status === 'waiting' ? 'aguardando' : a.status === 'expired' ? 'expirada' : a.status === 'blocked' ? 'bloqueada' : 'desconectada'}</option>
@@ -280,7 +287,7 @@ export function FlowEditor({ id, initial, members, aiOn, accounts = [] }: {
             {!accounts.length && <p className="mt-1 text-xs text-muted">Nenhuma conta vinculada ainda. Conecte em <strong>Go LinkedIn</strong>.</p>}
           </div>
           <div><label className="label" htmlFor="brief">Contexto para a IA</label>
-            <textarea id="brief" rows={5} className="input text-sm" value={form.aiBrief} onChange={(e) => setForm({ ...form, aiBrief: e.target.value })}
+            <textarea id="brief" rows={5} className="input text-sm" value={form.aiBrief} onChange={(e) => { setSaved(false); setForm({ ...form, aiBrief: e.target.value }); }}
               placeholder="O que você oferece, para quem, tom de voz, o que evitar. Ex.: recuperação de créditos tributários para indústrias do Lucro Real; tom consultivo, sem citar preços." /></div>
           <p className="rounded-lg bg-surface px-3 py-2 text-xs text-muted">Variáveis: {'{nome}'} {'{nome_completo}'} {'{cargo}'} {'{empresa}'} {'{cidade}'}</p>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{error}</p>}

@@ -186,6 +186,14 @@ systemctl enable prospectra-voice-worker
 
 **`VOICE_AUTOMATION_ENABLED=false` por padrão.** Ativar somente após comprovar motor instalado, criação de perfil, geração em português e envio real autorizado pelo WhatsApp.
 
+## Nota de compatibilidade do release atual
+
+Antes de iniciar o Next.js, aplique as migrações aditivas até `0010_campaign_node_id_compat.sql`. Essa migração usa `ADD COLUMN IF NOT EXISTS` para corrigir bases em que `0008_campaign_flow` foi marcada como aplicada sem criar `enrollments.node_id`. Não apague inscrições nem execute comandos destrutivos.
+
+O worker Argus, quando ativado, deve ser um serviço separado do Next.js e do Voice Worker. Ele processa a fila de enriquecimento, grava evidências/sinais no lead e deve manter seus logs sem segredos, cookies ou tokens de terceiros.
+
+O administrador master pode consultar `/admin/argus` e exportar `/api/admin/argus/report` em CSV. O endpoint exige `platformRole=admin`.
+
 ## 8. Verificações pós-deploy
 
 ```sh

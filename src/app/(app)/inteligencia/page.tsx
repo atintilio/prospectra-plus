@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/ui';
 import { IntelligenceView } from './view';
 import {listLeadAnalysis} from '@/lib/intelligence/jobs';
 import {AnalysisForm} from './analysis-view';
+import { ArgusPanel } from './argus-panel';
 
 export const metadata = { title: 'Inteligência comercial' };
 export const maxDuration = 60;
@@ -23,6 +24,7 @@ export default async function IntelligencePage() {
     <PageHeader title="Inteligência comercial" subtitle="Prepare conversas com a sua estratégia, ofertas e identidade de vendedor." />
     <IntelligenceView leads={leads} sellerName={ctx.user.name} enabled={ctx.org.aiEnabled && aiConfigured()} demo={ctx.org.isDemo}
       status={!ctx.org.aiEnabled ? 'A IA está desligada nesta operação.' : !aiConfigured() ? 'O provedor de IA ainda não está configurado.' : 'IA disponível para gerar rascunhos sob revisão.'} />
+    {leads[0] && <div className="mt-6"><ArgusPanel leadId={leads[0].id} /></div>}
     <section className="card mt-6 space-y-4 p-5" aria-labelledby="analysis-title">
       <h2 id="analysis-title" className="text-lg font-semibold">Qualidade e completude dos dados</h2>
       <p className="text-sm">Pontuação heurística parcial de 0 a 100. A prioridade comercial depende de dados de contato e fontes adicionais; esta análise não confirma intenção de compra, e-mail ou telefone.</p>

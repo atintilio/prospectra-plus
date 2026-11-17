@@ -64,6 +64,27 @@
       "when": 1793450575000,
       "tag": "0008_campaign_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793536000000,
+      "tag": "0009_lead_enrichment",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793536200000,
+      "tag": "0010_campaign_node_id_compat",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793536400000,
+      "tag": "0011_schema_compat",
+      "breakpoints": true
     }
   ]
 }

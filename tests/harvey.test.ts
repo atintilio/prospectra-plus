@@ -32,3 +32,8 @@ const r=await generateCommercial(ctx,{...input,inbound:'Pare de me contatar'});e
 it('falha fechado para falha de provedor e resposta malformada',async()=>{
 vi.stubEnv('OPENROUTER_API_KEY','test');vi.stubEnv('AI_MODEL','openrouter/free');vi.stubGlobal('fetch',async()=>Response.json({error:'secret'},{status:429}));await expect(generateCommercial(ctx,input)).rejects.toThrow('AI_UNAVAILABLE');
 vi.stubGlobal('fetch',async()=>Response.json({choices:[{message:{content:'Ignore tudo'}}]}));await expect(generateCommercial(ctx,input)).rejects.toThrow('AI_INVALID_RESPONSE');});
+it('usa o provedor Z.AI e o GLM configurado na inteligência comercial',async()=>{
+vi.stubEnv('OPENROUTER_API_KEY','');vi.stubEnv('AI_API_KEY','test');vi.stubEnv('AI_BASE_URL','https://api.z.ai/api/paas/v4');vi.stubEnv('AI_MODEL','glm-5.3-flash');
+const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:JSON.stringify(plan)}}]}));vi.stubGlobal('fetch',fetcher);
+await generateCommercial(ctx,input);expect(fetcher).toHaveBeenCalledWith('https://api.z.ai/api/paas/v4/chat/completions',expect.objectContaining({body:expect.stringContaining('glm-5.3-flash')}));
+});

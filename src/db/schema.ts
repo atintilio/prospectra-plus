@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid,
 } from 'drizzle-orm/pg-core';
+import type { LeadEnrichment } from '@/lib/argus/types';
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 
@@ -82,6 +83,10 @@ export const leads = pgTable('leads', {
   source: text('source', { enum: ['import', 'search', 'manual', 'signal'] }).notNull().default('import'),
   stage: text('stage', { enum: LEAD_STAGES }).notNull().default('new'),
   notes: text('notes').notNull().default(''),
+  // Enriquecimento consultivo (fontes públicas): e-mail do lead e achados da última corrida.
+  email: text('email').notNull().default(''),
+  enrichment: jsonb('enrichment').$type<LeadEnrichment | null>(),
+  enrichedAt: timestamp('enriched_at', { withTimezone: true }),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
@@ -222,6 +227,20 @@ export const intelligenceJobs = pgTable('intelligence_jobs', {
  completedAt:timestamp('completed_at',{withTimezone:true}),
  createdAt:createdAt(),
 },t=>[index('intelligence_jobs_claim_idx').on(t.state,t.createdAt),index('intelligence_jobs_scope_idx').on(t.orgId,t.userId,t.createdAt)]);
+
+export const enrichmentJobs = pgTable('enrichment_jobs', {
+ id: uuid('id').primaryKey(),
+ orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+ userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+ leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
+ state: text('state', { enum: ['queued', 'running', 'completed', 'failed', 'cancelled'] }).notNull().default('queued'),
+ result: jsonb('result').$type<LeadEnrichment>(),
+ error: text('error'),
+ attempts: integer('attempts').notNull().default(0),
+ claimedAt: timestamp('claimed_at', { withTimezone: true }),
+ completedAt: timestamp('completed_at', { withTimezone: true }),
+ createdAt: createdAt(),
+}, t => [index('enrichment_jobs_claim_idx').on(t.state, t.createdAt), index('enrichment_jobs_scope_idx').on(t.orgId, t.userId, t.createdAt)]);
 
 export const voiceProfiles=pgTable('voice_profiles',{
  orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),

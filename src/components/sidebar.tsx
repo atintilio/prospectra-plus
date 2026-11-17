@@ -45,7 +45,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
       label: 'Administração',
       items: [
         ...(canManage || isAdmin ? [{ href: '/equipe', label: 'Equipe', icon: Users }] : []),
-        ...(isAdmin ? [{ href: '/admin', label: 'Administração de parceiros', icon: Building2 }] : []),
+        ...(isAdmin ? [{ href: '/admin', label: 'Administração de parceiros', icon: Building2 }, { href: '/admin/argus', label: 'Relatórios Argus', icon: Sparkles }] : []),
         { href: '/conta', label: 'Minha conta', icon: Settings },
       ],
     },
@@ -73,12 +73,12 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
             </div>
           ))}
         </nav>
-        <div className="mt-auto rounded-xl border border-border bg-gradient-to-br from-surface-accent to-violet-soft p-4">
+        <div className="mt-auto rounded-xl border border-border bg-white/80 p-4">
           <p className="text-sm font-semibold">{isDemo ? 'Piloto automático (simulado)' : 'Modo assistido'}</p>
           <p className="mt-1 text-xs leading-relaxed text-muted">{isDemo ? 'Prévia de como o agente enviará convites, responderá leads e comentará publicações sozinho.' : 'O Prospectra prepara cada ação; o envio é seu, com um clique. Sua conta do LinkedIn fica protegida.'}</p>
           <p className="mt-3 flex items-center gap-2 border-t border-border pt-3">
-            <Image src="/argus-prime-logo.png" alt="Argus Prime" width={24} height={24} className="argus-mark" />
-            <span className="text-[11px] font-medium uppercase tracking-[.12em] text-muted">Uma ferramenta Argus Prime</span>
+            <Image src="/argus-prime-logo.png" alt="Argus Prime" width={32} height={32} className="argus-mark" />
+            <span className="text-[10px] font-medium uppercase tracking-[.08em] text-muted">Uma ferramenta Argus Prime</span>
           </p>
         </div>
         <form action={logoutAction} className="mt-3">

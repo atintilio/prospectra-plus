@@ -24,7 +24,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <span className="auth-brand__word">Prospectra</span>
         </Link>
         <span className="auth-chip auth-chip--nav">
-          <Image src="/argus-prime-logo.png" alt="Argus Prime" width={22} height={22} className="auth-chip__logo" />
+          <Image src="/argus-prime-logo.png" alt="Argus Prime" width={30} height={30} className="auth-chip__logo" />
           Uma ferramenta Argus Prime
         </span>
         <MobileMenu />
@@ -52,7 +52,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       {/* Rodapé legal — texto atual */}
       <footer className="auth-legal">
-        <Image src="/argus-prime-logo.png" alt="" width={20} height={20} className="auth-legal__logo" aria-hidden="true" />
+        <Image src="/argus-prime-logo.png" alt="" width={26} height={26} className="auth-legal__logo" aria-hidden="true" />
         © Argus Prime · Prospectra
       </footer>
     </main>
