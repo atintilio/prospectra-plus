@@ -77,7 +77,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
           <p className="text-sm font-semibold">{isDemo ? 'Piloto automático (simulado)' : 'Modo assistido'}</p>
           <p className="mt-1 text-xs leading-relaxed text-muted">{isDemo ? 'Prévia de como o agente enviará convites, responderá leads e comentará publicações sozinho.' : 'O Prospectra prepara cada ação; o envio é seu, com um clique. Sua conta do LinkedIn fica protegida.'}</p>
           <p className="mt-3 flex items-center gap-2 border-t border-border pt-3">
-            <Image src="/argus-prime-logo.webp" alt="Argus Prime" width={20} height={20} className="rounded-[4px] object-contain" />
+            <Image src="/argus-prime-logo.png" alt="Argus Prime" width={24} height={24} className="argus-mark" />
             <span className="text-[11px] font-medium uppercase tracking-[.12em] text-muted">Uma ferramenta Argus Prime</span>
           </p>
         </div>

@@ -150,7 +150,15 @@ nav a { transition: color 300ms var(--ease-premium), background-color 300ms var(
 .auth-chip::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--accent-bright); box-shadow: 0 0 12px rgba(43,127,255,.8); }
 .auth-chip span { color: rgba(255,255,255,.62); }
 /* Logo oficial da Argus Prime dentro do chip e do rodapé */
-.auth-chip__logo, .auth-legal__logo { border-radius: 4px; object-fit: contain; box-shadow: 0 0 0 1px rgba(21, 93, 252, .25), 0 1px 6px rgba(5, 7, 13, .18); }
+/* Logo oficial da Argus Prime (hexágono AP dourado, fundo transparente):
+   sobre um "azulejo" escuro da própria marca para o dourado ler em fundos claros. */
+.auth-chip__logo, .auth-legal__logo {
+  background: var(--brand-dark, #05070d);
+  border-radius: 6px; object-fit: contain; padding: 3px; box-sizing: content-box;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, .28), 0 1px 6px rgba(5, 7, 13, .22);
+}
+.argus-mark { background: var(--brand-dark, #05070d); border-radius: 6px; padding: 4px; box-sizing: content-box;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, .28), 0 1px 6px rgba(5, 7, 13, .22); object-fit: contain; }
 .auth-chip--nav .auth-chip__logo { margin-right: 2px; }
 .auth-mark { display: flex; align-items: center; gap: clamp(14px, 1.4vw, 22px); margin-top: clamp(22px, 2.6vw, 44px); }
 .auth-mark img { width: clamp(64px, 5.4vw, 96px); height: clamp(64px, 5.4vw, 96px); object-fit: contain; filter: drop-shadow(0 0 30px rgba(43,127,255,.55)) drop-shadow(0 0 70px rgba(124,58,237,.4)); }
