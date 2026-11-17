@@ -9,6 +9,7 @@ import type { CampaignStep } from '@/db/schema';
 import { aiGenerator, planSearch, type SearchPlan } from '@/lib/ai';
 import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, requireUser, switchOrg } from '@/lib/auth';
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
+import { validateGraph, type FlowGraph } from '@/lib/flow';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
@@ -145,7 +146,8 @@ const campaignSchema = z.object({
   aiBrief: z.string().max(1200),
   assignedTo: z.string().uuid().nullable(),
   linkedinAccountId: z.string().uuid().nullable(),
-  steps: z.array(stepSchema).min(1, 'Adicione pelo menos um passo.').max(12),
+  steps: z.array(stepSchema).max(12).default([]),
+  graph: z.unknown().optional(),
 });
 
 export async function saveCampaignAction(id: string | null, input: unknown): Promise<{ error?: string; id?: string }> {
@@ -153,7 +155,17 @@ export async function saveCampaignAction(id: string | null, input: unknown): Pro
   const parsed = campaignSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
   const data = parsed.data;
-  if (data.steps.some((s) => s.type !== 'react' && !s.template.trim() && !s.useAi)) return { error: 'Preencha o texto de cada passo ou ligue a IA.' };
+  // Fluxo salvo (estilo n8n) tem prioridade; sem fluxo, vale a cadência linear antiga.
+  let graph: FlowGraph | undefined;
+  if (data.graph !== undefined && data.graph !== null) {
+    const v = validateGraph(data.graph);
+    if (v.error) return { error: v.error };
+    graph = v.graph;
+  }
+  if (!graph) {
+    if (data.steps.length < 1) return { error: 'Adicione pelo menos uma ação ao fluxo.' };
+    if (data.steps.some((s) => s.type !== 'react' && !s.template.trim() && !s.useAi)) return { error: 'Preencha o texto de cada passo ou ligue a IA.' };
+  }
   const db = await getDb();
   if (data.assignedTo) {
     const [m] = await db.select().from(schema.memberships).where(and(eq(schema.memberships.orgId, ctx.org.id), eq(schema.memberships.userId, data.assignedTo)));
@@ -166,7 +178,7 @@ export async function saveCampaignAction(id: string | null, input: unknown): Pro
     if (acc.userId !== executorId) return { error: 'A conta LinkedIn precisa pertencer a quem executa a campanha.' };
     if (acc.status !== 'connected') return { error: 'A conta LinkedIn escolhida não está conectada. Verifique em Go LinkedIn.' };
   }
-  const values = { name: data.name, aiBrief: data.aiBrief, assignedTo: data.assignedTo, linkedinAccountId: data.linkedinAccountId, steps: data.steps as CampaignStep[] };
+  const values = { name: data.name, aiBrief: data.aiBrief, assignedTo: data.assignedTo, linkedinAccountId: data.linkedinAccountId, steps: data.steps as CampaignStep[], ...(graph ? { graph } : {}) };
   if (id) {
     await db.update(schema.campaigns).set(values).where(and(eq(schema.campaigns.id, id), eq(schema.campaigns.orgId, ctx.org.id)));
     revalidatePath(`/campanhas/${id}`); revalidatePath('/campanhas');

@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { aiConfigured } from '@/lib/ai';
+import { deriveGraphFromSteps, DEFAULT_STEPS } from '@/lib/flow';
 import { PageHeader } from '@/components/ui';
-import { CampaignEditor, DEFAULT_STEPS } from '../editor';
+import { FlowEditor } from '../flow-editor';
 
 export const metadata = { title: 'Nova campanha' };
 
@@ -18,8 +19,8 @@ export default async function NovaCampanha() {
     .where(eq(schema.linkedinAccounts.orgId, ctx.org.id));
   return (
     <>
-      <PageHeader title="Nova campanha" subtitle="Monte a sequência. Os textos usam variáveis e a IA adapta cada um ao lead." />
-      <CampaignEditor id={null} initial={{ name: '', aiBrief: '', assignedTo: ctx.user.id, linkedinAccountId: null, steps: DEFAULT_STEPS }} members={members} aiOn={aiConfigured()} accounts={accounts} />
+      <PageHeader title="Nova campanha" subtitle="Monte o fluxo: ações, esperas e condições. Os textos usam variáveis e a IA adapta cada um ao lead." />
+      <FlowEditor id={null} initial={{ name: '', aiBrief: '', assignedTo: ctx.user.id, linkedinAccountId: null, graph: deriveGraphFromSteps(DEFAULT_STEPS) }} members={members} aiOn={aiConfigured()} accounts={accounts} />
     </>
   );
 }

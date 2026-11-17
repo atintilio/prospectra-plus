@@ -1,15 +1,8 @@
 import 'server-only';
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { DB } from '@/db';
 import * as schema from '@/db/schema';
-import { ACTION_EVENT, addDays } from './cadence';
-
-function advanceStage(current: schema.LeadStage, target: schema.LeadStage): schema.LeadStage {
-  const order: schema.LeadStage[] = ['new', 'invited', 'connected', 'replied', 'meeting', 'won'];
-  if (current === 'lost' || current === 'do_not_contact') return current;
-  if (target === 'lost' || target === 'do_not_contact') return target;
-  return order.indexOf(target) > order.indexOf(current) ? target : current;
-}
+import { ACTION_EVENT, advanceStageForAction, continueFlowAfterAction, queueIntelligenceForInvite } from './cadence';
 
 // Contrato do worker (Go/py): POST /dispatch { state: "sent" | "unknown", providerId?, actionId? }
 // - "sent": o provedor aceitou a execução durávelmente (recebido antes da prova de entrega).
@@ -60,13 +53,14 @@ export async function applyDispatch(db: DB, input: DispatchInput, now = new Date
     const eventType = ACTION_EVENT[action.type];
     if (eventType) {
       await db.insert(schema.events).values({ orgId: action.orgId, userId: action.userId, campaignId: action.campaignId, leadId: action.leadId, type: eventType, at: now });
+      if (action.type === 'invite') await queueIntelligenceForInvite(db, { orgId: action.orgId, userId: action.userId, leadId: action.leadId });
     }
     const [lead] = await db.select().from(schema.leads).where(eq(schema.leads.id, action.leadId));
     if (lead) {
-      const stage = advanceStage(lead.stage, 'invited');
+      const stage = advanceStageForAction(lead.stage, action.type);
       await db.update(schema.leads).set({ stage, lastActivityAt: now }).where(eq(schema.leads.id, lead.id));
     }
-    await advanceEnrollment(db, action, now);
+    await continueFlowAfterAction(db, action, now);
     return { actionId: action.id, status: 'done', dispatchState: 'sent', reenqueued: false };
   }
 
@@ -75,19 +69,4 @@ export async function applyDispatch(db: DB, input: DispatchInput, now = new Date
     .set({ dispatchState: 'unknown', providerId: input.providerId ?? action.providerId, body: input.note ?? action.body })
     .where(eq(schema.actions.id, action.id));
   return { actionId: action.id, status: action.status, dispatchState: 'unknown', reenqueued: false };
-}
-
-async function advanceEnrollment(db: DB, action: typeof schema.actions.$inferSelect, now: Date) {
-  const row = await db.select({ enr: schema.enrollments, camp: schema.campaigns }).from(schema.enrollments)
-    .innerJoin(schema.campaigns, eq(schema.campaigns.id, action.campaignId))
-    .where(and(eq(schema.enrollments.id, action.enrollmentId), inArray(schema.enrollments.state, ['running', 'waiting_accept']))).limit(1);
-  const { enr, camp } = row[0] ?? {};
-  if (!enr || !camp) return;
-  const nextIndex = enr.stepIndex + 1;
-  const next = camp.steps[nextIndex];
-  if (!next) {
-    await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'done' }).where(eq(schema.enrollments.id, enr.id));
-  } else {
-    await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'running', nextRunAt: addDays(now, next.delayDays) }).where(eq(schema.enrollments.id, enr.id));
-  }
 }

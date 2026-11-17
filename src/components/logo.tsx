@@ -1,9 +1,9 @@
 import Image from 'next/image';
 
-export function LogoMark({ size = 36 }: { size?: number }) {
+export function LogoMark({ size = 36, className = '' }: { size?: number; className?: string }) {
   return (
-    <span className="inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
-      <Image src="/logo.png" alt="" width={size} height={size} priority />
+    <span className={`inline-flex shrink-0 items-center justify-center ${className}`} style={{ width: size, height: size }}>
+      <Image src="/logo-hero.png" alt="" width={size} height={size} priority />
     </span>
   );
 }

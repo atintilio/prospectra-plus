@@ -4,6 +4,7 @@ import type { Generator } from './cadence';
 import { fillTemplate } from './template';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_MODEL = 'z-ai/glm-5.3-flash'; // GLM 5.3 flash: faixa mais barata do OpenRouter (centavos por milhão)
 const FALLBACK_MODEL = 'openrouter/free';
 
 export function aiConfigured(): boolean {
@@ -13,7 +14,7 @@ export function aiConfigured(): boolean {
 async function chat(system: string, user: string, maxTokens = 400): Promise<string> {
   const key = process.env.OPENROUTER_API_KEY?.trim();
   if (!key) throw new Error('AI_NOT_CONFIGURED');
-  const models = [process.env.AI_MODEL?.trim() || 'qwen/qwen3-30b-a3b:free', FALLBACK_MODEL];
+  const models = [process.env.AI_MODEL?.trim() || DEFAULT_MODEL, 'qwen/qwen3-30b-a3b:free', FALLBACK_MODEL];
   let lastErr: unknown;
   for (const model of models) {
     try {
@@ -45,7 +46,7 @@ export const aiGenerator: Generator = async ({ step, lead, brief }) => {
   if (!aiConfigured() || step.type === 'react') return fillTemplate(step.template, lead);
   const system = 'Você escreve mensagens de prospecção B2B em português do Brasil para o LinkedIn. Responda só com o texto final, sem aspas, sem emojis, sem inventar fatos sobre a pessoa.';
   const user = [
-    `Objetivo: ${STEP_GOAL[step.type]}.`,
+    `Objetivo: ${STEP_GOAL[step.type ?? 'message']}.`,
     brief ? `Contexto da campanha: ${brief}` : '',
     `Modelo de referência (siga a intenção, adapte ao lead): ${fillTemplate(step.template, lead)}`,
     `Lead: ${lead.fullName}; cargo: ${lead.headline || 'não informado'}; empresa: ${lead.company || 'não informada'}; cidade: ${lead.location || 'não informada'}.`,

@@ -1,17 +1,21 @@
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 import type { DB } from '@/db';
 import * as schema from '@/db/schema';
-import type { CampaignStep, EventType, LeadStage } from '@/db/schema';
+import type { EventType, LeadStage } from '@/db/schema';
 import { fillTemplate } from './template';
+import { queueLeadAnalysis } from './intelligence/jobs';
+import { graphOf, nodeById, outEdge, TRIGGER_ID, type FlowGraph, type FlowNode } from './flow';
 
-// Motor da cadência (modo assistido).
-// - O scheduler transforma inscrições vencidas em "ações" na Fila do dia de quem executa a campanha.
-// - O usuário marca a ação como feita / pulada; marca resultados do lead (aceitou, respondeu, reunião, venda).
-// - Resposta encerra a cadência do lead. Passos com condição "accepted" esperam o aceite do convite.
+// Motor de fluxo das campanhas (estilo n8n, modo assistido).
+// - A campanha é um grafo: gatilho → ações → condições (ramificações).
+// - O scheduler percorre o grafo de cada inscrição vencida e cria as "ações" na Fila do dia.
+// - O usuário marca a ação como feita/pulada; resultados do lead (aceite, resposta, reunião, venda)
+//   movem ou encerram o fluxo. Resposta encerra; aceite libera passos condicionados.
+// - Campanhas antigas (lista linear de passos) são lidas como um fluxo linear equivalente.
 
-export type Generator = (args: { step: CampaignStep; lead: typeof schema.leads.$inferSelect; brief: string }) => Promise<string>;
+export type Generator = (args: { step: { type: FlowNode['action']; template: string; useAi: boolean }; lead: typeof schema.leads.$inferSelect; brief: string }) => Promise<string>;
 
-export const defaultGenerator: Generator = async ({ step, lead }) => fillTemplate(step.template, lead);
+export const defaultGenerator: Generator = async ({ step, lead }) => fillTemplate(step.template ?? '', lead);
 
 export function dayString(d: Date, tz = 'America/Sao_Paulo'): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
@@ -22,6 +26,7 @@ export function addDays(d: Date, days: number): Date {
 }
 
 const STAGE_ORDER: LeadStage[] = ['new', 'invited', 'connected', 'replied', 'meeting', 'won'];
+const STOP_STAGES: LeadStage[] = ['replied', 'meeting', 'won', 'lost', 'do_not_contact'];
 
 function advanceStage(current: LeadStage, target: LeadStage): LeadStage {
   if (current === 'lost' || current === 'do_not_contact') return current;
@@ -29,11 +34,20 @@ function advanceStage(current: LeadStage, target: LeadStage): LeadStage {
   return STAGE_ORDER.indexOf(target) > STAGE_ORDER.indexOf(current) ? target : current;
 }
 
+function hasAccepted(lead: { stage: LeadStage }): boolean {
+  return lead.stage === 'connected' || lead.stage === 'replied' || lead.stage === 'meeting' || lead.stage === 'won';
+}
+
 async function logEvent(db: DB, e: { orgId: string; userId?: string | null; campaignId?: string | null; leadId?: string | null; type: EventType; at?: Date }) {
   await db.insert(schema.events).values({ ...e, at: e.at ?? new Date() });
 }
 
-/** Inscreve leads numa campanha. Ignora quem já está numa cadência ativa no mesmo parceiro. */
+/** Nós de ação do grafo na ordem em que foram criados (para migrar inscrições antigas). */
+function actionNodeIds(graph: FlowGraph): string[] {
+  return graph.nodes.filter((n) => n.type === 'action').map((n) => n.id);
+}
+
+/** Inscreve leads numa campanha. Ignora quem já está num fluxo ativo no mesmo parceiro. */
 export async function enrollLeads(db: DB, orgId: string, campaignId: string, leadIds: string[], now = new Date()) {
   if (!leadIds.length) return { added: 0, skipped: 0 };
   const [camp] = await db.select({ id: schema.campaigns.id }).from(schema.campaigns)
@@ -44,12 +58,99 @@ export async function enrollLeads(db: DB, orgId: string, campaignId: string, lea
   let added = 0;
   for (const { id } of eligible) {
     const res = await db.insert(schema.enrollments)
-      .values({ orgId, campaignId, leadId: id, nextRunAt: now })
+      .values({ orgId, campaignId, leadId: id, nodeId: TRIGGER_ID, nextRunAt: now })
       .onConflictDoNothing()
       .returning({ id: schema.enrollments.id });
     added += res.length;
   }
   return { added, skipped: leadIds.length - added };
+}
+
+type WalkCtx = {
+  db: DB;
+  graph: FlowGraph;
+  enr: typeof schema.enrollments.$inferSelect;
+  camp: typeof schema.campaigns.$inferSelect;
+  lead: typeof schema.leads.$inferSelect;
+  aiEnabled: boolean;
+  now: Date;
+  generate: Generator;
+};
+
+/** Cria a ação de um nó e estaciona a inscrição aguardando a execução humana. */
+async function createFlowAction(ctx: WalkCtx, node: FlowNode): Promise<'created' | 'stopped'> {
+  const { db, enr, camp, lead, aiEnabled, now } = ctx;
+  if (STOP_STAGES.includes(lead.stage)) {
+    await db.update(schema.enrollments).set({ state: 'stopped', nodeId: node.id }).where(eq(schema.enrollments.id, enr.id));
+    return 'stopped';
+  }
+  if (node.condition === 'accepted' && !hasAccepted(lead)) {
+    await db.update(schema.enrollments).set({ state: 'waiting_accept', nodeId: node.id }).where(eq(schema.enrollments.id, enr.id));
+    return 'stopped';
+  }
+  const type = node.action!;
+  let body = '';
+  if (type === 'invite' || type === 'message' || type === 'comment') {
+    const step = { type, template: node.template ?? '', useAi: !!node.useAi };
+    body = step.useAi && aiEnabled ? await ctx.generate({ step, lead, brief: camp.aiBrief }).catch(() => fillTemplate(step.template, lead)) : fillTemplate(step.template, lead);
+    if (type === 'invite') body = body.slice(0, 300); // limite da nota de convite do LinkedIn
+  }
+  await db.insert(schema.actions).values({
+    orgId: enr.orgId, enrollmentId: enr.id, campaignId: camp.id, leadId: lead.id,
+    userId: camp.assignedTo ?? camp.ownerId, stepIndex: enr.stepIndex, type, body,
+    dueDate: dayString(ctx.now),
+  }).onConflictDoNothing();
+  // aguardando execução humana: o fluxo só segue quando a ação for concluída
+  await db.update(schema.enrollments).set({ stepIndex: enr.stepIndex + 1, nodeId: node.id, state: 'running', nextRunAt: addDays(ctx.now, 3650) })
+    .where(eq(schema.enrollments.id, enr.id));
+  return 'created';
+}
+
+/**
+ * Percorre o grafo a partir de startNodeId.
+ * due=false: chegada nova (após concluir ação) — waitDays agenda o futuro.
+ * due=true: o scheduler acordou a inscrição (nextRunAt vencido) — a espera já passou.
+ */
+async function walkFlow(ctx: WalkCtx, startNodeId: string, due: boolean): Promise<{ processed: boolean; created: boolean }> {
+  const { db, graph, enr, lead, now } = ctx;
+  let currentId: string | undefined = startNodeId;
+  for (let guard = 0; guard < 100 && currentId; guard++) {
+    const node = nodeById(graph, currentId);
+    if (!node) break;
+
+    if (node.type === 'trigger') {
+      currentId = outEdge(graph, node.id)?.to;
+      continue;
+    }
+
+    if (node.type === 'branch') {
+      const yes = node.if === 'accepted' ? hasAccepted(lead) : false;
+      const edge = yes ? outEdge(graph, node.id, 'yes') : (outEdge(graph, node.id, 'no') ?? outEdge(graph, node.id, 'yes'));
+      if (!edge) {
+        // sem saída pela condição atendida: paridade com o modelo antigo (aguardar aceite)
+        if (!yes) {
+          await db.update(schema.enrollments).set({ state: 'waiting_accept', nodeId: node.id }).where(eq(schema.enrollments.id, enr.id));
+          return { processed: true, created: false };
+        }
+        await db.update(schema.enrollments).set({ state: 'done', nodeId: node.id }).where(eq(schema.enrollments.id, enr.id));
+        return { processed: true, created: false };
+      }
+      currentId = edge.to;
+      continue;
+    }
+
+    // nó de ação
+    const waitDays = node.waitDays ?? 0;
+    if (!due && waitDays > 0) {
+      await db.update(schema.enrollments).set({ nodeId: node.id, state: 'running', nextRunAt: addDays(now, waitDays) })
+        .where(eq(schema.enrollments.id, enr.id));
+      return { processed: true, created: false };
+    }
+    const res = await createFlowAction(ctx, node);
+    return { processed: true, created: res === 'created' };
+  }
+  await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
+  return { processed: true, created: false };
 }
 
 /** Gera as ações vencidas. Idempotente: rodar duas vezes não duplica ações. */
@@ -69,32 +170,19 @@ export async function runScheduler(db: DB, opts: { orgId?: string; now?: Date; g
 
   let created = 0;
   for (const { enr, camp, lead, aiEnabled } of due) {
-    const step = camp.steps[enr.stepIndex];
-    if (!step) {
-      await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
-      continue;
+    const graph = graphOf(camp);
+    let startId = enr.nodeId;
+    if (!startId) {
+      // inscrição antiga: mapeia o índice do passo para o nó equivalente do fluxo derivado
+      const ids = actionNodeIds(graph);
+      startId = ids[enr.stepIndex] ?? TRIGGER_ID;
+      if (!ids[enr.stepIndex]) {
+        await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
+        continue;
+      }
     }
-    if (lead.stage === 'replied' || lead.stage === 'meeting' || lead.stage === 'won' || lead.stage === 'lost' || lead.stage === 'do_not_contact') {
-      await db.update(schema.enrollments).set({ state: 'stopped' }).where(eq(schema.enrollments.id, enr.id));
-      continue;
-    }
-    if (step.condition === 'accepted' && lead.stage !== 'connected') {
-      await db.update(schema.enrollments).set({ state: 'waiting_accept' }).where(eq(schema.enrollments.id, enr.id));
-      continue;
-    }
-    let body = '';
-    if (step.type === 'invite' || step.type === 'message' || step.type === 'comment') {
-      body = step.useAi && aiEnabled ? await generate({ step, lead, brief: camp.aiBrief }).catch(() => fillTemplate(step.template, lead)) : fillTemplate(step.template, lead);
-      if (step.type === 'invite') body = body.slice(0, 300); // limite da nota de convite do LinkedIn
-    }
-    const res = await db.insert(schema.actions).values({
-      orgId: enr.orgId, enrollmentId: enr.id, campaignId: camp.id, leadId: lead.id,
-      userId: camp.assignedTo ?? camp.ownerId, stepIndex: enr.stepIndex, type: step.type, body,
-      dueDate: dayString(now),
-    }).onConflictDoNothing().returning({ id: schema.actions.id });
-    created += res.length;
-    // aguardando execução humana: a próxima etapa só é agendada quando a ação for concluída
-    await db.update(schema.enrollments).set({ nextRunAt: addDays(now, 3650) }).where(eq(schema.enrollments.id, enr.id));
+    const r = await walkFlow({ db, graph, enr, camp, lead, aiEnabled, now, generate }, startId, true);
+    created += r.created ? 1 : 0;
   }
   return { processed: due.length, created };
 }
@@ -102,8 +190,45 @@ export async function runScheduler(db: DB, opts: { orgId?: string; now?: Date; g
 const ACTION_EVENT: Record<string, EventType> = { invite: 'invite_sent', message: 'message_sent', react: 'reaction_sent', comment: 'comment_sent' };
 export { ACTION_EVENT };
 
-/** Conclui (ou pula) uma ação da fila e agenda o próximo passo da cadência. */
-export async function completeAction(db: DB, orgId: string, userId: string, actionId: string, outcome: 'done' | 'skipped', body?: string, now = new Date()) {
+/** Estágio do lead após uma ação concluída: só convite avança para "invited". */
+export function advanceStageForAction(current: LeadStage, type: string): LeadStage {
+  return type === 'invite' ? advanceStage(current, 'invited') : current;
+}
+
+/**
+ * Para cada convite enviado, enfileira a análise de inteligência comercial do lead.
+ * Falha em silêncio por design: demo, limite diário ou lead indisponível nunca podem parar o fluxo comercial.
+ */
+export async function queueIntelligenceForInvite(db: DB, invite: { orgId: string; userId: string; leadId: string }) {
+  try {
+    await queueLeadAnalysis(db, { orgId: invite.orgId, userId: invite.userId }, invite.leadId, crypto.randomUUID());
+  } catch { /* análise é opcional: o envio comercial segue */ }
+}
+
+/** Continua o fluxo após a conclusão de uma ação (fila humana ou recibo do worker). */export async function continueFlowAfterAction(db: DB, action: typeof schema.actions.$inferSelect, now: Date, generate?: Generator) {
+  const [camp] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, action.campaignId));
+  const [enr] = await db.select().from(schema.enrollments).where(eq(schema.enrollments.id, action.enrollmentId));
+  if (!camp || !enr) return;
+  if (!['running', 'waiting_accept'].includes(enr.state)) return;
+  const graph = graphOf(camp);
+  const currentNodeId = enr.nodeId ?? actionNodeIds(graph)[action.stepIndex];
+  const nextEdge = currentNodeId ? outEdge(graph, currentNodeId) : undefined;
+  if (!nextEdge) {
+    await db.update(schema.enrollments).set({ state: 'done' }).where(eq(schema.enrollments.id, enr.id));
+    return;
+  }
+  const [lead] = await db.select().from(schema.leads).where(eq(schema.leads.id, action.leadId));
+  if (!lead) return;
+  const [aiRow] = await db.select({ aiEnabled: schema.orgs.aiEnabled }).from(schema.orgs).where(eq(schema.orgs.id, orgId0(action))).limit(1);
+  await walkFlow({ db, graph, enr, camp, lead, aiEnabled: aiRow?.aiEnabled ?? false, now, generate: generate ?? defaultGenerator }, nextEdge.to, false);
+}
+
+function orgId0(action: typeof schema.actions.$inferSelect): string {
+  return action.orgId;
+}
+
+/** Conclui (ou pula) uma ação da fila e segue o fluxo a partir do nó atual. */
+export async function completeAction(db: DB, orgId: string, userId: string, actionId: string, outcome: 'done' | 'skipped', body?: string, now = new Date(), opts: { generate?: Generator } = {}) {
   const [row] = await db.select({ action: schema.actions, enr: schema.enrollments, camp: schema.campaigns, lead: schema.leads })
     .from(schema.actions)
     .innerJoin(schema.enrollments, eq(schema.enrollments.id, schema.actions.enrollmentId))
@@ -116,17 +241,11 @@ export async function completeAction(db: DB, orgId: string, userId: string, acti
   await db.update(schema.actions).set({ status: outcome, executedAt: now, ...(body !== undefined ? { body } : {}) }).where(eq(schema.actions.id, actionId));
   if (outcome === 'done') {
     await logEvent(db, { orgId, userId, campaignId: row.camp.id, leadId: row.lead.id, type: ACTION_EVENT[row.action.type], at: now });
-    const stage = row.action.type === 'invite' ? advanceStage(row.lead.stage, 'invited') : row.lead.stage;
+    if (row.action.type === 'invite') await queueIntelligenceForInvite(db, { orgId, userId, leadId: row.lead.id });
+    const stage = advanceStageForAction(row.lead.stage, row.action.type);
     await db.update(schema.leads).set({ stage, lastActivityAt: now }).where(eq(schema.leads.id, row.lead.id));
   }
-  const nextIndex = row.enr.stepIndex + 1;
-  const next = row.camp.steps[nextIndex];
-  if (!next) {
-    await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'done' }).where(eq(schema.enrollments.id, row.enr.id));
-  } else {
-    await db.update(schema.enrollments).set({ stepIndex: nextIndex, state: 'running', nextRunAt: addDays(now, next.delayDays) })
-      .where(eq(schema.enrollments.id, row.enr.id));
-  }
+  await continueFlowAfterAction(db, row.action, now, opts.generate);
   return row.action;
 }
 
@@ -134,7 +253,7 @@ export type Outcome = 'accepted' | 'replied' | 'meeting' | 'won' | 'lost' | 'do_
 const OUTCOME_STAGE: Record<Outcome, LeadStage> = { accepted: 'connected', replied: 'replied', meeting: 'meeting', won: 'won', lost: 'lost', do_not_contact: 'do_not_contact' };
 const OUTCOME_EVENT: Partial<Record<Outcome, EventType>> = { accepted: 'invite_accepted', replied: 'reply_received', meeting: 'meeting_booked', won: 'deal_won', lost: 'deal_lost' };
 
-/** Registra um resultado do lead. Aceite libera passos "após aceite"; resposta encerra a cadência. */
+/** Registra um resultado do lead. Aceite libera passos "após aceite"; resposta encerra o fluxo. */
 export async function markOutcome(db: DB, orgId: string, userId: string, leadId: string, outcome: Outcome, now = new Date()) {
   const [lead] = await db.select().from(schema.leads).where(and(eq(schema.leads.id, leadId), eq(schema.leads.orgId, orgId)));
   if (!lead) throw new Error('Lead não encontrado');
@@ -156,4 +275,3 @@ export async function markOutcome(db: DB, orgId: string, userId: string, leadId:
   }
   return { stage };
 }
-

@@ -57,6 +57,13 @@
       "when": 1793364174997,
       "tag": "0007_military_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793450575000,
+      "tag": "0008_campaign_flow",
+      "breakpoints": true
     }
   ]
 }

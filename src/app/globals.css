@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "@fontsource/libre-baskerville/400-italic.css";
 
-/* Identidade Prospectra: base LeadFlow (branco, azul elétrico) + logo azul/roxo/prata */
+/* Tema claro da versão anterior (paleta mantida) + tipografia/motion do prompt: Sora, mono, sharp, premium */
 :root {
   --bg: #fefefe; --surface: #f7f8fa; --surface-accent: #eaf2ff;
   --border: #e5e7eb; --border-input: #8a8f98;
@@ -30,17 +30,21 @@
 html, body { background: var(--bg); color: var(--text); }
 body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 
-@utility card { @apply rounded-2xl border border-border bg-white; }
-@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright disabled:opacity-50 disabled:pointer-events-none cursor-pointer; }
-@utility btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover shadow-sm; }
-@utility btn-outline { @apply btn border border-border bg-white text-text hover:bg-surface; }
+@utility card { @apply rounded-xl border border-border bg-white shadow-[0_1px_2px_rgba(8,8,9,.04),0_10px_28px_-18px_rgba(8,8,9,.14)]; }
+@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-none px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright disabled:opacity-50 disabled:pointer-events-none cursor-pointer; }
+@utility btn-primary { @apply btn text-white shadow-sm hover:brightness-110; background-image: linear-gradient(90deg, #155dfc 0%, #7c3aed 100%); }
+@utility btn-outline { @apply btn border border-border bg-transparent text-text hover:bg-surface; }
 @utility btn-ghost { @apply btn text-muted hover:bg-surface hover:text-text; }
-@utility btn-danger { @apply btn border border-border bg-white text-danger hover:bg-red-50; }
-@utility input { @apply w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20; }
+@utility btn-danger { @apply btn border border-border bg-transparent text-danger hover:bg-danger/10; }
+@utility input { @apply w-full rounded-none border border-border-input bg-transparent px-3 py-2 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20; }
 @utility label { @apply mb-1.5 block text-sm font-medium text-text; }
-@utility pill { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium; }
-@utility th { @apply px-4 py-2.5 text-left text-xs font-medium text-muted; }
+@utility pill { @apply inline-flex items-center gap-1.5 rounded-none px-2 py-0.5 text-[10px] uppercase; font-family: var(--font-jbmono), ui-monospace, monospace; letter-spacing: .12em; }
+@utility th { @apply px-4 py-2.5 text-left uppercase; font-family: var(--font-jbmono), ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; }
 @utility td { @apply px-4 py-3 text-sm; }
+@utility font-display { font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; }
+@utility font-jbmono { font-family: var(--font-jbmono), ui-monospace, monospace; }
+/* Rótulo de seção no idioma do login: "O SINAL VEM PRIMEIRO." */
+@utility eyebrow { font-family: var(--font-jbmono), ui-monospace, monospace; text-transform: uppercase; letter-spacing: .2em; font-size: 11px; line-height: 1.4; }
 
 /* Logo flutuante do login */
 @keyframes logo-float {
@@ -55,6 +59,23 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   .logo-float, .logo-shadow { animation: none !important; }
 }
 
+/* Título das páginas: mesmo gradiente azul→roxo do login ("negócios") */
+.heading-gradient {
+  background: linear-gradient(90deg, #4f8bff 0%, #155dfc 45%, #7c3aed 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
+}
+
+/* Fundo do menu lateral: mesmo tratamento do hero do login (glows roxo/azul sobre base clara) */
+.sidebar-glow {
+  background:
+    radial-gradient(420px 320px at 88% 10%, rgba(124, 58, 237, .14), transparent 70%),
+    radial-gradient(460px 380px at 12% 88%, rgba(21, 93, 252, .15), transparent 72%),
+    radial-gradient(300px 240px at 90% 62%, rgba(192, 196, 204, .22), transparent 70%),
+    linear-gradient(to bottom, rgba(255,255,255,.40) 0%, rgba(255,255,255,.10) 32%, rgba(255,255,255,.92) 100%),
+    var(--bg, #fefefe);
+}
+
 /* Navigation motion: existing identity, no artificial navigation delay. */
 @keyframes prospectra-page-enter {
  from { opacity: 0; transform: translate3d(0, 8px, 0); }
@@ -64,15 +85,15 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
  0%, 100% { opacity: .55; }
  50% { opacity: 1; }
 }
-.prospectra-page-enter { animation: prospectra-page-enter 500ms cubic-bezier(.22,1,.36,1) both; }
-.prospectra-loading { animation: prospectra-loading 800ms cubic-bezier(.22,1,.36,1) infinite; }
+.prospectra-page-enter { animation: prospectra-page-enter 500ms var(--ease-premium) both; }
+.prospectra-loading { animation: prospectra-loading 800ms var(--ease-premium) infinite; }
 button, a.btn-primary, a.btn-outline, a.btn-ghost, a.btn-danger {
  transition-property: transform, background-color, color, opacity, border-color;
  transition-duration: 300ms;
- transition-timing-function: cubic-bezier(.22,1,.36,1);
+ transition-timing-function: var(--ease-premium);
 }
 button:active:not(:disabled), a.btn-primary:active, a.btn-outline:active { transform: scale(.98); }
-nav a { transition: color 300ms cubic-bezier(.22,1,.36,1), background-color 300ms cubic-bezier(.22,1,.36,1), transform 500ms cubic-bezier(.22,1,.36,1); }
+nav a { transition: color 300ms var(--ease-premium), background-color 300ms var(--ease-premium), transform 500ms var(--ease-premium); }
 @media (hover:hover) {
  nav a:hover { transform: translateX(2px); }
 }
@@ -81,3 +102,168 @@ nav a { transition: color 300ms cubic-bezier(.22,1,.36,1), background-color 300m
  button, nav a, a.btn-primary, a.btn-outline, a.btn-ghost, a.btn-danger { transition: none; }
  button:active:not(:disabled), a.btn-primary:active, a.btn-outline:active, nav a:hover { transform: none; }
 }
+
+/* ===== Prospectra+ · motion premium unificado (todas as páginas) ===== */
+:root { --ease-premium: cubic-bezier(0.16, 1, 0.3, 1); }
+.prospectra-page-enter { animation-duration: 420ms; animation-timing-function: var(--ease-premium); }
+
+/* ===== Hero de autenticação (Prospectra+): vídeo cinematográfico + painel de marca ===== */
+.auth-hero {
+  position: relative; display: grid; grid-template-rows: auto 1fr auto;
+  height: 100vh; height: 100svh; min-height: 640px; overflow: hidden; isolation: isolate;
+  color: #fff; background: #fefefe;
+  --gutter: clamp(20px, 5vw, 100px);
+}
+.auth-hero__media { position: absolute; inset: 0; z-index: -1; background: #fefefe; }
+.auth-hero__media video { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+.auth-hero__scrim { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+@media (min-width: 721px) {
+  .auth-hero__scrim {
+    background:
+      radial-gradient(680px 480px at 80% 62%, rgba(124, 58, 237, .16), transparent 70%),
+      radial-gradient(760px 540px at 24% 92%, rgba(21, 93, 252, .18), transparent 72%),
+      radial-gradient(520px 380px at 96% 8%, rgba(192, 196, 204, .30), transparent 70%),
+      linear-gradient(to right, rgba(255,255,255,.06) 0%, rgba(255,255,255,.28) 44%, rgba(255,255,255,.86) 74%, rgba(255,255,255,.97) 100%),
+      linear-gradient(to bottom, rgba(255,255,255,.42) 0%, rgba(255,255,255,.10) 30%, rgba(255,255,255,.24) 64%, rgba(255,255,255,.88) 100%);
+  }
+}
+@media (max-width: 720px) {
+  .auth-hero__scrim { background:
+    radial-gradient(520px 380px at 85% 12%, rgba(124, 58, 237, .14), transparent 70%),
+    radial-gradient(600px 420px at 15% 88%, rgba(21, 93, 252, .16), transparent 72%),
+    linear-gradient(to bottom, rgba(255,255,255,.40) 0%, rgba(255,255,255,.16) 32%, rgba(255,255,255,.92) 100%); }
+}
+.auth-hero > :is(.auth-nav, .auth-body, .auth-legal) { position: relative; }
+
+/* Nav */
+.auth-nav { display: flex; align-items: center; justify-content: space-between; gap: clamp(16px, 3vw, 32px);
+  padding: clamp(14px, 2vw, 26px) var(--gutter); padding-top: max(clamp(14px, 2vw, 26px), env(safe-area-inset-top)); }
+.auth-brand { display: inline-flex; flex-direction: column; align-items: center; text-decoration: none; line-height: 1; }
+.auth-brand img { width: clamp(34px, 3vw, 46px); height: clamp(34px, 3vw, 46px); object-fit: contain; filter: drop-shadow(0 0 18px rgba(43,127,255,.55)) drop-shadow(0 0 40px rgba(124,58,237,.35)); }
+.auth-brand__word { margin-top: 5px; font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 200;
+  font-size: clamp(17px, 1.6vw, 27px); letter-spacing: .16em; color: var(--text); white-space: nowrap; }
+.auth-brand__word span { color: var(--brand-violet); }
+
+/* Painel */
+.auth-body { display: flex; align-items: center; justify-content: flex-end; gap: clamp(16px, 2vw, 32px);
+  padding: clamp(20px, 3vw, 40px) var(--gutter); min-height: 0; overflow-y: auto; }
+.auth-panel { display: flex; flex-direction: column; align-items: flex-start; width: min(34vw, 620px); min-width: 380px; }
+.auth-chip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-jbmono), ui-monospace, monospace; font-weight: 400;
+  font-size: clamp(11px, .72vw, 14px); letter-spacing: .2em; text-transform: uppercase; line-height: 1;
+  background: rgba(255,255,255,.72); border: 1px solid rgba(21, 93, 252, .35); padding: clamp(9px,.8vw,14px) clamp(14px,1.1vw,20px); border-radius: 0; color: var(--text); }
+.auth-chip::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--accent-bright); box-shadow: 0 0 12px rgba(43,127,255,.8); }
+.auth-chip span { color: rgba(255,255,255,.62); }
+/* Logo oficial da Argus Prime dentro do chip e do rodapé */
+.auth-chip__logo, .auth-legal__logo { border-radius: 4px; object-fit: contain; box-shadow: 0 0 0 1px rgba(21, 93, 252, .25), 0 1px 6px rgba(5, 7, 13, .18); }
+.auth-chip--nav .auth-chip__logo { margin-right: 2px; }
+.auth-mark { display: flex; align-items: center; gap: clamp(14px, 1.4vw, 22px); margin-top: clamp(22px, 2.6vw, 44px); }
+.auth-mark img { width: clamp(64px, 5.4vw, 96px); height: clamp(64px, 5.4vw, 96px); object-fit: contain; filter: drop-shadow(0 0 30px rgba(43,127,255,.55)) drop-shadow(0 0 70px rgba(124,58,237,.4)); }
+.auth-h1 { font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 200;
+  font-size: clamp(44px, 5.6vw, 104px); letter-spacing: .03em; line-height: .95; color: var(--text); margin: 0; }
+.auth-tagline { font-family: var(--font-jbmono), ui-monospace, monospace; font-weight: 300; text-transform: uppercase;
+  font-size: clamp(11px, .94vw, 17px); letter-spacing: .14em; line-height: 1.4; color: var(--text-muted); margin-top: clamp(14px, 1.4vw, 24px); }
+.auth-lede { font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 300;
+  font-size: clamp(13px, .95vw, 17px); line-height: 1.6; color: var(--text-muted); margin-top: clamp(12px, 1.2vw, 20px); }
+.auth-formzone { width: 100%; margin-top: clamp(24px, 3.4vw, 54px); }
+.auth-formzone .input { background: #fff; border: 1px solid var(--border-input); border-radius: 0;
+  padding: 0 12px clamp(12px, 1.1vw, 18px); height: auto; color: var(--text); font-family: var(--font-sora), ui-sans-serif, sans-serif;
+  font-weight: 300; font-size: clamp(16px, .95vw, 18px); box-shadow: none; }
+.auth-formzone .input::placeholder { color: var(--text-muted); }
+.auth-formzone .input:focus { border-color: var(--accent); box-shadow: none; outline: none; }
+.auth-formzone label { color: var(--text-muted); font-family: var(--font-jbmono), ui-monospace, monospace; font-weight: 400;
+  font-size: clamp(10px, .68vw, 13px); letter-spacing: .16em; text-transform: uppercase; }
+.auth-formzone :is(.btn, .btn-primary, .btn-outline, .btn-ghost, .btn-danger) { border-radius: 0; font-family: var(--font-jbmono), ui-monospace, monospace;
+  text-transform: uppercase; letter-spacing: .22em; font-size: clamp(11px, .78vw, 14px); padding: clamp(15px, 1.4vw, 23px) 20px; }
+.auth-formzone .btn-primary { background: var(--accent); color: #fff; box-shadow: none; }
+.auth-formzone .btn-primary:hover { background: var(--accent-hover); }
+.auth-formzone .btn-ghost, .auth-formzone .btn-outline { background: #fff; color: var(--text-muted); border: 1px solid var(--border); }
+.auth-formzone .btn-ghost:hover, .auth-formzone .btn-outline:hover { background: var(--surface); color: var(--text); }
+.auth-formzone a { color: var(--accent-bright); }
+.auth-brandfoot { margin-top: clamp(22px, 2.4vw, 40px); width: 100%; text-align: center;
+  font-family: var(--font-jbmono), ui-monospace, monospace; font-size: clamp(11px, .74vw, 14px);
+  letter-spacing: .18em; text-transform: uppercase; color: var(--text-muted); }
+.auth-brandfoot:hover { color: var(--text-muted); }
+
+/* Footer legal */
+.auth-legal { border-top: 1px solid rgba(255,255,255,.14); text-align: center;
+  padding: clamp(16px, 1.7vw, 28px) var(--gutter) max(clamp(16px, 1.7vw, 28px), env(safe-area-inset-bottom));
+  font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 300;
+  font-size: clamp(11px, .82vw, 15px); color: var(--text-muted); line-height: 1.5; }
+.auth-legal b { color: var(--text); font-weight: 400; }
+
+/* Menu mobile (hamburger + overlay circular) */
+.auth-burger { position: relative; display: grid; place-items: center; width: 44px; height: 44px; background: transparent; border: 0; cursor: pointer; }
+.auth-burger i { position: absolute; left: 50%; transform: translateX(-50%); width: 22px; height: 1.5px; background: var(--text);
+  transition: transform .45s var(--ease-premium), opacity .25s ease, top .45s var(--ease-premium); }
+.auth-burger i:nth-child(1) { top: 16px; } .auth-burger i:nth-child(2) { top: 22px; } .auth-burger i:nth-child(3) { top: 28px; }
+.auth-burger[aria-expanded="true"] i:nth-child(1) { top: 22px; transform: translateX(-50%) rotate(45deg); }
+.auth-burger[aria-expanded="true"] i:nth-child(2) { opacity: 0; transform: translateX(-50%) scaleX(0); }
+.auth-burger[aria-expanded="true"] i:nth-child(3) { top: 22px; transform: translateX(-50%) rotate(-45deg); }
+.auth-menu { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; gap: clamp(18px, 3vh, 30px);
+  justify-items: center; text-align: center; background: rgba(9,15,30,.94);
+  backdrop-filter: blur(28px) saturate(140%); -webkit-backdrop-filter: blur(28px) saturate(140%);
+  clip-path: circle(3% at calc(100% - 42px) 42px); opacity: 0; pointer-events: none;
+  transition: clip-path .7s var(--ease-premium), opacity .45s ease; }
+.auth-menu[data-open="true"] { clip-path: circle(150% at calc(100% - 42px) 42px); opacity: 1; pointer-events: auto; }
+.auth-menu a { position: relative; opacity: 0; transform: translateY(16px);
+  font-family: var(--font-jbmono), ui-monospace, monospace; font-size: clamp(20px, 5.5vw, 28px);
+  letter-spacing: .14em; text-transform: uppercase; color: #fff; text-decoration: none; }
+.auth-menu a[data-cta="true"] { font-size: clamp(12px, .9vw, 15px); letter-spacing: .22em; padding: 16px 40px; border: 1px solid rgba(255,255,255,.26); }
+.auth-menu[data-open="true"] a { opacity: 1; transform: translateY(0);
+  transition: opacity .4s ease, transform .5s var(--ease-premium); transition-delay: calc(180ms + var(--i, 0) * 70ms); }
+.auth-menu[data-open="true"] a:hover { color: rgba(255,255,255,.62); }
+body.menu-open { overflow: hidden; }
+
+/* Responsivo “guardando proporções” */
+@media (max-width: 1100px) { .auth-panel { width: min(70vw, 520px); min-width: 0; } }
+@media (max-width: 900px) { .auth-chip--nav { display: none; } }
+@media (max-width: 720px) {
+  .auth-body { justify-content: center; padding-top: clamp(14px, 4vh, 32px); }
+  .auth-panel { width: 100%; align-items: stretch; }
+  .auth-chip { align-self: flex-start; }
+  .auth-menu { inset: 0; }
+}
+@media (max-height: 640px) {
+  .auth-hero { min-height: 100svh; }
+  .auth-nav { padding-block: 12px; }
+  .auth-h1 { font-size: clamp(36px, 7vw, 64px); }
+  .auth-mark { margin-top: 14px; }
+  .auth-mark img { width: 52px; height: 52px; }
+  .auth-formzone { margin-top: 20px; }
+  .auth-formzone .btn { padding: 12px 18px; }
+  .auth-legal { padding-block: 10px; font-size: 11px; }
+}
+
+/* Acessibilidade / focused / reduced motion */
+.auth-hero :is(a, button, input):focus-visible { outline: 2px solid rgba(21, 93, 252, .7); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-hero__media video { display: none; }
+  .auth-hero__media { background: url('https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260806_132328_5f9029c8-218f-4489-82b6-29ff2849920e.png') center / cover no-repeat; }
+  .auth-menu, .auth-menu a, .auth-burger i { transition-duration: .01ms !important; animation: none !important; }
+}
+
+/* Hamburger é padrão-mobile (≤900px); desktop usa a própria página */
+@media (min-width: 901px) { .auth-burger { display: none; } }
+
+/* ===== Tema do prompt em toda a suite (proporcional, paleta mantida) ===== */
+body { background: var(--bg); color: var(--text); }
+::selection { background: rgba(21, 93, 252, .25); color: var(--text); }
+
+/* Sora nos títulos (todas as páginas) */
+h1, h2, h3 { font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; }
+
+/* Acento terminal-mono nos rótulos/cabeçalhos de tabela */
+.label { font-family: var(--font-jbmono), ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
+.pill { font-family: var(--font-jbmono), ui-monospace, monospace; text-transform: uppercase; letter-spacing: .1em; }
+.th { font-family: var(--font-jbmono), ui-monospace, monospace; text-transform: uppercase; letter-spacing: .1em; }
+
+/* Botões da suite em mono (assinatura do prompt, produzida proporcionalmente) */
+:is(.btn, .btn-primary, .btn-outline, .btn-ghost, .btn-danger) { font-family: var(--font-jbmono), ui-monospace, monospace; text-transform: uppercase; letter-spacing: .14em; }
+
+/* Chip da marca (versão clara para páginas do app) */
+.pro-chip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-jbmono), ui-monospace, monospace;
+  font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; line-height: 1;
+  color: var(--text-muted); background: var(--surface-accent); border: 1px solid var(--border);
+  padding: 9px 14px; border-radius: 0; }
+.pro-chip::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--accent-bright);
+  box-shadow: 0 0 12px rgba(43, 127, 255, .6); }

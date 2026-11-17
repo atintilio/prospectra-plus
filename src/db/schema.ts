@@ -100,6 +100,10 @@ export type CampaignStep = {
   useAi: boolean;
 };
 
+// Fluxo estilo n8n: grafo de nós e conexões (ver src/lib/flow.ts).
+// Campanhas criadas antes do fluxo ficam com graph nulo e derivam o grafo dos passos.
+export type FlowGraph = { nodes: import('@/lib/flow').FlowNode[]; edges: import('@/lib/flow').FlowEdge[] };
+
 export const campaigns = pgTable('campaigns', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
@@ -109,6 +113,7 @@ export const campaigns = pgTable('campaigns', {
   name: text('name').notNull(),
   status: text('status', { enum: ['draft', 'active', 'paused', 'finished'] }).notNull().default('draft'),
   steps: jsonb('steps').$type<CampaignStep[]>().notNull().default(sql`'[]'::jsonb`),
+  graph: jsonb('graph').$type<FlowGraph>(),
   aiBrief: text('ai_brief').notNull().default(''),
   createdAt: createdAt(),
 }, (t) => [index('campaigns_org_status_idx').on(t.orgId, t.status)]);
@@ -119,6 +124,7 @@ export const enrollments = pgTable('enrollments', {
   campaignId: uuid('campaign_id').notNull().references(() => campaigns.id, { onDelete: 'cascade' }),
   leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
   stepIndex: integer('step_index').notNull().default(0),
+  nodeId: text('node_id'), // nó atual no fluxo; nulo em inscrições antigas (mapeado pelo stepIndex)
   state: text('state', { enum: ['running', 'waiting_accept', 'done', 'stopped'] }).notNull().default('running'),
   nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: createdAt(),

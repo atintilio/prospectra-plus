@@ -3,6 +3,7 @@ import { Megaphone, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
+import { flowActionCount, graphOf } from '@/lib/flow';
 import { Empty, PageHeader } from '@/components/ui';
 
 export const metadata = { title: 'Campanhas' };
@@ -47,7 +48,7 @@ export default async function CampanhasPage() {
                   <h2 className="font-semibold group-hover:text-accent">{c.name}</h2>
                   <span className={`pill ${cls}`}>{label}</span>
                 </div>
-                <p className="mt-1 text-xs text-muted">{c.steps.length} passos · {assignee || 'sem responsável'}</p>
+                <p className="mt-1 text-xs text-muted">{flowActionCount(graphOf(c))} ações no fluxo · {assignee || 'sem responsável'}</p>
                 <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4 text-center">
                   <div><dt className="text-xs text-muted">Leads</dt><dd className="mt-1 text-lg font-semibold">{enrolled}</dd><dd className="text-[11px] text-muted">{active} em curso</dd></div>
                   <div><dt className="text-xs text-muted">Aceite</dt><dd className="mt-1 text-lg font-semibold">{invites ? Math.round((accepted / invites) * 100) : 0}%</dd><dd className="text-[11px] text-muted">{accepted}/{invites}</dd></div>

@@ -1,43 +1,60 @@
-import { LiquidMetal } from '@/components/liquid-metal';
-import { AnimatedLogo } from '@/components/animated-logo';
+import Image from 'next/image';
+import Link from 'next/link';
+import { MobileMenu } from '@/components/mobile-menu';
+
+// Mídia cinematográfica (URLs exatas do design aprovado)
+const VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260806_133255_956f653f-5d80-4b06-abd5-0f46c98b60fa.mp4';
+const POSTER = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260806_132328_5f9029c8-218f-4489-82b6-29ff2849920e.png';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-white">
-      {/* Gotas de metal líquido azul ao fundo */}
-      <div className="pointer-events-none absolute inset-0">
-        <LiquidMetal />
+    <main className="auth-hero">
+      <link rel="preconnect" href="https://d8j0ntlcm91z4.cloudfront.net" />
+
+      {/* Vídeo full-bleed + scrim (reduced-motion: poster via CSS) */}
+      <div className="auth-hero__media" aria-hidden="true">
+        <video autoPlay muted loop playsInline preload="auto" poster={POSTER} src={VIDEO} />
       </div>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,.85)_0%,rgba(255,255,255,.35)_45%,rgba(255,255,255,0)_75%)]" />
+      <div className="auth-hero__scrim" aria-hidden="true" />
 
-      <div className="relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-6 py-6">
-        <header className="flex items-center justify-between">
-          <span className="text-xl font-semibold tracking-tight text-text">Prospectra</span>
-          <span className="hidden rounded-full border border-border bg-white/70 px-3 py-1 text-xs text-muted backdrop-blur sm:inline">Uma ferramenta Argus Prime</span>
-        </header>
+      {/* Nav: símbolo + Prospectra abaixo (novo logo), chip original à direita, hamburger no mobile */}
+      <header className="auth-nav">
+        <Link href="/" className="auth-brand">
+          <Image src="/logo-hero.png" alt="Prospectra" width={46} height={46} priority />
+          <span className="auth-brand__word">Prospectra</span>
+        </Link>
+        <span className="auth-chip auth-chip--nav">
+          <Image src="/argus-prime-logo.webp" alt="Argus Prime" width={22} height={22} className="auth-chip__logo" />
+          Uma ferramenta Argus Prime
+        </span>
+        <MobileMenu />
+      </header>
 
-        <div className="my-auto grid items-center gap-10 py-10 lg:grid-cols-[1.1fr_420px]">
-          <div className="text-center lg:text-left">
-            <AnimatedLogo className="relative mb-4 h-40 w-40 sm:h-48 sm:w-48 lg:absolute lg:-left-10 lg:top-10 lg:mb-0 lg:h-64 lg:w-64" />
-            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[.18em] text-muted backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Prospecção assistida por IA
-            </p>
-            <h1 className="text-5xl font-semibold leading-[1.02] tracking-[-0.03em] text-text sm:text-6xl lg:text-7xl">
+      {/* Painel direito (central no mobile) — textos atuais preservados */}
+      <section className="auth-body">
+        <div className="auth-panel">
+          <span className="auth-chip">
+            Prospecção assistida por IA
+          </span>
+          <div className="auth-mark">
+            <h1 className="auth-h1">
               Conexões que viram{' '}
-              <span className="bg-gradient-to-b from-[#2b7fff] via-[#155dfc] to-[#0b2f8a] bg-clip-text font-serif font-normal italic text-transparent">negócios</span>
+              <span className="bg-gradient-to-r from-[#4f8bff] via-[#155dfc] to-[#7c3aed] bg-clip-text font-serif font-normal italic text-transparent">negócios</span>
             </h1>
-            <p className="mx-auto mt-6 max-w-md text-base leading-relaxed text-muted lg:mx-0">
-              Busca com IA, cadências no LinkedIn com mensagens personalizadas e um painel que mostra de onde vêm suas reuniões.
-            </p>
           </div>
+          <p className="auth-lede">
+            Busca com IA, cadências no LinkedIn com mensagens personalizadas e um painel que mostra de onde vêm suas reuniões.
+          </p>
 
-          <div className="mx-auto w-full max-w-[420px] rounded-3xl border border-white/80 bg-white/75 p-8 shadow-[0_20px_60px_-20px_rgba(21,93,252,.35)] backdrop-blur-xl">
-            {children}
-          </div>
+          <div className="auth-formzone">{children}</div>
         </div>
+      </section>
 
-        <footer className="text-center text-xs text-muted lg:text-left">© Argus Prime · Prospectra</footer>
-      </div>
+      {/* Rodapé legal — texto atual */}
+      <footer className="auth-legal">
+        <Image src="/argus-prime-logo.webp" alt="" width={16} height={16} className="auth-legal__logo" aria-hidden="true" />
+        © Argus Prime · Prospectra
+      </footer>
     </main>
   );
 }

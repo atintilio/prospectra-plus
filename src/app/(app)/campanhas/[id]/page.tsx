@@ -3,8 +3,9 @@ import { notFound } from 'next/navigation';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { aiConfigured } from '@/lib/ai';
+import { flowActionCount, graphOf } from '@/lib/flow';
 import { PageHeader } from '@/components/ui';
-import { CampaignEditor } from '../editor';
+import { FlowEditor } from '../flow-editor';
 import { CampaignControls } from './controls';
 
 export default async function CampanhaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,10 +29,10 @@ export default async function CampanhaPage({ params }: { params: Promise<{ id: s
   const by = Object.fromEntries(states.map((s) => [s.state, s.n])) as Record<string, number>;
   return (
     <>
-      <PageHeader title={c.name} subtitle={`${c.steps.length} passos · ${(by.running ?? 0) + (by.waiting_accept ?? 0)} leads em curso · ${by.done ?? 0} concluídos · ${by.stopped ?? 0} encerrados por resposta`}>
+      <PageHeader title={c.name} subtitle={`${flowActionCount(graphOf(c))} ações no fluxo · ${(by.running ?? 0) + (by.waiting_accept ?? 0)} leads em curso · ${by.done ?? 0} concluídos · ${by.stopped ?? 0} encerrados por resposta`}>
         <CampaignControls id={c.id} status={c.status} tags={tags.map((t) => t.tag)} newLeads={newLeads} />
       </PageHeader>
-      <CampaignEditor id={c.id} initial={{ name: c.name, aiBrief: c.aiBrief, assignedTo: c.assignedTo ?? c.ownerId, linkedinAccountId: c.linkedinAccountId ?? null, steps: c.steps }}
+      <FlowEditor id={c.id} initial={{ name: c.name, aiBrief: c.aiBrief, assignedTo: c.assignedTo ?? c.ownerId, linkedinAccountId: c.linkedinAccountId ?? null, graph: graphOf(c) }}
         members={members} aiOn={aiConfigured()} accounts={accounts} />
     </>
   );
