@@ -7,8 +7,13 @@ cd /opt/prospectra-plus-current
 export DATABASE_URL="$(grep -m1 '^DATABASE_URL=' /etc/prospectra-plus/app.env | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
 echo "[deploy] versao: $(git rev-parse --short HEAD) ($(date -u +%H:%M:%S) UTC)"
 echo "[deploy] pnpm install..."; pnpm install
-echo "[deploy] build (aplica migracoes 0012/0013 + compila)..."; pnpm build
+echo "[deploy] build (aplica migracoes + compila)..."; pnpm build
+echo "[deploy] build do worker Argus..."; pnpm build:argus-worker || echo "[deploy] (argus-worker build falhou — segue)"
 echo "[deploy] reiniciando prospectra-plus..."; systemctl restart prospectra-plus
+# Reinicia o worker Argus se o serviço existir (instalado por scripts/wire-argus.sh).
+if systemctl list-unit-files | grep -q '^prospectra-argus-worker\.service'; then
+  echo "[deploy] reiniciando prospectra-argus-worker..."; systemctl restart prospectra-argus-worker || true
+fi
 sleep 5
 code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/health || echo 000)
 echo "[deploy] health: $code"

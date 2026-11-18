@@ -11,6 +11,7 @@ import { canManage, normalizeEmail, issueAccessLink, requireAdmin, requireOrg, r
 import { completeAction, enrollLeads, markOutcome, runScheduler, type Outcome } from '@/lib/cadence';
 import { validateGraph, type FlowGraph } from '@/lib/flow';
 import { leadsFromCsv, leadsFromUrls, normalizeLinkedinUrl, type ParsedLead } from '@/lib/leads-import';
+import { createLeadEnrichment } from '@/lib/argus/types';
 import { sendAccessEmail } from '@/lib/mailer';
 import { canChangeUser } from '@/lib/admin-policy';
 import { deleteAuditedLeads, flushDeletionReports } from '@/lib/deletion-audit';
@@ -45,15 +46,24 @@ export async function chooseEnvAction(form: FormData) {
 
 // ---------- Leads ----------
 
-async function insertLeads(orgId: string, ownerId: string, parsed: ParsedLead[], source: 'import' | 'search' | 'manual', tag: string) {
+async function insertLeads(orgId: string, ownerId: string, parsed: ParsedLead[], source: 'import' | 'search' | 'manual', tag: string): Promise<string[]> {
   const db = await getDb();
-  let added = 0;
+  const ids: string[] = [];
   for (let i = 0; i < parsed.length; i += 200) {
     const chunk = parsed.slice(i, i + 200).map((l) => ({ ...l, orgId, ownerId, source, tag }));
     const res = await db.insert(schema.leads).values(chunk).onConflictDoNothing().returning({ id: schema.leads.id });
-    added += res.length;
+    for (const r of res) ids.push(r.id);
   }
-  return added;
+  return ids;
+}
+
+/** Enfileira o enriquecimento por sinais públicos (Argus) para os leads recém-criados. Best-effort. */
+async function enqueueEnrichment(orgId: string, userId: string, leadIds: string[]): Promise<void> {
+  if (!leadIds.length) return;
+  const db = await getDb();
+  const rows = leadIds.slice(0, 500).map((leadId) => ({ id: crypto.randomUUID(), orgId, userId, leadId, state: 'queued' as const, result: createLeadEnrichment() }));
+  try { await db.insert(schema.enrichmentJobs).values(rows).onConflictDoNothing(); }
+  catch (e) { console.error('enqueue enrichment failed', e instanceof Error ? e.message : e); }
 }
 
 export async function importLeadsAction(_: State, form: FormData): Promise<State> {
@@ -73,7 +83,9 @@ export async function importLeadsAction(_: State, form: FormData): Promise<State
     parsed = [...parsed, ...r.leads]; invalid += r.invalid;
   }
   if (!parsed.length) return { error: 'Nenhum lead reconhecido. Inclua ao menos um nome, e-mail ou URL do LinkedIn por linha.' };
-  const added = await insertLeads(ctx.org.id, ctx.user.id, parsed, 'import', tag);
+  const ids = await insertLeads(ctx.org.id, ctx.user.id, parsed, 'import', tag);
+  const added = ids.length;
+  await enqueueEnrichment(ctx.org.id, ctx.user.id, ids); // enriquecimento automático dos novos leads
   revalidatePath('/leads');
   const dup = parsed.length - added;
   const semUrl = parsed.filter((l) => !l.linkedinUrl).length;
@@ -87,13 +99,14 @@ export async function addLeadAction(_: State, form: FormData): Promise<State> {
   const emailRaw = String(form.get('email') ?? '').trim().toLowerCase();
   const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailRaw) ? emailRaw : '';
   if (!fullName) return { error: 'Informe o nome.' };
-  const added = await insertLeads(ctx.org.id, ctx.user.id, [{
+  const ids = await insertLeads(ctx.org.id, ctx.user.id, [{
     linkedinUrl: url, fullName,
     headline: String(form.get('headline') ?? '').trim(), company: String(form.get('company') ?? '').trim(), location: String(form.get('location') ?? '').trim(),
     email, phone: String(form.get('phone') ?? '').trim().slice(0, 40),
   }], form.get('source') === 'search' ? 'search' : 'manual', String(form.get('tag') ?? '').trim().slice(0, 40));
+  await enqueueEnrichment(ctx.org.id, ctx.user.id, ids); // enriquecimento automático
   revalidatePath('/leads');
-  return added ? { ok: `${fullName} adicionado.` } : { error: 'Este contato já está na base.' };
+  return ids.length ? { ok: `${fullName} adicionado.` } : { error: 'Este contato já está na base.' };
 }
 
 export async function updateLeadStageAction(leadId: string, outcome: Outcome) {
