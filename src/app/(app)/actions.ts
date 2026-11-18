@@ -72,25 +72,28 @@ export async function importLeadsAction(_: State, form: FormData): Promise<State
     const r = leadsFromUrls(urls);
     parsed = [...parsed, ...r.leads]; invalid += r.invalid;
   }
-  if (!parsed.length) return { error: 'Nenhum perfil do LinkedIn encontrado. O CSV precisa de uma coluna com a URL do perfil.' };
+  if (!parsed.length) return { error: 'Nenhum lead reconhecido. Inclua ao menos um nome, e-mail ou URL do LinkedIn por linha.' };
   const added = await insertLeads(ctx.org.id, ctx.user.id, parsed, 'import', tag);
   revalidatePath('/leads');
   const dup = parsed.length - added;
-  return { ok: `${added} lead${added === 1 ? '' : 's'} adicionado${added === 1 ? '' : 's'}.${dup ? ` ${dup} já estava${dup === 1 ? '' : 'm'} na base.` : ''}${invalid ? ` ${invalid} linha(s) sem perfil válido.` : ''}` };
+  const semUrl = parsed.filter((l) => !l.linkedinUrl).length;
+  return { ok: `${added} lead${added === 1 ? '' : 's'} adicionado${added === 1 ? '' : 's'}.${dup ? ` ${dup} já estava${dup === 1 ? '' : 'm'} na base.` : ''}${invalid ? ` ${invalid} linha(s) sem dados aproveitáveis.` : ''}${semUrl ? ` ${semUrl} sem LinkedIn — serão enriquecidos por sinais públicos.` : ''}` };
 }
 
 export async function addLeadAction(_: State, form: FormData): Promise<State> {
   const ctx = await requireOrg();
   const url = normalizeLinkedinUrl(String(form.get('linkedinUrl') ?? ''));
   const fullName = String(form.get('fullName') ?? '').trim();
-  if (!url) return { error: 'Cole a URL do perfil (linkedin.com/in/...).' };
+  const emailRaw = String(form.get('email') ?? '').trim().toLowerCase();
+  const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailRaw) ? emailRaw : '';
   if (!fullName) return { error: 'Informe o nome.' };
   const added = await insertLeads(ctx.org.id, ctx.user.id, [{
     linkedinUrl: url, fullName,
     headline: String(form.get('headline') ?? '').trim(), company: String(form.get('company') ?? '').trim(), location: String(form.get('location') ?? '').trim(),
+    email, phone: String(form.get('phone') ?? '').trim().slice(0, 40),
   }], form.get('source') === 'search' ? 'search' : 'manual', String(form.get('tag') ?? '').trim().slice(0, 40));
   revalidatePath('/leads');
-  return added ? { ok: `${fullName} adicionado.` } : { error: 'Este perfil já está na base.' };
+  return added ? { ok: `${fullName} adicionado.` } : { error: 'Este contato já está na base.' };
 }
 
 export async function updateLeadStageAction(leadId: string, outcome: Outcome) {

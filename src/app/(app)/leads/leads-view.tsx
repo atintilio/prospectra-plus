@@ -8,7 +8,7 @@ import type { SearchPlan } from '@/lib/ai';
 import { FormMessage, Submit } from '@/components/form';
 import { Avatar, Empty, STAGE_LABEL, StagePill } from '@/components/ui';
 
-type Lead = { id: string; fullName: string; headline: string; company: string; location: string; linkedinUrl: string; stage: string; tag: string; source: string; createdAt: string };
+type Lead = { id: string; fullName: string; headline: string; company: string; location: string; linkedinUrl: string | null; stage: string; tag: string; source: string; createdAt: string };
 
 export function LeadsView({ leads, total, page, tags, campaigns, filters, aiOn, credits }: {
   leads: Lead[]; total: number; page: number; tags: string[]; campaigns: { id: string; name: string; status: string }[];
@@ -103,7 +103,7 @@ export function LeadsView({ leads, total, page, tags, campaigns, filters, aiOn, 
                     <td className="td">{l.tag ? <span className="pill bg-violet-soft text-violet">{l.tag}</span> : <span className="text-muted">—</span>}</td>
                     <td className="td"><StageMenu lead={l} /></td>
                     <td className="td text-muted">{new Date(l.createdAt).toLocaleDateString('pt-BR')}</td>
-                    <td className="td text-right"><a href={l.linkedinUrl} target="_blank" rel="noopener" className="btn-ghost px-2 py-1" aria-label="Abrir no LinkedIn"><ExternalLink className="h-4 w-4" /></a></td>
+                    <td className="td text-right">{l.linkedinUrl ? <a href={l.linkedinUrl} target="_blank" rel="noopener" className="btn-ghost px-2 py-1" aria-label="Abrir no LinkedIn"><ExternalLink className="h-4 w-4" /></a> : <span className="px-2 py-1 text-xs text-muted" title="Sem LinkedIn — será enriquecido">—</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -224,7 +224,7 @@ function ImportPanel({ onClose }: { onClose: () => void }) {
         <div>
           <label className="label" htmlFor="file">Arquivo CSV</label>
           <input id="file" name="file" type="file" accept=".csv,text/csv" className="input file:mr-3 file:rounded-md file:border-0 file:bg-surface-accent file:px-3 file:py-1 file:text-accent" />
-          <p className="mt-1.5 text-xs text-muted">Aceita exportações do Sales Navigator, Apollo ou planilhas. Precisa de uma coluna com a URL do perfil; nome, cargo, empresa e cidade são lidos se existirem.</p>
+          <p className="mt-1.5 text-xs text-muted">Aceita exportações do Sales Navigator, Apollo ou planilhas. Suba o que você tem: basta nome, e-mail <em>ou</em> URL do LinkedIn por linha. Cargo, empresa, cidade, e-mail e telefone são lidos se existirem — o que faltar é enriquecido por sinais públicos.</p>
         </div>
         <div>
           <label className="label" htmlFor="urls">Ou cole URLs de perfis</label>
@@ -245,8 +245,10 @@ function AddPanel({ onClose }: { onClose: () => void }) {
   return (
     <PanelShell title="Adicionar lead" onClose={onClose}>
       <form action={action} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <input name="linkedinUrl" className="input sm:col-span-2 lg:col-span-1" placeholder="URL do perfil *" required />
         <input name="fullName" className="input" placeholder="Nome completo *" required />
+        <input name="linkedinUrl" className="input" placeholder="URL do perfil (opcional)" />
+        <input name="email" type="email" className="input" placeholder="E-mail (opcional)" />
+        <input name="phone" className="input" placeholder="Telefone (opcional)" />
         <input name="headline" className="input" placeholder="Cargo" />
         <input name="company" className="input" placeholder="Empresa" />
         <input name="location" className="input" placeholder="Cidade" />

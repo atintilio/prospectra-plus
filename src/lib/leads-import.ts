@@ -1,6 +1,6 @@
 // Leitura de CSV (exportação do Sales Navigator, planilhas, listas próprias) e de URLs coladas.
 
-export type ParsedLead = { linkedinUrl: string; fullName: string; headline: string; company: string; location: string };
+export type ParsedLead = { linkedinUrl: string | null; fullName: string; headline: string; company: string; location: string; email?: string; phone?: string };
 
 export function normalizeLinkedinUrl(raw: string): string | null {
   const m = raw.trim().match(/linkedin\.com\/(in|sales\/lead|sales\/people)\/([^/?#\s,]+)/i);
@@ -46,7 +46,23 @@ const H = {
   title: ['cargo', 'title', 'headline', 'job title', 'position', 'título'],
   company: ['empresa', 'company', 'company name', 'organization', 'organização'],
   location: ['cidade', 'location', 'localização', 'local', 'city'],
+  email: ['email', 'e-mail', 'mail', 'email address', 'work email', 'e-mail profissional'],
+  phone: ['telefone', 'phone', 'celular', 'whatsapp', 'mobile', 'fone', 'phone number', 'tel'],
 };
+
+function cleanEmail(raw: string): string {
+  const v = raw.trim().toLowerCase();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) ? v : '';
+}
+function cleanPhone(raw: string): string {
+  const v = raw.trim();
+  const digits = v.replace(/[^\d]/g, '');
+  return digits.length >= 8 && digits.length <= 15 ? v.replace(/[^\d+()\-\s]/g, '').trim().slice(0, 40) : '';
+}
+function nameFromEmail(email: string): string {
+  const local = email.split('@')[0] ?? '';
+  return local.replace(/[._-]+/g, ' ').split(' ').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+}
 
 function findCol(headers: string[], keys: string[]): number {
   const h = headers.map((x) => x.trim().toLowerCase());
@@ -62,19 +78,25 @@ export function leadsFromCsv(text: string): { leads: ParsedLead[]; invalid: numb
   const c = {
     url: findCol(headers, H.url), name: findCol(headers, H.name), first: findCol(headers, H.first), last: findCol(headers, H.last),
     title: findCol(headers, H.title), company: findCol(headers, H.company), location: findCol(headers, H.location),
+    email: findCol(headers, H.email), phone: findCol(headers, H.phone),
   };
   const out: ParsedLead[] = [];
   let invalid = 0;
   for (const r of data) {
     const rawUrl = c.url >= 0 ? r[c.url] ?? '' : r.find((v) => /linkedin\.com\//i.test(v)) ?? '';
     const url = normalizeLinkedinUrl(rawUrl);
-    if (!url) { invalid++; continue; }
-    const name = (c.name >= 0 ? r[c.name] : [c.first >= 0 ? r[c.first] : '', c.last >= 0 ? r[c.last] : ''].join(' ')).trim() || nameFromSlug(url);
+    const email = c.email >= 0 ? cleanEmail(r[c.email] ?? '') : '';
+    const phone = c.phone >= 0 ? cleanPhone(r[c.phone] ?? '') : '';
+    const rawName = (c.name >= 0 ? r[c.name] : [c.first >= 0 ? r[c.first] : '', c.last >= 0 ? r[c.last] : ''].join(' ')).trim();
+    const name = rawName || (url ? nameFromSlug(url) : '') || (email ? nameFromEmail(email) : '');
+    // Mote: enriquecer. Basta ter um identificador (nome, URL ou e-mail) — o resto o Argus completa depois.
+    if (!name && !url && !email) { invalid++; continue; }
     out.push({
-      linkedinUrl: url, fullName: name,
+      linkedinUrl: url, fullName: name || 'Lead sem nome',
       headline: (c.title >= 0 ? r[c.title] : '')?.trim() ?? '',
       company: (c.company >= 0 ? r[c.company] : '')?.trim() ?? '',
       location: (c.location >= 0 ? r[c.location] : '')?.trim() ?? '',
+      email, phone,
     });
   }
   return { leads: dedupe(out), invalid };
@@ -87,12 +109,19 @@ export function leadsFromUrls(text: string): { leads: ParsedLead[]; invalid: num
   for (const p of parts) {
     const url = normalizeLinkedinUrl(p);
     if (!url) { invalid++; continue; }
-    out.push({ linkedinUrl: url, fullName: nameFromSlug(url), headline: '', company: '', location: '' });
+    out.push({ linkedinUrl: url, fullName: nameFromSlug(url), headline: '', company: '', location: '', email: '', phone: '' });
   }
   return { leads: dedupe(out), invalid };
 }
 
 function dedupe(list: ParsedLead[]): ParsedLead[] {
   const seen = new Set<string>();
-  return list.filter((l) => (seen.has(l.linkedinUrl) ? false : (seen.add(l.linkedinUrl), true)));
+  return list.filter((l) => {
+    // Chave: URL quando houver; senão o e-mail; sem nenhum dos dois não há como deduplicar, mantém.
+    const key = l.linkedinUrl ? `u:${l.linkedinUrl}` : l.email ? `e:${l.email.toLowerCase()}` : '';
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

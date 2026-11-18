@@ -5,7 +5,7 @@ import { completeAction, markOutcome, runScheduler } from '@/lib/cadence';
 
 // Tudo aqui é SIMULAÇÃO: nenhuma chamada ao LinkedIn, nenhum envio real.
 
-type Pool = ParsedLead & { sector: string };
+type Pool = Omit<ParsedLead, 'linkedinUrl'> & { linkedinUrl: string; sector: string };
 const P = (fullName: string, headline: string, company: string, location: string, sector: string): Pool => ({
   fullName, headline, company, location, sector,
   linkedinUrl: `https://www.linkedin.com/in/${fullName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]+/g, '-')}-sim`,

@@ -74,7 +74,8 @@ export const leads = pgTable('leads', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
   ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
-  linkedinUrl: text('linkedin_url').notNull(),
+  // Opcional: o intake aceita leads sem LinkedIn; o enriquecimento por sinais públicos completa depois.
+  linkedinUrl: text('linkedin_url'),
   fullName: text('full_name').notNull(),
   headline: text('headline').notNull().default(''),
   company: text('company').notNull().default(''),
@@ -83,14 +84,18 @@ export const leads = pgTable('leads', {
   source: text('source', { enum: ['import', 'search', 'manual', 'signal'] }).notNull().default('import'),
   stage: text('stage', { enum: LEAD_STAGES }).notNull().default('new'),
   notes: text('notes').notNull().default(''),
-  // Enriquecimento consultivo (fontes públicas): e-mail do lead e achados da última corrida.
+  // Enriquecimento consultivo (fontes públicas): e-mail e telefone do lead e achados da última corrida.
   email: text('email').notNull().default(''),
+  phone: text('phone').notNull().default(''),
   enrichment: jsonb('enrichment').$type<LeadEnrichment | null>(),
   enrichedAt: timestamp('enriched_at', { withTimezone: true }),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
-  uniqueIndex('leads_org_url_uq').on(t.orgId, t.linkedinUrl),
+  // Único por URL apenas quando há URL (permite múltiplos leads sem LinkedIn no intake).
+  uniqueIndex('leads_org_url_uq').on(t.orgId, t.linkedinUrl).where(sql`${t.linkedinUrl} is not null`),
+  // Sem URL, evita duplicar o mesmo contato pelo e-mail informado.
+  uniqueIndex('leads_org_email_uq').on(t.orgId, sql`lower(${t.email})`).where(sql`${t.linkedinUrl} is null and ${t.email} <> ''`),
   index('leads_org_stage_idx').on(t.orgId, t.stage),
   index('leads_org_owner_idx').on(t.orgId, t.ownerId),
 ]);

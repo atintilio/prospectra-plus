@@ -43,8 +43,9 @@ export async function pushDueActionsToGo(
 
   let pushed = 0, skipped = 0, failed = 0;
   for (const { action, lead, account } of rows) {
-    // Demo, conta não conectada ou sem provedor nunca toca a rede real.
-    if (!PUSHABLE.includes(action.type as GoActionType) || account.demo || account.status !== 'connected' || !account.providerId) {
+    // Demo, conta não conectada, sem provedor, ou lead sem LinkedIn nunca toca a rede real.
+    // Lead sem URL fica no CRM aguardando o enriquecimento por sinais públicos descobrir o perfil.
+    if (!PUSHABLE.includes(action.type as GoActionType) || account.demo || account.status !== 'connected' || !account.providerId || !lead.linkedinUrl) {
       skipped++; continue;
     }
     const go: GoAction = {

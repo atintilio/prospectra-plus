@@ -5,9 +5,9 @@ import { runInvestigation } from '../services/argus/worker';
 import type { InvestigationTarget } from '../services/argus/types';
 import { parseLeadEnrichment } from '../src/lib/argus/types';
 
-function targetForLead(lead: { fullName: string; company: string | null; email: string | null; linkedinUrl: string }): InvestigationTarget {
-  const target: InvestigationTarget = { name: lead.fullName, company: lead.company ?? undefined, email: lead.email ?? undefined, profileUrl: lead.linkedinUrl };
-  try { target.domain = new URL(lead.linkedinUrl).hostname.replace(/^www\./, ''); } catch { /* profileUrl remains the public target */ }
+function targetForLead(lead: { fullName: string; company: string | null; email: string | null; linkedinUrl: string | null }): InvestigationTarget {
+  const target: InvestigationTarget = { name: lead.fullName, company: lead.company ?? undefined, email: lead.email ?? undefined, profileUrl: lead.linkedinUrl ?? undefined };
+  if (lead.linkedinUrl) { try { target.domain = new URL(lead.linkedinUrl).hostname.replace(/^www\./, ''); } catch { /* profileUrl remains the public target */ } }
   return target;
 }
 
