@@ -27,9 +27,10 @@ export function goConfig(): GoConfig | null {
   return baseUrl && secret ? { baseUrl, secret } : null;
 }
 
-/** Automação só dispara quando explicitamente ligada E configurada. Padrão: desligada (assistido). */
+/** Automação só dispara quando explicitamente ligada E configurada. Padrão: desligada (assistido).
+ *  Usa LINKEDIN_AUTOMATION_ENABLED (nome já provisionado no ambiente de produção). */
 export function goEnabled(): boolean {
-  return process.env.GO_ENABLED?.trim() === 'true' && goConfig() !== null;
+  return process.env.LINKEDIN_AUTOMATION_ENABLED?.trim() === 'true' && goConfig() !== null;
 }
 
 export type GoActionType = 'invite' | 'message' | 'comment' | 'react';

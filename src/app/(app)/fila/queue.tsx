@@ -7,7 +7,7 @@ import { completeActionAction, refreshQueueAction, updateLeadStageAction } from 
 import { Avatar, Empty } from '@/components/ui';
 
 type Lead = { id: string; fullName: string; headline: string; company: string; linkedinUrl: string };
-type Item = { id: string; type: 'react' | 'comment' | 'invite' | 'message'; body: string; campaign: string; overdue: boolean; lead: Lead };
+type Item = { id: string; type: 'react' | 'comment' | 'invite' | 'message'; body: string; campaign: string; overdue: boolean; auto?: boolean; lead: Lead };
 
 const TYPE = {
   invite: { label: 'Convite de conexão', icon: UserPlus, how: 'Abra o perfil → Conectar → Adicionar nota → cole o texto.' },
@@ -60,6 +60,7 @@ export function Queue({ items, waiting, connected, limits }: { items: Item[]; wa
                   <header className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-surface-accent to-violet-soft px-5 py-3 text-sm">
                     <t.icon className="h-4 w-4 text-accent" /><span className="font-semibold">{t.label}</span>
                     <span className="text-muted">· {current.campaign}</span>
+                    {current.auto && <span className="pill bg-surface-accent text-accent">Automático · em execução</span>}
                     {current.overdue && <span className="pill ml-auto bg-warning-soft text-warning">Atrasada</span>}
                   </header>
                   <div className="p-5">
@@ -74,21 +75,25 @@ export function Queue({ items, waiting, connected, limits }: { items: Item[]; wa
                       <div className="mt-5">
                         <label className="label" htmlFor="body">Texto pronto <span className="font-normal text-muted">(pode editar)</span></label>
                         <textarea id="body" rows={current.type === 'invite' ? 4 : 6} maxLength={current.type === 'invite' ? 300 : 2000}
-                          className="input resize-y leading-relaxed" value={edits[current.id] ?? current.body}
+                          className="input resize-y leading-relaxed" value={edits[current.id] ?? current.body} readOnly={current.auto}
                           onChange={(e) => setEdits({ ...edits, [current.id]: e.target.value })} />
                         {current.type === 'invite' && <p className="mt-1 text-right text-xs text-muted">{(edits[current.id] ?? current.body).length}/300</p>}
                       </div>
                     )}
                     <p className="mt-4 rounded-lg bg-surface px-3 py-2 text-xs text-muted">{t.how}</p>
                     {overLimit && <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">Você atingiu o limite diário deste tipo de ação. Para proteger sua conta, deixe para amanhã.</p>}
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      <button className="btn-primary" onClick={() => openAndCopy(current)}>
-                        {copied === current.id ? <Clipboard className="h-4 w-4" /> : <ExternalLink className="h-4 w-4" />}
-                        {current.type === 'react' ? 'Abrir no LinkedIn' : copied === current.id ? 'Texto copiado · abrir de novo' : 'Copiar e abrir no LinkedIn'}
-                      </button>
-                      <button className="btn-outline" onClick={() => act(current.id, 'done')} disabled={pending}><Check className="h-4 w-4" /> Feito</button>
-                      <button className="btn-ghost" onClick={() => act(current.id, 'skipped')} disabled={pending}><SkipForward className="h-4 w-4" /> Pular</button>
-                    </div>
+                    {current.auto ? (
+                      <p className="mt-5 rounded-lg bg-surface-accent px-3 py-2 text-sm text-accent">🤖 Esta campanha é automática: o robô envia por você. Acompanhe o resultado no Painel.</p>
+                    ) : (
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <button className="btn-primary" onClick={() => openAndCopy(current)}>
+                          {copied === current.id ? <Clipboard className="h-4 w-4" /> : <ExternalLink className="h-4 w-4" />}
+                          {current.type === 'react' ? 'Abrir no LinkedIn' : copied === current.id ? 'Texto copiado · abrir de novo' : 'Copiar e abrir no LinkedIn'}
+                        </button>
+                        <button className="btn-outline" onClick={() => act(current.id, 'done')} disabled={pending}><Check className="h-4 w-4" /> Feito</button>
+                        <button className="btn-ghost" onClick={() => act(current.id, 'skipped')} disabled={pending}><SkipForward className="h-4 w-4" /> Pular</button>
+                      </div>
+                    )}
                   </div>
                 </article>
               );

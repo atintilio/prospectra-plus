@@ -117,6 +117,9 @@ export const campaigns = pgTable('campaigns', {
   linkedinAccountId: uuid('linkedin_account_id'),
   name: text('name').notNull(),
   status: text('status', { enum: ['draft', 'active', 'paused', 'finished'] }).notNull().default('draft'),
+  // Coexistência: 'assistido' = ações vão para a Fila (humano envia);
+  // 'automatico' = ações são entregues ao worker Go. Uma ação nunca aparece nos dois.
+  mode: text('mode', { enum: ['assistido', 'automatico'] }).notNull().default('assistido'),
   steps: jsonb('steps').$type<CampaignStep[]>().notNull().default(sql`'[]'::jsonb`),
   graph: jsonb('graph').$type<FlowGraph>(),
   aiBrief: text('ai_brief').notNull().default(''),

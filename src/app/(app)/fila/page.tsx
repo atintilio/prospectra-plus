@@ -13,7 +13,7 @@ export default async function FilaPage() {
   const db = await getDb();
   await runScheduler(db, { orgId: ctx.org.id, generate: aiGenerator });
   const today = dayString(new Date());
-  const rows = await db.select({ a: schema.actions, lead: schema.leads, camp: { name: schema.campaigns.name } })
+  const rows = await db.select({ a: schema.actions, lead: schema.leads, camp: { name: schema.campaigns.name, mode: schema.campaigns.mode } })
     .from(schema.actions)
     .innerJoin(schema.leads, eq(schema.leads.id, schema.actions.leadId))
     .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.actions.campaignId))
@@ -34,7 +34,7 @@ export default async function FilaPage() {
     .orderBy(desc(schema.leads.lastActivityAt)).limit(40);
 
   const items = rows.map(({ a, lead, camp }) => ({
-    id: a.id, type: a.type, body: a.body, campaign: camp.name, overdue: a.dueDate < today,
+    id: a.id, type: a.type, body: a.body, campaign: camp.name, overdue: a.dueDate < today, auto: camp.mode === 'automatico',
     lead: { id: lead.id, fullName: lead.fullName, headline: lead.headline, company: lead.company, linkedinUrl: lead.linkedinUrl },
   }));
   const slim = (l: typeof waiting[number]) => ({ id: l.id, fullName: l.fullName, headline: l.headline, company: l.company, linkedinUrl: l.linkedinUrl });

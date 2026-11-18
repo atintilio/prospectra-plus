@@ -237,6 +237,8 @@ export async function completeAction(db: DB, orgId: string, userId: string, acti
     .where(and(eq(schema.actions.id, actionId), eq(schema.actions.orgId, orgId)));
   if (!row) throw new Error('Ação não encontrada');
   if (row.action.status !== 'pending') return row.action;
+  // Campanha automática: o envio é do robô (worker Go). O humano não conclui aqui (evita duplicar).
+  if (row.camp.mode === 'automatico') throw new Error('Ação de campanha automática: o envio é feito pelo robô.');
 
   await db.update(schema.actions).set({ status: outcome, executedAt: now, ...(body !== undefined ? { body } : {}) }).where(eq(schema.actions.id, actionId));
   if (outcome === 'done') {

@@ -21,7 +21,7 @@ const ACTION_META: Record<FlowActionType, { label: string; icon: typeof Send }> 
   comment: { label: 'Comentar post', icon: MessageCircle },
 };
 
-type Initial = { name: string; aiBrief: string; assignedTo: string | null; linkedinAccountId: string | null; graph: FlowGraph };
+type Initial = { name: string; aiBrief: string; assignedTo: string | null; linkedinAccountId: string | null; mode: 'assistido' | 'automatico'; graph: FlowGraph };
 type AccountOption = { id: string; label: string; userName: string; status: string; demo: boolean };
 
 let uid = 0;
@@ -31,7 +31,7 @@ export function FlowEditor({ id, initial, members, aiOn, accounts = [] }: {
   id: string | null; initial: Initial; members: { id: string; name: string; email: string }[]; aiOn: boolean; accounts?: AccountOption[];
 }) {
   const router = useRouter();
-  const [form, setForm] = useState({ name: initial.name, aiBrief: initial.aiBrief, assignedTo: initial.assignedTo, linkedinAccountId: initial.linkedinAccountId });
+  const [form, setForm] = useState({ name: initial.name, aiBrief: initial.aiBrief, assignedTo: initial.assignedTo, linkedinAccountId: initial.linkedinAccountId, mode: initial.mode });
   const [nodes, setNodes] = useState<FlowNode[]>(initial.graph.nodes);
   const [edges, setEdges] = useState<FlowEdge[]>(initial.graph.edges);
   const [selected, setSelected] = useState<string | null>(null);
@@ -285,6 +285,13 @@ export function FlowEditor({ id, initial, members, aiOn, accounts = [] }: {
               ))}
             </select>
             {!accounts.length && <p className="mt-1 text-xs text-muted">Nenhuma conta vinculada ainda. Conecte em <strong>Go LinkedIn</strong>.</p>}
+          </div>
+          <div><label className="label" htmlFor="mode">Modo de execução</label>
+            <select id="mode" className="input" value={form.mode} onChange={(e) => { setSaved(false); setForm({ ...form, mode: e.target.value === 'automatico' ? 'automatico' : 'assistido' }); }}>
+              <option value="assistido">Assistido — as ações vão para a Fila e você envia com um clique</option>
+              <option value="automatico">Automático — o robô executa no LinkedIn (exige conta conectada)</option>
+            </select>
+            {form.mode === 'automatico' && <p className="mt-1 text-xs text-muted">No automático, as ações aparecem na Fila como “em execução” (só leitura).</p>}
           </div>
           <div><label className="label" htmlFor="brief">Contexto para a IA</label>
             <textarea id="brief" rows={5} className="input text-sm" value={form.aiBrief} onChange={(e) => { setSaved(false); setForm({ ...form, aiBrief: e.target.value }); }}

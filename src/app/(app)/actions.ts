@@ -146,6 +146,7 @@ const campaignSchema = z.object({
   aiBrief: z.string().max(1200),
   assignedTo: z.string().uuid().nullable(),
   linkedinAccountId: z.string().uuid().nullable(),
+  mode: z.enum(['assistido', 'automatico']).default('assistido'),
   steps: z.array(stepSchema).max(12).default([]),
   graph: z.unknown().optional(),
 });
@@ -178,7 +179,8 @@ export async function saveCampaignAction(id: string | null, input: unknown): Pro
     if (acc.userId !== executorId) return { error: 'A conta LinkedIn precisa pertencer a quem executa a campanha.' };
     if (acc.status !== 'connected') return { error: 'A conta LinkedIn escolhida não está conectada. Verifique em Go LinkedIn.' };
   }
-  const values = { name: data.name, aiBrief: data.aiBrief, assignedTo: data.assignedTo, linkedinAccountId: data.linkedinAccountId, steps: data.steps as CampaignStep[], ...(graph ? { graph } : {}) };
+  if (data.mode === 'automatico' && !data.linkedinAccountId) return { error: 'Campanha automática exige uma conta LinkedIn conectada (o robô usa essa conta para enviar).' };
+  const values = { name: data.name, aiBrief: data.aiBrief, assignedTo: data.assignedTo, linkedinAccountId: data.linkedinAccountId, mode: data.mode, steps: data.steps as CampaignStep[], ...(graph ? { graph } : {}) };
   if (id) {
     await db.update(schema.campaigns).set(values).where(and(eq(schema.campaigns.id, id), eq(schema.campaigns.orgId, ctx.org.id)));
     revalidatePath(`/campanhas/${id}`); revalidatePath('/campanhas');

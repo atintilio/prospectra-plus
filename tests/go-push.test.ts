@@ -35,16 +35,16 @@ describe('GoClient (push)', () => {
   });
 });
 
-async function seedPending(demo = false, status: schema.LinkedInStatus = 'connected', providerId: string | null = 'conta-go-1') {
+async function seedPending(demo = false, status: schema.LinkedInStatus = 'connected', providerId: string | null = 'conta-go-1', mode: 'assistido' | 'automatico' = 'automatico') {
   const db = await testDb();
   const { org, user } = await seedOrg(db);
   const [acc] = await db.insert(schema.linkedinAccounts).values({ orgId: org.id, userId: user.id, status, demo, providerId }).returning();
   const steps: schema.CampaignStep[] = [{ id: 's1', type: 'invite', delayDays: 0, condition: 'always', template: 'Oi', useAi: false }];
-  const [camp] = await db.insert(schema.campaigns).values({ orgId: org.id, ownerId: user.id, assignedTo: user.id, linkedinAccountId: acc.id, name: 'C', status: 'active', steps }).returning();
+  const [camp] = await db.insert(schema.campaigns).values({ orgId: org.id, ownerId: user.id, assignedTo: user.id, linkedinAccountId: acc.id, name: 'C', status: 'active', mode, steps }).returning();
   const [lead] = await db.insert(schema.leads).values({ orgId: org.id, ownerId: user.id, linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Ana', stage: 'new' }).returning();
   const [enr] = await db.insert(schema.enrollments).values({ orgId: org.id, campaignId: camp.id, leadId: lead.id, stepIndex: 0, state: 'running', nextRunAt: new Date() }).returning();
   const [act] = await db.insert(schema.actions).values({ orgId: org.id, enrollmentId: enr.id, campaignId: camp.id, leadId: lead.id, userId: user.id, stepIndex: 0, type: 'invite', body: 'Oi Ana', dueDate: '2026-11-18', status: 'pending' }).returning();
-  return { db, org, act };
+  return { db, org, user, act };
 }
 
 const stub = (tarefaId = 'go-1'): GoEnqueuer & { calls: number } => {
@@ -80,5 +80,20 @@ describe('pushDueActionsToGo', () => {
     expect(r).toMatchObject({ pushed: 0, failed: 1 });
     const [after] = await db.select().from(schema.actions).where(and(eq(schema.actions.id, act.id), eq(schema.actions.status, 'pending')));
     expect(after.providerId).toBeNull();
+  });
+});
+
+import { completeAction } from '@/lib/cadence';
+
+describe('coexistência assistido x automático', () => {
+  it('campanha assistida NÃO é entregue ao Go', async () => {
+    const { db, org } = await seedPending(false, 'connected', 'conta-go-1', 'assistido');
+    const r = await pushDueActionsToGo(db, { orgId: org.id, client: stub(), webhookUrl: WEBHOOK });
+    expect(r.pushed).toBe(0);
+  });
+
+  it('a Fila (completeAction) recusa concluir ação de campanha automática', async () => {
+    const { db, org, user, act } = await seedPending(false, 'connected', 'conta-go-1', 'automatico');
+    await expect(completeAction(db, org.id, user.id, act.id, 'done')).rejects.toThrow(/autom/i);
   });
 });

@@ -32,7 +32,7 @@ export default async function CampanhaPage({ params }: { params: Promise<{ id: s
       <PageHeader title={c.name} subtitle={`${flowActionCount(graphOf(c))} ações no fluxo · ${(by.running ?? 0) + (by.waiting_accept ?? 0)} leads em curso · ${by.done ?? 0} concluídos · ${by.stopped ?? 0} encerrados por resposta`}>
         <CampaignControls id={c.id} status={c.status} tags={tags.map((t) => t.tag)} newLeads={newLeads} />
       </PageHeader>
-      <FlowEditor id={c.id} initial={{ name: c.name, aiBrief: c.aiBrief, assignedTo: c.assignedTo ?? c.ownerId, linkedinAccountId: c.linkedinAccountId ?? null, graph: graphOf(c) }}
+      <FlowEditor id={c.id} initial={{ name: c.name, aiBrief: c.aiBrief, assignedTo: c.assignedTo ?? c.ownerId, linkedinAccountId: c.linkedinAccountId ?? null, mode: c.mode, graph: graphOf(c) }}
         members={members} aiOn={aiConfigured()} accounts={accounts} />
     </>
   );

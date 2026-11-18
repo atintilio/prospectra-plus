@@ -28,6 +28,7 @@ export async function pushDueActionsToGo(
     eq(schema.actions.status, 'pending'),
     eq(schema.actions.dispatchState, 'none'),
     isNull(schema.actions.providerId),
+    eq(schema.campaigns.mode, 'automatico'), // só campanhas automáticas vão ao worker Go
   ];
   if (opts.orgId) conds.push(eq(schema.actions.orgId, opts.orgId));
 

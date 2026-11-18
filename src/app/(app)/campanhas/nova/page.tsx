@@ -20,7 +20,7 @@ export default async function NovaCampanha() {
   return (
     <>
       <PageHeader title="Nova campanha" subtitle="Monte o fluxo: ações, esperas e condições. Os textos usam variáveis e a IA adapta cada um ao lead." />
-      <FlowEditor id={null} initial={{ name: '', aiBrief: '', assignedTo: ctx.user.id, linkedinAccountId: null, graph: deriveGraphFromSteps(DEFAULT_STEPS) }} members={members} aiOn={aiConfigured()} accounts={accounts} />
+      <FlowEditor id={null} initial={{ name: '', aiBrief: '', assignedTo: ctx.user.id, linkedinAccountId: null, mode: 'assistido', graph: deriveGraphFromSteps(DEFAULT_STEPS) }} members={members} aiOn={aiConfigured()} accounts={accounts} />
     </>
   );
 }

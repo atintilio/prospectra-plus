@@ -92,6 +92,13 @@
       "when": 1793536600000,
       "tag": "0012_voice_lead",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793536800000,
+      "tag": "0013_campaign_mode",
+      "breakpoints": true
     }
   ]
 }

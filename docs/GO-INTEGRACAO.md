@@ -4,7 +4,7 @@ O Prospectra **não** executa ações no LinkedIn; ele entrega a ação ao worke
 
 ## 1. Prospectra → Go: enfileirar ação por-lead
 
-`src/lib/go/queue.ts` (`pushDueActionsToGo`, chamado pelo `/api/cron` quando `GO_ENABLED=true`) faz:
+`src/lib/go/queue.ts` (`pushDueActionsToGo`, chamado pelo `/api/cron` quando `LINKEDIN_AUTOMATION_ENABLED=true`) faz:
 
 ```
 POST {GO_BASE_URL}/acoes
@@ -52,7 +52,7 @@ A conta conectada em **Go LinkedIn** guarda `providerId`. Esse `providerId` deve
 ```
 GO_BASE_URL=https://go.interno...     # backend do worker Go (HTTPS, sem /api no fim)
 GO_SECRET=...                         # enviado em x-go-secret
-GO_ENABLED=true                       # liga a entrega automática (padrão: false = assistido)
+LINKEDIN_AUTOMATION_ENABLED=true                       # liga a entrega automática (padrão: false = assistido)
 DISPATCH_SECRET=...                   # valida os webhooks do Go
 PUBLIC_APP_URL=https://prospectra.argusprime.com.br
 ```
