@@ -27,7 +27,7 @@ export function Sidebar({ isAdmin, canManage, isDemo = false }: { isAdmin: boole
         { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
         { href: '/golinkedin', label: 'Go LinkedIn', icon: Linkedin },
         { href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
-        { href: '/helpin', label: 'Helpin', icon: LifeBuoy },
+        { href: '/helpin', label: 'Suporte', icon: LifeBuoy },
         { href: '/documentos', label: 'Documentos', icon: FileText },
       ],
     },

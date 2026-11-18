@@ -16,8 +16,8 @@ export type SettingsView = {
 const FEATURES: { key: string; label: string; hint: string }[] = [
   { key: 'golinkedin', label: 'Go LinkedIn', hint: 'Conexão de conta e seleção em campanhas' },
   { key: 'whatsapp', label: 'WhatsApp', hint: 'Conexão AKG e comandos por WhatsApp' },
-  { key: 'helpin', label: 'Helpin/Suporte', hint: 'Caixa de entrada compartilhada' },
-  { key: 'inteligencia', label: 'Harvey/Inteligência', hint: 'Preparação das conversas' },
+  { key: 'helpin', label: 'Suporte', hint: 'Caixa de entrada compartilhada' },
+  { key: 'inteligencia', label: 'Inteligência comercial', hint: 'Preparação das conversas' },
   { key: 'agenda', label: 'Agenda', hint: 'Reuniões, convites .ics e link público' },
   { key: 'documentos', label: 'Documentos', hint: 'Base de materiais da equipe' },
 ];

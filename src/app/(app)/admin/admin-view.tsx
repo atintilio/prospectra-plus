@@ -14,7 +14,7 @@ export type OrgSettings = { senderEmail: string; atendimentoStart: string; atend
 export type Plan = { id: string; name: string; seats: number; credits: number; active: boolean };
 
 const FEATURES: { key: string; label: string }[] = [
-  { key: 'golinkedin', label: 'Go LinkedIn' }, { key: 'whatsapp', label: 'WhatsApp' }, { key: 'helpin', label: 'Helpin' },
+  { key: 'golinkedin', label: 'Go LinkedIn' }, { key: 'whatsapp', label: 'WhatsApp' }, { key: 'helpin', label: 'Suporte' },
   { key: 'inteligencia', label: 'Inteligência' }, { key: 'agenda', label: 'Agenda' }, { key: 'documentos', label: 'Documentos' },
 ];
 

@@ -4,7 +4,7 @@ import { requireOrg } from '@/lib/auth';
 import { PageHeader } from '@/components/ui';
 import { HelpinView, type ConversationItem, type LeadContext, type MessageItem } from './view';
 
-export const metadata = { title: 'Helpin · Suporte' };
+export const metadata = { title: 'Suporte' };
 
 function fmt(d: Date): string {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(d);
@@ -49,7 +49,7 @@ export default async function HelpinPage({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <PageHeader title="Helpin · Suporte" subtitle="Caixa de entrada, resposta, atribuição e histórico — isolados por organização." />
+      <PageHeader title="Suporte" subtitle="Caixa de entrada, resposta, atribuição e histórico — isolados por organização." />
       <HelpinView conversations={conversations} selectedId={selectedId} messages={messages}
         members={members} currentUserId={ctx.user.id} isDemo={ctx.org.isDemo} leadContext={leadContext} />
     </>
