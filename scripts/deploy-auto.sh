@@ -24,8 +24,8 @@ echo "[auto] install + build (migra + compila)"
 pnpm install --silent 2>&1 | tail -2
 if pnpm build 2>&1 | tail -3; then :; else echo "[auto] build FALHOU — mantendo versao anterior"; exit 1; fi
 
-echo "[auto] garantindo colunas (contorna migrador flaky do Neon)"
-node scripts/fix-prod-columns.mjs 2>&1 | tail -3 || true
+echo "[auto] garantindo schema completo (contorna migrador flaky do Neon)"
+node scripts/ensure-schema.mjs 2>&1 | tail -4 || true
 
 echo "[auto] reiniciando serviços"
 systemctl restart prospectra-plus
