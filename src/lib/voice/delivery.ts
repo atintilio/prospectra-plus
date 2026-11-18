@@ -4,7 +4,7 @@ import {z} from 'zod';
 import {schema,type DB} from '@/db';
 import {sendWhatsAppCommand} from '@/lib/whatsapp/commands';
 import type {Scope} from '@/lib/whatsapp/akg';
-const inputSchema=z.object({id:z.string().uuid(),recipient:z.string().trim().regex(/^\+?[1-9]\d{7,14}$/),text:z.string().trim().min(1).max(2000),kind:z.enum(['audio','call'])});
+const inputSchema=z.object({id:z.string().uuid(),recipient:z.string().trim().regex(/^\+?[1-9]\d{7,14}$/),text:z.string().trim().min(1).max(2000),kind:z.enum(['audio','call']),leadId:z.string().uuid().optional()});
 
 async function authorize(db:DB,scope:Scope){
  const [user]=await db.select().from(schema.users).where(eq(schema.users.id,scope.userId));
@@ -40,8 +40,13 @@ export async function queueVoiceDelivery(db:DB,scope:Scope,input:unknown){
  return db.transaction(async tx=>{
   await tx.select().from(schema.users).where(eq(schema.users.id,scope.userId)).for('update');
   const {user,profile}=await authorizedVoiceProfile(tx as unknown as DB,scope);
+  // Integração com a carteira: a voz só pode ser endereçada a um lead do próprio vendedor nesta operação.
+  if(command.leadId){
+   const [lead]=await tx.select({id:schema.leads.id}).from(schema.leads).where(and(eq(schema.leads.id,command.leadId),eq(schema.leads.orgId,scope.orgId),eq(schema.leads.ownerId,scope.userId)));
+   if(!lead)throw Error('Lead inválido para esta operação.');
+  }
   const [prior]=await tx.select().from(schema.voiceJobs).where(eq(schema.voiceJobs.id,command.id));
-  if(prior){if(prior.orgId!==scope.orgId||prior.userId!==scope.userId||prior.recipient!==command.recipient||prior.text!==command.text||prior.kind!==command.kind)throw Error('Comando de voz inválido.');return prior;}
+  if(prior){if(prior.orgId!==scope.orgId||prior.userId!==scope.userId||prior.recipient!==command.recipient||prior.text!==command.text||prior.kind!==command.kind||(prior.leadId??null)!==(command.leadId??null))throw Error('Comando de voz inválido.');return prior;}
   const today=new Date();today.setUTCHours(0,0,0,0);
   const [count]=await tx.select({n:sql<number>`count(*)::int`}).from(schema.voiceJobs).where(and(eq(schema.voiceJobs.userId,scope.userId),gte(schema.voiceJobs.createdAt,today)));
   if(count.n>=Math.max(0,Math.min(user.dailyMessages,100)))throw Error('Limite diário de voz atingido.');

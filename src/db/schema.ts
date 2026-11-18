@@ -256,6 +256,7 @@ export const voiceRegistrations=pgTable('voice_registrations',{
 export const voiceJobs=pgTable('voice_jobs',{
  id:uuid('id').primaryKey(),orgId:uuid('org_id').notNull().references(()=>orgs.id,{onDelete:'cascade'}),
  userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ leadId:uuid('lead_id').references(()=>leads.id,{onDelete:'set null'}),
  profileId:text('profile_id').notNull(),recipient:text('recipient').notNull(),text:text('text').notNull(),
  kind:text('kind',{enum:['audio','call']}).notNull(),
  state:text('state',{enum:['queued','running','sent','unknown','failed','waiting_transport']}).notNull(),

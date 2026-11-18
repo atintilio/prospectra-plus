@@ -24,7 +24,8 @@ export async function queueVoiceAction(_:State,form:FormData):Promise<State>{
  try{
   const scope=assertWhatsAppAccess(ctx);
   if(process.env.VOICE_AUTOMATION_ENABLED!=='true'||!voiceConfig())throw Error('Executor indisponível.');
-  await queueVoiceDelivery(await getDb(),scope,{id:String(form.get('commandId')??''),recipient:String(form.get('recipient')??''),text:String(form.get('text')??''),kind:'audio'});
+  const leadId=String(form.get('leadId')??'').trim()||undefined;
+  await queueVoiceDelivery(await getDb(),scope,{id:String(form.get('commandId')??''),recipient:String(form.get('recipient')??''),text:String(form.get('text')??''),kind:'audio',leadId});
   revalidatePath('/whatsapp');return {message:'Áudio na fila. O executor gerará a mensagem com sua voz e fará o envio pelo seu WhatsApp.'};
  }catch{return {message:'Não foi possível solicitar o áudio. Verifique sua voz, o telefone, os limites e a disponibilidade do executor.'};}
 }

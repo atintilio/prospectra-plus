@@ -3,7 +3,8 @@ import {useActionState} from 'react';
 import {registerVoiceAction,queueVoiceAction,revokeVoiceAction} from './voice-actions';
 import {demoRegisterVoiceAction,demoRevokeVoiceAction} from './voice-demo-actions';
 import type {VoiceDemoState} from './voice-demo-actions';
-type Job={id:string;state:string;recipient:string};
+type Job={id:string;state:string;recipient:string;lead?:string};
+type LeadOption={id:string;fullName:string};
 const states:Record<string,string>={queued:'Na fila',running:'Gerando e enviando',sent:'Aceito pelo WhatsApp',unknown:'Sem confirmação — confira no WhatsApp',failed:'Não concluído',waiting_transport:'Aguardando transporte de chamadas'};
 
 export function VoiceDemoPanel() {
@@ -32,7 +33,7 @@ export function VoiceDemoPanel() {
  </section>;
 }
 
-export function VoicePanel({available,enabled,hasProfile,commandId,jobs}:{available:boolean;enabled:boolean;hasProfile:boolean;commandId:string;jobs:Job[]}){
+export function VoicePanel({available,enabled,hasProfile,commandId,jobs,leads}:{available:boolean;enabled:boolean;hasProfile:boolean;commandId:string;jobs:Job[];leads:LeadOption[]}){
  const [registration,register,registering]=useActionState(registerVoiceAction,{message:''});
  const [delivery,queue,sending]=useActionState(queueVoiceAction,{message:''});
  return <section className="card mt-6 space-y-5 p-6">
@@ -49,13 +50,17 @@ export function VoicePanel({available,enabled,hasProfile,commandId,jobs}:{availa
   {hasProfile&&<form action={revokeVoiceAction}><button className="btn-outline">Desativar uso da minha voz</button></form>}
   <form action={queue} className="space-y-3 border-t border-border pt-5">
    <input name="commandId" type="hidden" value={commandId}/>
+   <label className="label">Lead da sua carteira (opcional)<select className="input mt-1" name="leadId" defaultValue="" disabled={!enabled||!hasProfile||sending}>
+     <option value="">Sem vínculo com lead</option>
+     {leads.map(l=><option key={l.id} value={l.id}>{l.fullName}</option>)}
+   </select></label>
    <label className="label">Telefone com código do país<input className="input mt-1" name="recipient" type="tel" pattern="\+?[1-9][0-9]{7,14}" placeholder="+5511999999999" required disabled={!enabled||!hasProfile||sending}/></label>
    <label className="label">Texto autorizado da mensagem<textarea className="input mt-1" name="text" maxLength={2000} required disabled={!enabled||!hasProfile||sending}/></label>
    <button className="btn-primary" disabled={!enabled||!hasProfile||sending}>{sending?'Solicitando…':'Gerar e enviar com minha voz'}</button>
    {!enabled&&<p className="text-sm text-muted">O envio automático aguarda a configuração e validação do executor.</p>}
    {delivery.message&&<p role="status" className="text-sm">{delivery.message}</p>}
   </form>
-  {jobs.length>0&&<ul className="space-y-2 text-sm">{jobs.map(job=><li key={job.id}>{`••••${job.recipient.slice(-4)}`} · {states[job.state]??'Estado indisponível'}</li>)}</ul>}
+  {jobs.length>0&&<ul className="space-y-2 text-sm">{jobs.map(job=><li key={job.id}>{job.lead?`${job.lead} · `:''}{`••••${job.recipient.slice(-4)}`} · {states[job.state]??'Estado indisponível'}</li>)}</ul>}
   <p className="text-xs text-muted">A geração usa voz sintética. Aceitação pelo WhatsApp não confirma entrega ou leitura. Ligações automáticas dependem da integração de transporte da próxima fase.</p>
  </section>;
 }

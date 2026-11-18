@@ -31,3 +31,13 @@ test('calls wait for a real transport and revoked voice consent blocks audio bef
  await expect(executeVoiceDelivery(db,audio.id,scope,{engineId:'engine',generate},send)).rejects.toThrow();
  expect(generate).not.toHaveBeenCalled();expect(send).not.toHaveBeenCalled();
 });
+test('voz endereçada a um lead exige um lead do próprio vendedor (integração carteira)',async()=>{
+ const db=await testDb(),a=await seedOrg(db,'Voice Lead A'),b=await seedOrg(db,'Voice Lead B');
+ const scope={orgId:a.org.id,userId:a.user.id};
+ await saveVoiceProfile(db,scope,'abcd1234','engine',true);
+ const [meu]=await db.insert(schema.leads).values({orgId:a.org.id,ownerId:a.user.id,linkedinUrl:'https://www.linkedin.com/in/meu',fullName:'Meu Lead'}).returning();
+ const [alheio]=await db.insert(schema.leads).values({orgId:b.org.id,ownerId:b.user.id,linkedinUrl:'https://www.linkedin.com/in/alheio',fullName:'Lead Alheio'}).returning();
+ const job=await queueVoiceDelivery(db,scope,{id:crypto.randomUUID(),recipient:'5511999999999',text:'Olá',kind:'audio',leadId:meu.id});
+ expect(job.leadId).toBe(meu.id);
+ await expect(queueVoiceDelivery(db,scope,{id:crypto.randomUUID(),recipient:'5511999999999',text:'Olá',kind:'audio',leadId:alheio.id})).rejects.toThrow('Lead inválido');
+});
