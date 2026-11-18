@@ -6,6 +6,25 @@ import { revalidatePath } from 'next/cache';
 import { getDb, schema } from '@/db';
 import { requireOrg } from '@/lib/auth';
 import { commercialInputSchema, generateCommercial, type CommercialResult } from '@/lib/harvey';
+import { mailerConfigured, sendRawEmail } from '@/lib/mailer';
+
+function esc(v: string): string { return v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c] ?? c)); }
+
+/** Notifica por e-mail (Office 365) o responsável definido pelo roteamento do handoff. Best-effort. */
+async function notifyHandoff(handoff: NonNullable<CommercialResult['handoff']>, leadName: string, offer: string, senderEmail?: string | null): Promise<void> {
+  if (!mailerConfigured()) return;
+  const appUrl = (process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
+  const html = `<p>O assistente comercial encaminhou um lead para você revisar.</p>
+    <p><strong>Lead:</strong> ${esc(leadName)}<br><strong>Oferta:</strong> ${esc(offer)}<br><strong>Motivo:</strong> ${esc(handoff.reason)}</p>
+    <p>${esc(handoff.summary)}</p>
+    <p><strong>Próximo passo:</strong> ${esc(handoff.nextStep)}</p>
+    ${appUrl ? `<p><a href="${appUrl}/leads">Abrir no Prospectra</a></p>` : ''}
+    <p style="color:#5c5f66;font-size:12px">Encaminhamento automático; nenhuma mensagem foi enviada ao lead.</p>`;
+  for (const to of handoff.recipients) {
+    try { await sendRawEmail({ to, subject: `Prospectra · encaminhamento: ${leadName} (${handoff.reason})`, html, mailbox: senderEmail ?? undefined }); }
+    catch (e) { console.error('handoff notify failed', to, e instanceof Error ? e.message : e); }
+  }
+}
 
 const requestSchema = commercialInputSchema.omit({ lead: true }).extend({ leadId: z.string().uuid(), approved: z.literal(true) }).strict();
 export type IntelligenceState = { result?: CommercialResult; error?: string; saved?: boolean };
@@ -37,6 +56,11 @@ export async function generateCommercialAction(raw: unknown): Promise<Intelligen
       }
       return rows;
     });
+    // Notifica o responsável do encaminhamento (só depois de salvar com sucesso).
+    if (saved.length && result.handoff) {
+      const [s] = await db.select({ senderEmail: schema.orgSettings.senderEmail }).from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.org.id));
+      await notifyHandoff(result.handoff, lead.fullName, result.offer, s?.senderEmail);
+    }
     revalidatePath('/leads');
     revalidatePath('/fila');
     revalidatePath('/campanhas');

@@ -9,6 +9,8 @@ const state=vi.hoisted(()=>({db:null as unknown as DB,ctx:null as unknown as Ctx
 vi.mock('@/db',async original=>({...await original<typeof import('@/db')>(),getDb:async()=>state.db}));
 vi.mock('@/lib/auth',()=>({requireOrg:async()=>state.ctx}));
 vi.mock('next/cache',()=>({revalidatePath:()=>{}}));
+const mail=vi.hoisted(()=>({send:vi.fn(async(_opts:{to:string;subject:string;html:string;mailbox?:string})=>{})}));
+vi.mock('@/lib/mailer',()=>({mailerConfigured:()=>true,sendRawEmail:mail.send}));
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
 async function setup(intent:string){
  const db=state.db=await testDb();const {user,org}=await seedOrg(db);const other=await seedOrg(db,'Outro');state.ctx={user,org,role:'owner',sessionId:'test'};
@@ -39,4 +41,11 @@ it('without handoff preserves cadence and rejects another tenant or owner',async
  expect((await db.select().from(schema.enrollments)).every(e=>e.state==='running')).toBe(true);expect((await db.select().from(schema.actions)).filter(a=>a.status==='pending')).toHaveLength(3);
  expect((await generateCommercialAction({...request,leadId:records[2].lead.id})).error).toBeTruthy();state.ctx={...state.ctx,user:{...state.ctx.user,id:records[2].lead.ownerId!}};expect((await generateCommercialAction(request)).error).toBeTruthy();
  const [otherLead]=await db.select().from(schema.leads).where(eq(schema.leads.id,records[2].lead.id));expect(otherLead.notes).toBe('Nota existente');
+});
+it('handoff notifica por e-mail o responsável da atribuição (comercial -> André)',async()=>{
+ const {request}=await setup('interested');
+ mail.send.mockClear();
+ expect((await generateCommercialAction(request)).saved).toBe(true);
+ expect(mail.send).toHaveBeenCalled();
+ expect(mail.send.mock.calls[0][0].to).toBe('atintilio@argusprime.com.br');
 });
