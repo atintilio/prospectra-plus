@@ -3,6 +3,7 @@ import { extractResultUrls, webSearchSource } from '../sources/websearch';
 import { emailSource } from '../sources/email';
 import { score } from '../scoring';
 import { runInvestigation } from '../worker';
+import { hunterSource, apolloSource } from '../sources/paid';
 
 const ddg = (urls: string[]) => `<html><body>${urls
   .map((u) => `<a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent(u)}&rut=x">link</a>`)
@@ -65,5 +66,24 @@ describe('Argus · scoring', () => {
     expect(keys).toContain('email');
     expect(keys).toContain('email_deliverable');
     expect(keys).toContain('public_presence');
+  });
+});
+
+describe('Argus · conectores pagos (opcionais)', () => {
+  it('ficam inativos sem chave', () => {
+    expect(hunterSource(undefined)).toBeNull();
+    expect(apolloSource(undefined)).toBeNull();
+  });
+
+  it('Hunter descobre o LinkedIn a partir do e-mail (confirmed)', async () => {
+    const fetcher = (async () => new Response(JSON.stringify({ data: { linkedin: { handle: 'maria-silva' } } }), { status: 200 })) as unknown as typeof fetch;
+    const ev = await hunterSource('key-test', fetcher)!.collect({ email: 'maria@acme.com' });
+    expect(ev[0]).toMatchObject({ kind: 'linkedin_profile', value: 'https://www.linkedin.com/in/maria-silva', confidence: 'confirmed', source: 'hunter' });
+  });
+
+  it('Apollo descobre o LinkedIn por e-mail/nome (confirmed)', async () => {
+    const fetcher = (async () => new Response(JSON.stringify({ person: { linkedin_url: 'https://www.linkedin.com/in/joao-souza/' } }), { status: 200 })) as unknown as typeof fetch;
+    const ev = await apolloSource('key-test', fetcher)!.collect({ email: 'joao@acme.com', name: 'João Souza' });
+    expect(ev[0]).toMatchObject({ kind: 'linkedin_profile', value: 'https://www.linkedin.com/in/joao-souza', confidence: 'confirmed', source: 'apollo' });
   });
 });
