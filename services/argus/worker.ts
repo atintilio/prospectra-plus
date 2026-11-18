@@ -3,6 +3,8 @@ import { normalizeTarget } from './normalize';
 import { score } from './scoring';
 import { dnsSource } from './sources/dns';
 import { publicHttpSource } from './sources/http';
+import { webSearchSource } from './sources/websearch';
+import { emailSource } from './sources/email';
 import type { Evidence, InvestigationRequest, InvestigationResult, SourceAdapter } from './types';
 
 async function collectWithRetry(source: SourceAdapter, request: InvestigationRequest, retries: number): Promise<Evidence[]> {
@@ -14,7 +16,7 @@ async function collectWithRetry(source: SourceAdapter, request: InvestigationReq
 
 export async function runInvestigation(request: InvestigationRequest, options: { retries?: number; sources?: SourceAdapter[] } = {}): Promise<InvestigationResult> {
   const target = normalizeTarget(request.target);
-  const sources = options.sources ?? request.sources ?? [publicHttpSource(), dnsSource()];
+  const sources = options.sources ?? request.sources ?? [webSearchSource(), emailSource(), publicHttpSource(), dnsSource()];
   const evidence: Evidence[] = [], errors: string[] = [];
   for (const source of sources) {
     try { evidence.push(...await collectWithRetry(source, { ...request, target }, options.retries ?? 1)); }
