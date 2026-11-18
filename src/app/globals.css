@@ -135,14 +135,18 @@ nav a { transition: color 300ms var(--ease-premium), background-color 300ms var(
 .auth-nav { display: flex; align-items: center; justify-content: space-between; gap: clamp(16px, 3vw, 32px);
   padding: clamp(14px, 2vw, 26px) var(--gutter); padding-top: max(clamp(14px, 2vw, 26px), env(safe-area-inset-top)); }
 .auth-brand { display: inline-flex; flex-direction: column; align-items: center; text-decoration: none; line-height: 1; }
-.auth-brand img { width: clamp(34px, 3vw, 46px); height: clamp(34px, 3vw, 46px); object-fit: contain; filter: drop-shadow(0 0 18px rgba(43,127,255,.55)) drop-shadow(0 0 40px rgba(124,58,237,.35)); }
-.auth-brand__word { margin-top: 5px; font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 200;
-  font-size: clamp(17px, 1.6vw, 27px); letter-spacing: .16em; color: var(--text); white-space: nowrap; }
+.auth-brand img { width: clamp(46px, 4.2vw, 64px); height: clamp(46px, 4.2vw, 64px); object-fit: contain; filter: drop-shadow(0 0 18px rgba(43,127,255,.55)) drop-shadow(0 0 40px rgba(124,58,237,.35)); }
+@media (min-width: 901px) {
+  .auth-brand--right { order: 2; margin-left: auto; }
+  .auth-chip--nav { order: 1; }
+}
+.auth-brand__word { margin-top: 5px; font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 300;
+  font-size: clamp(20px, 1.9vw, 32px); letter-spacing: .14em; color: var(--text); white-space: nowrap; }
 .auth-brand__word span { color: var(--brand-violet); }
 
 /* Painel */
-.auth-body { display: flex; align-items: flex-start; justify-content: flex-end; gap: clamp(16px, 2vw, 32px);
-  padding: clamp(28px, 5vh, 64px) var(--gutter) clamp(20px, 3vw, 40px); min-height: 0; overflow-y: auto; }
+.auth-body { display: flex; align-items: center; justify-content: flex-end; gap: clamp(16px, 2vw, 32px);
+  padding: clamp(20px, 3vw, 40px) var(--gutter); min-height: 0; overflow-y: auto; }
 .auth-panel { display: flex; flex-direction: column; align-items: flex-start; width: min(42vw, 620px); min-width: 380px; }
 .auth-chip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-jbmono), ui-monospace, monospace; font-weight: 400;
   font-size: clamp(11px, .72vw, 14px); letter-spacing: .2em; text-transform: uppercase; line-height: 1;
@@ -165,18 +169,20 @@ nav a { transition: color 300ms var(--ease-premium), background-color 300ms var(
   font-size: clamp(11px, .94vw, 17px); letter-spacing: .14em; line-height: 1.4; color: var(--text-muted); margin-top: clamp(14px, 1.4vw, 24px); }
 .auth-lede { font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 300;
   font-size: clamp(13px, .95vw, 17px); line-height: 1.6; color: var(--text-muted); margin-top: clamp(12px, 1.2vw, 20px); }
-.auth-formzone { width: 100%; margin-top: clamp(24px, 3vw, 42px); padding: clamp(22px, 2.2vw, 34px); background: rgba(255,255,255,.94); border: 1px solid rgba(255,255,255,.78); border-radius: 22px; box-shadow: 0 20px 60px rgba(20,32,66,.14), 0 2px 10px rgba(20,32,66,.08); backdrop-filter: blur(14px); color: var(--text); }
-.auth-formzone > form { display: grid; gap: 16px; }
-.auth-formzone :is(h1,h2,h3,p) { color: var(--text); }
-.auth-formzone .input { background: #fff; border: 1px solid #d7dbe4; border-radius: 12px; min-height: 52px; padding: 0 15px; color: var(--text); font-family: var(--font-sora), ui-sans-serif, sans-serif; font-weight: 400; font-size: 15px; box-shadow: inset 0 1px 1px rgba(20,32,66,.03); }
-.auth-formzone .input::placeholder { color: #8a91a0; }
-.auth-formzone .input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(21,93,252,.14); outline: none; }
-.auth-formzone label { color: #4d5565; font-family: var(--font-sora), ui-sans-serif, sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .01em; text-transform: none; }
-.auth-formzone :is(.btn, .btn-primary, .btn-outline, .btn-ghost, .btn-danger) { border-radius: 12px; font-family: var(--font-sora), ui-sans-serif, sans-serif; text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 700; min-height: 52px; padding: 14px 20px; }
-.auth-formzone .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 10px 20px rgba(21,93,252,.22); }
-.auth-formzone .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 12px 24px rgba(21,93,252,.28); }
-.auth-formzone .btn-ghost, .auth-formzone .btn-outline { background: #fff; color: var(--text-muted); border: 1px solid #d7dbe4; }
-.auth-formzone .btn-ghost:hover, .auth-formzone .btn-outline:hover { background: #f7f9fc; color: var(--text); }
+.auth-formzone { width: 100%; margin-top: clamp(24px, 3.4vw, 54px); }
+.auth-formzone .input { background: #fff; border: 1px solid var(--border-input); border-radius: 0;
+  padding: 0 12px clamp(12px, 1.1vw, 18px); height: auto; color: var(--text); font-family: var(--font-sora), ui-sans-serif, sans-serif;
+  font-weight: 300; font-size: clamp(16px, .95vw, 18px); box-shadow: none; }
+.auth-formzone .input::placeholder { color: var(--text-muted); }
+.auth-formzone .input:focus { border-color: var(--accent); box-shadow: none; outline: none; }
+.auth-formzone label { color: var(--text-muted); font-family: var(--font-jbmono), ui-monospace, monospace; font-weight: 400;
+  font-size: clamp(10px, .68vw, 13px); letter-spacing: .16em; text-transform: uppercase; }
+.auth-formzone :is(.btn, .btn-primary, .btn-outline, .btn-ghost, .btn-danger) { border-radius: 0; font-family: var(--font-jbmono), ui-monospace, monospace;
+  text-transform: uppercase; letter-spacing: .22em; font-size: clamp(11px, .78vw, 14px); padding: clamp(15px, 1.4vw, 23px) 20px; }
+.auth-formzone .btn-primary { background: var(--accent); color: #fff; box-shadow: none; }
+.auth-formzone .btn-primary:hover { background: var(--accent-hover); }
+.auth-formzone .btn-ghost, .auth-formzone .btn-outline { background: #fff; color: var(--text-muted); border: 1px solid var(--border); }
+.auth-formzone .btn-ghost:hover, .auth-formzone .btn-outline:hover { background: var(--surface); color: var(--text); }
 .auth-formzone a { color: var(--accent-bright); }
 .auth-brandfoot { margin-top: clamp(22px, 2.4vw, 40px); width: 100%; text-align: center;
   font-family: var(--font-jbmono), ui-monospace, monospace; font-size: clamp(11px, .74vw, 14px);

@@ -19,8 +19,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       {/* Nav: símbolo + Prospectra abaixo (novo logo), chip original à direita, hamburger no mobile */}
       <header className="auth-nav">
-        <Link href="/" className="auth-brand">
-          <Image src="/logo-hero.png" alt="Prospectra" width={46} height={46} priority />
+        <Link href="/" className="auth-brand auth-brand--right">
+          <Image src="/logo-hero.png" alt="Prospectra" width={64} height={64} priority />
           <span className="auth-brand__word">Prospectra</span>
         </Link>
         <span className="auth-chip auth-chip--nav">
