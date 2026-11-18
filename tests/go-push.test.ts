@@ -7,6 +7,7 @@ import { seedOrg, testDb } from './helpers';
 
 const action: GoAction = { actionId: '11111111-1111-1111-1111-111111111111', contaId: 'conta-go-1', tipo: 'invite', profileUrl: 'https://www.linkedin.com/in/ana', texto: 'Oi Ana' };
 const WEBHOOK = 'https://app.exemplo.com/api/dispatch';
+const NOON = new Date('2026-11-18T15:00:00Z'); // 12:00 America/Sao_Paulo — dentro do horário comercial
 
 describe('GoClient (push)', () => {
   it('envia a ação no formato do Go, com segredo e webhook', async () => {
@@ -44,7 +45,7 @@ async function seedPending(demo = false, status: schema.LinkedInStatus = 'connec
   const [lead] = await db.insert(schema.leads).values({ orgId: org.id, ownerId: user.id, linkedinUrl: 'https://www.linkedin.com/in/ana', fullName: 'Ana', stage: 'new' }).returning();
   const [enr] = await db.insert(schema.enrollments).values({ orgId: org.id, campaignId: camp.id, leadId: lead.id, stepIndex: 0, state: 'running', nextRunAt: new Date() }).returning();
   const [act] = await db.insert(schema.actions).values({ orgId: org.id, enrollmentId: enr.id, campaignId: camp.id, leadId: lead.id, userId: user.id, stepIndex: 0, type: 'invite', body: 'Oi Ana', dueDate: '2026-11-18', status: 'pending' }).returning();
-  return { db, org, user, act };
+  return { db, org, user, act, camp, acc, enr };
 }
 
 const stub = (tarefaId = 'go-1'): GoEnqueuer & { calls: number } => {
@@ -56,27 +57,27 @@ describe('pushDueActionsToGo', () => {
   it('entrega ação pendente de conta conectada e grava o id (idempotente)', async () => {
     const { db, org, act } = await seedPending();
     const client = stub('go-tarefa-7');
-    const r1 = await pushDueActionsToGo(db, { orgId: org.id, client, webhookUrl: WEBHOOK });
+    const r1 = await pushDueActionsToGo(db, { orgId: org.id, client, webhookUrl: WEBHOOK, now: NOON });
     expect(r1).toMatchObject({ pushed: 1, failed: 0 });
     const [after] = await db.select().from(schema.actions).where(eq(schema.actions.id, act.id));
     expect(after.providerId).toBe('go-tarefa-7');
     // segunda passada não reempurra (providerId já gravado)
-    const r2 = await pushDueActionsToGo(db, { orgId: org.id, client, webhookUrl: WEBHOOK });
+    const r2 = await pushDueActionsToGo(db, { orgId: org.id, client, webhookUrl: WEBHOOK, now: NOON });
     expect(r2.pushed).toBe(0);
     expect(client.calls).toBe(1);
   });
 
   it('pula conta demo e conta não conectada (nada toca a rede real)', async () => {
     const demo = await seedPending(true);
-    expect((await pushDueActionsToGo(demo.db, { orgId: demo.org.id, client: stub(), webhookUrl: WEBHOOK })).pushed).toBe(0);
+    expect((await pushDueActionsToGo(demo.db, { orgId: demo.org.id, client: stub(), webhookUrl: WEBHOOK, now: NOON })).pushed).toBe(0);
     const off = await seedPending(false, 'expired');
-    expect((await pushDueActionsToGo(off.db, { orgId: off.org.id, client: stub(), webhookUrl: WEBHOOK })).pushed).toBe(0);
+    expect((await pushDueActionsToGo(off.db, { orgId: off.org.id, client: stub(), webhookUrl: WEBHOOK, now: NOON })).pushed).toBe(0);
   });
 
   it('falha do Go mantém a ação pendente, sem id gravado', async () => {
     const { db, org, act } = await seedPending();
     const failing: GoEnqueuer = { async enqueue() { throw new GoError('down'); } };
-    const r = await pushDueActionsToGo(db, { orgId: org.id, client: failing, webhookUrl: WEBHOOK });
+    const r = await pushDueActionsToGo(db, { orgId: org.id, client: failing, webhookUrl: WEBHOOK, now: NOON });
     expect(r).toMatchObject({ pushed: 0, failed: 1 });
     const [after] = await db.select().from(schema.actions).where(and(eq(schema.actions.id, act.id), eq(schema.actions.status, 'pending')));
     expect(after.providerId).toBeNull();
@@ -88,12 +89,43 @@ import { completeAction } from '@/lib/cadence';
 describe('coexistência assistido x automático', () => {
   it('campanha assistida NÃO é entregue ao Go', async () => {
     const { db, org } = await seedPending(false, 'connected', 'conta-go-1', 'assistido');
-    const r = await pushDueActionsToGo(db, { orgId: org.id, client: stub(), webhookUrl: WEBHOOK });
+    const r = await pushDueActionsToGo(db, { orgId: org.id, client: stub(), webhookUrl: WEBHOOK, now: NOON });
     expect(r.pushed).toBe(0);
   });
 
   it('a Fila (completeAction) recusa concluir ação de campanha automática', async () => {
     const { db, org, user, act } = await seedPending(false, 'connected', 'conta-go-1', 'automatico');
     await expect(completeAction(db, org.id, user.id, act.id, 'done')).rejects.toThrow(/autom/i);
+  });
+});
+
+describe('ritmo seguro no push', () => {
+  const OFF_HOURS = new Date('2026-11-18T06:00:00Z'); // 03:00 America/Sao_Paulo
+
+  it('não dispara fora do horário comercial', async () => {
+    const { db, org } = await seedPending();
+    const r = await pushDueActionsToGo(db, { orgId: org.id, client: stub(), webhookUrl: WEBHOOK, now: OFF_HOURS });
+    expect(r.pushed).toBe(0);
+  });
+
+  it('no máximo 1 ação por conta por ciclo', async () => {
+    const { db, org, user, camp } = await seedPending();
+    // segundo lead/enrollment/ação pendente na mesma conta/campanha
+    const [lead2] = await db.insert(schema.leads).values({ orgId: org.id, ownerId: user.id, linkedinUrl: 'https://www.linkedin.com/in/bob', fullName: 'Bob', stage: 'new' }).returning();
+    const [enr2] = await db.insert(schema.enrollments).values({ orgId: org.id, campaignId: camp.id, leadId: lead2.id, stepIndex: 0, state: 'running', nextRunAt: new Date() }).returning();
+    await db.insert(schema.actions).values({ orgId: org.id, enrollmentId: enr2.id, campaignId: camp.id, leadId: lead2.id, userId: user.id, stepIndex: 0, type: 'invite', body: 'Oi Bob', dueDate: '2026-11-18', status: 'pending' });
+    const client = stub();
+    const r = await pushDueActionsToGo(db, { orgId: org.id, client, webhookUrl: WEBHOOK, now: NOON });
+    expect(r.pushed).toBe(1);
+    expect(r.skipped).toBeGreaterThanOrEqual(1);
+    expect(client.calls).toBe(1);
+  });
+
+  it('respeita o teto semanal de convites por conta', async () => {
+    const { db, org } = await seedPending();
+    // força o teto para 0 nesta operação
+    await db.insert(schema.orgSettings).values({ orgId: org.id, weeklyInviteCap: 0 }).onConflictDoUpdate({ target: schema.orgSettings.orgId, set: { weeklyInviteCap: 0 } });
+    const r = await pushDueActionsToGo(db, { orgId: org.id, client: stub(), webhookUrl: WEBHOOK, now: NOON });
+    expect(r.pushed).toBe(0);
   });
 });

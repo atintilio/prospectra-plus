@@ -33,7 +33,7 @@ export default async function AdminPage() {
   ]);
   const settings: Record<string, OrgSettings> = Object.fromEntries(settingsRows.map((s) => [s.orgId, {
     senderEmail: s.senderEmail ?? '', atendimentoStart: s.atendimentoStart, atendimentoEnd: s.atendimentoEnd,
-    autoReply: s.autoReply, features: s.features ?? {},
+    autoReply: s.autoReply, timezone: s.timezone, minActionGapMin: s.minActionGapMin, weeklyInviteCap: s.weeklyInviteCap, features: s.features ?? {},
   }]));
   const plans: Plan[] = planRows.map((p) => ({ id: p.id, name: p.name, seats: p.seats, credits: p.searchCreditsMonth, active: p.active }));
   return (

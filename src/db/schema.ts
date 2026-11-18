@@ -349,6 +349,11 @@ export const orgSettings = pgTable('org_settings', {
   atendimentoStart: text('atendimento_start').notNull().default('09:00'),
   atendimentoEnd: text('atendimento_end').notNull().default('18:00'),
   autoReply: text('auto_reply').notNull().default(''),
+  // Ritmo seguro da automação (LinkedIn): fuso, espaçamento mínimo entre ações da
+  // mesma conta e teto semanal de convites por conta.
+  timezone: text('timezone').notNull().default('America/Sao_Paulo'),
+  minActionGapMin: integer('min_action_gap_min').notNull().default(30),
+  weeklyInviteCap: integer('weekly_invite_cap').notNull().default(100),
   // Recursos ligados/desligados por organização (ex.: whatsapp, voice, inteligencia, golinkedin).
   features: jsonb('features').$type<Record<string, boolean>>().notNull().default(sql`'{}'::jsonb`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

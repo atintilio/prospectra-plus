@@ -13,6 +13,9 @@ const settingsSchema = z.object({
   atendimentoStart: z.string().regex(/^\d{2}:\d{2}$/, 'Horário inicial inválido.'),
   atendimentoEnd: z.string().regex(/^\d{2}:\d{2}$/, 'Horário final inválido.'),
   autoReply: z.string().trim().max(600),
+  timezone: z.string().trim().min(1).max(64),
+  minActionGapMin: z.coerce.number().int().min(1).max(1440),
+  weeklyInviteCap: z.coerce.number().int().min(0).max(1000),
   features: z.array(z.string().max(20)).max(12),
 });
 
@@ -26,6 +29,9 @@ export async function saveOrgSettingsAction(_prev: AdminSettingsState, formData:
     atendimentoStart: String(formData.get('atendimentoStart') ?? '09:00'),
     atendimentoEnd: String(formData.get('atendimentoEnd') ?? '18:00'),
     autoReply: String(formData.get('autoReply') ?? ''),
+    timezone: String(formData.get('timezone') ?? 'America/Sao_Paulo'),
+    minActionGapMin: String(formData.get('minActionGapMin') ?? '30'),
+    weeklyInviteCap: String(formData.get('weeklyInviteCap') ?? '100'),
     features: ['golinkedin', 'whatsapp', 'helpin', 'inteligencia', 'agenda', 'documentos'].filter((f) => formData.get(`f.${f}`) === 'on'),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
@@ -37,6 +43,9 @@ export async function saveOrgSettingsAction(_prev: AdminSettingsState, formData:
     atendimentoStart: parsed.data.atendimentoStart,
     atendimentoEnd: parsed.data.atendimentoEnd,
     autoReply: parsed.data.autoReply,
+    timezone: parsed.data.timezone,
+    minActionGapMin: parsed.data.minActionGapMin,
+    weeklyInviteCap: parsed.data.weeklyInviteCap,
     features,
     updatedAt: new Date(),
   };

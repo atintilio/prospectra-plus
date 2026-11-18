@@ -10,7 +10,7 @@ import { FormMessage, Submit } from '@/components/form';
 
 type Org = { id: string; name: string; seats: number; credits: number; active: boolean; aiEnabled: boolean; members: number; leads: number; meetings: number; owner: string | null; planId: string | null };
 type User = { id: string; name: string; email: string; status: string; platformRole: string; orgs: string };
-export type OrgSettings = { senderEmail: string; atendimentoStart: string; atendimentoEnd: string; autoReply: string; features: Record<string, boolean> };
+export type OrgSettings = { senderEmail: string; atendimentoStart: string; atendimentoEnd: string; autoReply: string; timezone: string; minActionGapMin: number; weeklyInviteCap: number; features: Record<string, boolean> };
 export type Plan = { id: string; name: string; seats: number; credits: number; active: boolean };
 
 const FEATURES: { key: string; label: string }[] = [
@@ -83,7 +83,7 @@ export function AdminView({ orgs, users, plans, settings, integrations }: {
             </tbody>
           </table>
           {openId && (
-            <OrgSettingsForm orgId={openId} initial={settings[openId] ?? { senderEmail: '', atendimentoStart: '09:00', atendimentoEnd: '18:00', autoReply: '', features: {} }} />
+            <OrgSettingsForm orgId={openId} initial={settings[openId] ?? { senderEmail: '', atendimentoStart: '09:00', atendimentoEnd: '18:00', autoReply: '', timezone: 'America/Sao_Paulo', minActionGapMin: 30, weeklyInviteCap: 100, features: {} }} />
           )}
         </div>
 
@@ -140,6 +140,10 @@ function OrgSettingsForm({ orgId, initial }: { orgId: string; initial: OrgSettin
       <label className="text-xs text-muted">Atendimento — fim<input name="atendimentoEnd" type="time" className="input mt-1" defaultValue={initial.atendimentoEnd} /></label>
       <label className="text-xs text-muted sm:col-span-2">Autorresposta simples (fora do atendimento)
         <textarea name="autoReply" rows={2} className="input mt-1" defaultValue={initial.autoReply} /></label>
+      <p className="text-xs font-semibold text-muted sm:col-span-2">Ritmo seguro da automação (LinkedIn)</p>
+      <label className="text-xs text-muted">Fuso horário<input name="timezone" className="input mt-1" defaultValue={initial.timezone} placeholder="America/Sao_Paulo" /></label>
+      <label className="text-xs text-muted">Espaçamento mín. (min)<input name="minActionGapMin" type="number" min={1} max={1440} className="input mt-1" defaultValue={initial.minActionGapMin} /></label>
+      <label className="text-xs text-muted">Teto semanal de convites/conta<input name="weeklyInviteCap" type="number" min={0} max={1000} className="input mt-1" defaultValue={initial.weeklyInviteCap} /></label>
       <fieldset className="sm:col-span-2">
         <legend className="text-xs text-muted">Recursos ativados</legend>
         <div className="mt-2 flex flex-wrap gap-3">
