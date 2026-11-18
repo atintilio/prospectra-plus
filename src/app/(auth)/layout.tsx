@@ -21,8 +21,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Nav: símbolo + Prospectra abaixo (novo logo), chip original à direita, hamburger no mobile */}
       <header className="auth-nav">
         <Link href="/" className="auth-brand auth-brand--right">
-          <LogoMark size={44} />
-          <span className="auth-brand__word">Prospectra</span>
+          <LogoMark size={64} />
+          <span className="auth-brand__word">Prospectra<span className="auth-brand__plus">+</span></span>
         </Link>
         <MobileMenu />
       </header>
@@ -30,9 +30,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Painel direito (central no mobile) — textos atuais preservados */}
       <section className="auth-body">
         <div className="auth-panel">
-          <span className="auth-chip">
-            Prospecção assistida por IA
-          </span>
           <div className="auth-mark">
             <h1 className="auth-h1">
               Conexões que viram{' '}
@@ -40,7 +37,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             </h1>
           </div>
           <p className="auth-lede">
-            Busca com IA, cadências no LinkedIn com mensagens personalizadas e um painel que mostra de onde vêm suas reuniões.
+            A camada de inteligência que coloca prospecção, oportunidades e resultados sob o seu controle — com performance e eficiência.
           </p>
 
           <div className="auth-formzone">{children}</div>
