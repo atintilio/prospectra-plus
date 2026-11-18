@@ -142,9 +142,9 @@ export async function testAccount(db: DB, orgId: string, userId: string, isDemo:
 }
 
 /** Atualizações passivas de status (callbacks do worker de automação). */
-export async function setAccountStatus(db: DB, accountId: string, orgId: string, status: schema.LinkedInStatus, error?: string | null): Promise<AccountRow | undefined> {
+export async function setAccountStatus(db: DB, accountId: string, orgId: string, status: schema.LinkedInStatus, error?: string | null, now = new Date()): Promise<AccountRow | undefined> {
   const [account] = await db.update(schema.linkedinAccounts)
-    .set({ status, lastError: error ?? null, lastCheckedAt: new Date() })
+    .set({ status, lastError: error ?? null, lastCheckedAt: now })
     .where(and(eq(schema.linkedinAccounts.id, accountId), eq(schema.linkedinAccounts.orgId, orgId)))
     .returning();
   return account;

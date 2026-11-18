@@ -254,7 +254,7 @@ const OUTCOME_STAGE: Record<Outcome, LeadStage> = { accepted: 'connected', repli
 const OUTCOME_EVENT: Partial<Record<Outcome, EventType>> = { accepted: 'invite_accepted', replied: 'reply_received', meeting: 'meeting_booked', won: 'deal_won', lost: 'deal_lost' };
 
 /** Registra um resultado do lead. Aceite libera passos "após aceite"; resposta encerra o fluxo. */
-export async function markOutcome(db: DB, orgId: string, userId: string, leadId: string, outcome: Outcome, now = new Date()) {
+export async function markOutcome(db: DB, orgId: string, userId: string | null, leadId: string, outcome: Outcome, now = new Date()) {
   const [lead] = await db.select().from(schema.leads).where(and(eq(schema.leads.id, leadId), eq(schema.leads.orgId, orgId)));
   if (!lead) throw new Error('Lead não encontrado');
   const stage = advanceStage(lead.stage, OUTCOME_STAGE[outcome]);
