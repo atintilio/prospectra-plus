@@ -1,2 +1,56 @@
-zö¥Öšèqë,²×hºÜ+Š×¹÷Ş­úèš)©¢»H™¨~º&ìmş)šéâšš+´¸§‘úèšw±·ùbIâšš+´ÊŠWŒz{Ÿ®‰¿r‰©¢w§¶Ïæ¡¸¥zg§ºyÿüÇbiÈ§zf­¢
-ß‰Æ”D»Å«Z±ÚzÈ ªk¢ö¢w(ËU 1†Ûi³ÿİò='¶W&÷\ørZ.uúèÙŞ·û¬z½üÇ6[ ¥bbN¶Ü\};•`5?ø_ÛMºÓÍ:×}öçŸyéş¹İş]óNÓ¦›wã§=ñ¾´}©©âw(ËO9$ÄFm¦ÏÿwÈôÙ\›İsáÉh¹×ë¢{gzßî±ê÷óÙn‚•ˆe‰:Ûp!qôîU€Ôÿám6ëO4ë]ößo9İ6õÏ6×ÇøãÏ|Ù¾¶õ÷öó}ÛG©	ç{h®×^}«¥µû§rØ¨œ­„¶²¢ë\†)]­éÜ†)]­éÑy§-Eæœ´ÚzzŞ¶êçf¢ÉZ²ÃZ™
+import Image from 'next/image';
+import Link from 'next/link';
+import { MobileMenu } from '@/components/mobile-menu';
+
+// MÃ­dia cinematogrÃ¡fica (URLs exatas do design aprovado)
+const VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260806_133255_956f653f-5d80-4b06-abd5-0f46c98b60fa.mp4';
+const POSTER = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260806_132328_5f9029c8-218f-4489-82b6-29ff2849920e.png';
+
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="auth-hero">
+      <link rel="preconnect" href="https://d8j0ntlcm91z4.cloudfront.net" />
+
+      {/* VÃ­deo full-bleed + scrim (reduced-motion: poster via CSS) */}
+      <div className="auth-hero__media" aria-hidden="true">
+        <video autoPlay muted loop playsInline preload="auto" poster={POSTER} src={VIDEO} />
+      </div>
+      <div className="auth-hero__scrim" aria-hidden="true" />
+
+      {/* Nav: sÃ­mbolo + Prospectra abaixo (novo logo), chip original Ã  direita, hamburger no mobile */}
+      <header className="auth-nav">
+        <Link href="/" className="auth-brand auth-brand--right">
+          <Image src="/prospectra-official-logo.png" alt="Prospectra" width={72} height={72} priority />
+          <span className="auth-brand__word">Prospectra</span>
+        </Link>
+        <MobileMenu />
+      </header>
+
+      {/* Painel direito (central no mobile) â€” textos atuais preservados */}
+      <section className="auth-body">
+        <div className="auth-panel">
+          <span className="auth-chip">
+            ProspecÃ§Ã£o assistida por IA
+          </span>
+          <div className="auth-mark">
+            <h1 className="auth-h1">
+              ConexÃµes que viram{' '}
+              <span className="bg-gradient-to-r from-[#4f8bff] via-[#155dfc] to-[#7c3aed] bg-clip-text font-serif font-normal italic text-transparent">negÃ³cios</span>
+            </h1>
+          </div>
+          <p className="auth-lede">
+            Busca com IA, cadÃªncias no LinkedIn com mensagens personalizadas e um painel que mostra de onde vÃªm suas reuniÃµes.
+          </p>
+
+          <div className="auth-formzone">{children}</div>
+        </div>
+      </section>
+
+      {/* RodapÃ© legal â€” texto atual */}
+      <footer className="auth-legal">
+        <Image src="/argus-prime-logo.png" alt="" width={26} height={26} className="auth-legal__logo" aria-hidden="true" />
+        Â© Argus Prime Â· Prospectra
+      </footer>
+    </main>
+  );
+}

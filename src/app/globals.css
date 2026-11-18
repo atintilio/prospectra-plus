@@ -135,13 +135,9 @@ nav a { transition: color 300ms var(--ease-premium), background-color 300ms var(
 .auth-nav { display: flex; align-items: center; justify-content: space-between; gap: clamp(16px, 3vw, 32px);
   padding: clamp(14px, 2vw, 26px) var(--gutter); padding-top: max(clamp(14px, 2vw, 26px), env(safe-area-inset-top)); }
 .auth-brand { display: inline-flex; flex-direction: column; align-items: center; text-decoration: none; line-height: 1; }
-.auth-brand img { width: clamp(46px, 4.2vw, 64px); height: clamp(46px, 4.2vw, 64px); object-fit: contain; filter: drop-shadow(0 0 18px rgba(43,127,255,.55)) drop-shadow(0 0 40px rgba(124,58,237,.35)); }
-@media (min-width: 901px) {
-  .auth-brand--right { order: 2; margin-left: auto; }
-  .auth-chip--nav { order: 1; }
-}
-.auth-brand__word { margin-top: 5px; font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 300;
-  font-size: clamp(20px, 1.9vw, 32px); letter-spacing: .14em; color: var(--text); white-space: nowrap; }
+.auth-brand img { width: clamp(34px, 3vw, 46px); height: clamp(34px, 3vw, 46px); object-fit: contain; filter: drop-shadow(0 0 18px rgba(43,127,255,.55)) drop-shadow(0 0 40px rgba(124,58,237,.35)); }
+.auth-brand__word { margin-top: 5px; font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 200;
+  font-size: clamp(17px, 1.6vw, 27px); letter-spacing: .16em; color: var(--text); white-space: nowrap; }
 .auth-brand__word span { color: var(--brand-violet); }
 
 /* Painel */
@@ -159,8 +155,6 @@ nav a { transition: color 300ms var(--ease-premium), background-color 300ms var(
   background: transparent; border-radius: 0; object-fit: contain; padding: 0; box-sizing: border-box;
   filter: drop-shadow(0 1px 3px rgba(5, 7, 13, .28));
 }
-.auth-legal__logo { width: 42px !important; height: 42px !important; }
-.auth-legal { font-size: clamp(12px, .9vw, 16px); }
 .argus-mark { background: transparent; border-radius: 0; padding: 0; box-sizing: border-box; filter: drop-shadow(0 1px 3px rgba(5, 7, 13, .28)); object-fit: contain; }
 .auth-chip--nav .auth-chip__logo { margin-right: 2px; }
 .auth-mark { display: flex; align-items: center; gap: clamp(14px, 1.4vw, 22px); margin-top: clamp(22px, 2.6vw, 44px); }
@@ -190,8 +184,8 @@ nav a { transition: color 300ms var(--ease-premium), background-color 300ms var(
 .auth-brandfoot:hover { color: var(--text-muted); }
 
 /* Footer legal */
-.auth-legal { display: flex; align-items: center; justify-content: flex-start; gap: 12px; border-top: 1px solid rgba(255,255,255,.14); text-align: left;
-  padding: clamp(12px, 1.4vw, 22px) var(--gutter) max(clamp(12px, 1.4vw, 22px), env(safe-area-inset-bottom));
+.auth-legal { border-top: 1px solid rgba(255,255,255,.14); text-align: center;
+  padding: clamp(16px, 1.7vw, 28px) var(--gutter) max(clamp(16px, 1.7vw, 28px), env(safe-area-inset-bottom));
   font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif; font-weight: 300;
   font-size: clamp(11px, .82vw, 15px); color: var(--text-muted); line-height: 1.5; }
 .auth-legal b { color: var(--text); font-weight: 400; }
@@ -243,7 +237,7 @@ body.menu-open { overflow: hidden; }
 .auth-hero :is(a, button, input):focus-visible { outline: 2px solid rgba(21, 93, 252, .7); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .auth-hero__media video { display: none; }
-  .auth-hero__media { background: url(https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260806_132328_5f9029c8-218f-4489-82b6-29ff2849920e.png) center / cover no-repeat; }
+  .auth-hero__media { background: url('https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260806_132328_5f9029c8-218f-4489-82b6-29ff2849920e.png') center / cover no-repeat; }
   .auth-menu, .auth-menu a, .auth-burger i { transition-duration: .01ms !important; animation: none !important; }
 }
 
@@ -261,3 +255,10 @@ body { background: var(--bg); color: var(--text); }
   padding: 9px 14px; border-radius: 0; }
 .pro-chip::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--accent-bright);
   box-shadow: 0 0 12px rgba(43, 127, 255, .6); }
+
+
+/* Marcas do login: Prospectra no topo direito; Argus Prime no rodapé esquerdo. */
+.auth-brand--right { margin-left: auto; }
+.auth-brand--right img { width: clamp(56px, 5vw, 78px); height: clamp(56px, 5vw, 78px); }
+.auth-legal { display: flex; align-items: center; justify-content: flex-start; gap: 12px; text-align: left; font-size: clamp(12px, .9vw, 16px); }
+.auth-legal__logo { width: 42px !important; height: 42px !important; }
