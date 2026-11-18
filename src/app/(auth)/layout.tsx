@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { MobileMenu } from '@/components/mobile-menu';
+import { LogoMark } from '@/components/logo';
 
 // Mídia cinematográfica (URLs exatas do design aprovado)
 const VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260806_133255_956f653f-5d80-4b06-abd5-0f46c98b60fa.mp4';
@@ -20,7 +21,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Nav: símbolo + Prospectra abaixo (novo logo), chip original à direita, hamburger no mobile */}
       <header className="auth-nav">
         <Link href="/" className="auth-brand auth-brand--right">
-          <Image src="/prospectra-official-logo.png" alt="Prospectra" width={72} height={72} priority />
+          <LogoMark size={44} />
           <span className="auth-brand__word">Prospectra</span>
         </Link>
         <MobileMenu />
