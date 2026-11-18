@@ -1,6 +1,6 @@
 'use client';
-import {useActionState} from 'react';
-import {registerVoiceAction,queueVoiceAction,revokeVoiceAction} from './voice-actions';
+import {useActionState,useState,useTransition} from 'react';
+import {registerVoiceAction,queueVoiceAction,revokeVoiceAction,suggestVoiceTextAction} from './voice-actions';
 import {demoRegisterVoiceAction,demoRevokeVoiceAction} from './voice-demo-actions';
 import type {VoiceDemoState} from './voice-demo-actions';
 type Job={id:string;state:string;recipient:string;lead?:string};
@@ -36,6 +36,11 @@ export function VoiceDemoPanel() {
 export function VoicePanel({available,enabled,hasProfile,commandId,jobs,leads}:{available:boolean;enabled:boolean;hasProfile:boolean;commandId:string;jobs:Job[];leads:LeadOption[]}){
  const [registration,register,registering]=useActionState(registerVoiceAction,{message:''});
  const [delivery,queue,sending]=useActionState(queueVoiceAction,{message:''});
+ const [leadId,setLeadId]=useState('');
+ const [text,setText]=useState('');
+ const [suggesting,startSuggest]=useTransition();
+ const [suggestMsg,setSuggestMsg]=useState('');
+ const suggest=()=>{if(!leadId)return;startSuggest(async()=>{const r=await suggestVoiceTextAction(leadId);if(r.text){setText(r.text);setSuggestMsg('Texto preparado pela inteligência carregado. Revise antes de enviar.');}else setSuggestMsg(r.error??'Não foi possível sugerir o texto.');});};
  return <section className="card mt-6 space-y-5 p-6">
   <h2 className="text-lg font-semibold">Sua voz no WhatsApp</h2>
   <p className="text-sm text-muted">Cadastre uma gravação da sua voz e a transcrição exata. As mensagens serão geradas automaticamente a partir do texto autorizado.</p>
@@ -50,12 +55,14 @@ export function VoicePanel({available,enabled,hasProfile,commandId,jobs,leads}:{
   {hasProfile&&<form action={revokeVoiceAction}><button className="btn-outline">Desativar uso da minha voz</button></form>}
   <form action={queue} className="space-y-3 border-t border-border pt-5">
    <input name="commandId" type="hidden" value={commandId}/>
-   <label className="label">Lead da sua carteira (opcional)<select className="input mt-1" name="leadId" defaultValue="" disabled={!enabled||!hasProfile||sending}>
+   <label className="label">Lead da sua carteira (opcional)<select className="input mt-1" name="leadId" value={leadId} onChange={e=>setLeadId(e.target.value)} disabled={!enabled||!hasProfile||sending}>
      <option value="">Sem vínculo com lead</option>
      {leads.map(l=><option key={l.id} value={l.id}>{l.fullName}</option>)}
    </select></label>
+   <button type="button" className="btn-outline" onClick={suggest} disabled={!leadId||suggesting}>{suggesting?'Buscando…':'Usar texto preparado pela inteligência'}</button>
+   {suggestMsg&&<p role="status" className="text-sm text-muted">{suggestMsg}</p>}
    <label className="label">Telefone com código do país<input className="input mt-1" name="recipient" type="tel" pattern="\+?[1-9][0-9]{7,14}" placeholder="+5511999999999" required disabled={!enabled||!hasProfile||sending}/></label>
-   <label className="label">Texto autorizado da mensagem<textarea className="input mt-1" name="text" maxLength={2000} required disabled={!enabled||!hasProfile||sending}/></label>
+   <label className="label">Texto autorizado da mensagem<textarea className="input mt-1" name="text" value={text} onChange={e=>setText(e.target.value)} maxLength={2000} required disabled={!enabled||!hasProfile||sending}/></label>
    <button className="btn-primary" disabled={!enabled||!hasProfile||sending}>{sending?'Solicitando…':'Gerar e enviar com minha voz'}</button>
    {!enabled&&<p className="text-sm text-muted">O envio automático aguarda a configuração e validação do executor.</p>}
    {delivery.message&&<p role="status" className="text-sm">{delivery.message}</p>}

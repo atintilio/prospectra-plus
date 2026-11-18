@@ -29,6 +29,25 @@ export async function queueVoiceAction(_:State,form:FormData):Promise<State>{
   revalidatePath('/whatsapp');return {message:'Áudio na fila. O executor gerará a mensagem com sua voz e fará o envio pelo seu WhatsApp.'};
  }catch{return {message:'Não foi possível solicitar o áudio. Verifique sua voz, o telefone, os limites e a disponibilidade do executor.'};}
 }
+/** Sugere o texto da mensagem de voz a partir do rascunho que a inteligência (Harvey) preparou para o lead. */
+export async function suggestVoiceTextAction(leadId:string):Promise<{text?:string;error?:string}>{
+ const ctx=await requireOrg();
+ try{assertWhatsAppAccess(ctx);}catch{return {error:'Voz indisponível nesta operação.'};}
+ if(!/^[0-9a-f-]{36}$/i.test(leadId))return {error:'Selecione um lead.'};
+ const db=await getDb();
+ const [lead]=await db.select({notes:schema.leads.notes}).from(schema.leads).where(and(eq(schema.leads.id,leadId),eq(schema.leads.orgId,ctx.org.id),eq(schema.leads.ownerId,ctx.user.id)));
+ if(!lead)return {error:'Lead não encontrado na sua carteira.'};
+ const idx=lead.notes.lastIndexOf('[Assistente comercial');
+ if(idx<0)return {error:'Nenhum rascunho preparado pela inteligência para este lead. Gere a preparação em Inteligência comercial primeiro.'};
+ const jsonLine=lead.notes.slice(idx).split('\n').find(l=>l.trim().startsWith('{'));
+ if(!jsonLine)return {error:'Rascunho não encontrado nas notas.'};
+ try{
+  const data=JSON.parse(jsonLine) as {draft?:unknown};
+  const draft=typeof data.draft==='string'?data.draft.trim():'';
+  if(!draft)return {error:'A preparação deste lead não tem texto (ex.: pedido de não contato).'};
+  return {text:draft.slice(0,2000)};
+ }catch{return {error:'Não foi possível ler o rascunho preparado.'};}
+}
 export async function revokeVoiceAction():Promise<void>{
  const ctx=await requireOrg();const scope=assertWhatsAppAccess(ctx);
  await (await getDb()).update(schema.voiceProfiles).set({enabled:false}).where(and(eq(schema.voiceProfiles.orgId,scope.orgId),eq(schema.voiceProfiles.userId,scope.userId)));
