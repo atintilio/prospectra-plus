@@ -51,7 +51,27 @@ export function IntelligenceView({ leads, sellerName: initialName, enabled, stat
       {state.result && <>
         <div><h3 className="mb-2 text-sm font-semibold">Rascunho para revisão · {state.result.offer}</h3><p className="whitespace-pre-wrap rounded-xl bg-surface p-4 text-sm">{state.result.draft || 'Contato interrompido: pedido de não receber mensagens.'}</p></div>
         <div><h3 className="text-sm font-semibold">Evidências usadas</h3>{state.result.insights.length ? <ul className="mt-2 space-y-2 text-sm">{state.result.insights.map((insight, i) => <li key={i}>“{insight.quote}” <span className="text-muted">({insight.field === 'company' ? 'empresa' : insight.field === 'headline' ? 'cargo' : 'resposta recebida'})</span></li>)}</ul> : <p className="text-sm text-muted">Sem evidências adicionais fornecidas pelo modelo.</p>}</div>
-        <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4"><h3 className="text-sm font-semibold">Como se comunicar · {state.result.disc.archetype} ({state.result.disc.primary})</h3><p className="mt-1 text-xs text-muted">Confiança {state.result.disc.confidence}. {state.result.disc.disclaimer}</p><p className="mt-3 text-sm">{state.result.disc.behavior[0]}</p><p className="mt-3 text-xs font-semibold">Recomendações</p><ul className="mt-1 space-y-1 text-sm">{state.result.disc.recommendations.map(item => <li key={item}>✓ {item}</li>)}</ul><p className="mt-3 text-xs font-semibold">Estilo</p><p className="mt-1 text-sm">Escrita: {state.result.disc.writingStyle.join('; ')}. Conversa: {state.result.disc.speakingStyle.join('; ')}.</p><p className="mt-3 text-xs font-semibold">Evite</p><ul className="mt-1 space-y-1 text-sm">{state.result.disc.avoid.map(item => <li key={item}>· {item}</li>)}</ul><p className="mt-3 text-xs font-semibold">Perguntas sugeridas</p><ul className="mt-1 space-y-1 text-sm">{state.result.disc.questions.map(item => <li key={item}>? {item}</li>)}</ul></div>
+        <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4">
+          <h3 className="text-sm font-semibold">Como se comunicar · {state.result.disc.archetype} · {state.result.disc.discType}</h3>
+          <p className="mt-1 text-xs text-muted">Confiança {state.result.disc.confidence}. {state.result.disc.disclaimer}</p>
+          <dl className="mt-3 space-y-1.5">
+            {([['D', 'd', 'Dominância'], ['I', 'i', 'Influência'], ['S', 's', 'Estabilidade'], ['C', 'c', 'Conformidade']] as const).map(([k, key, label]) => {
+              const value = state.result!.disc.percentages[key];
+              return (
+                <div key={k} className="flex items-center gap-2 text-xs">
+                  <span className="w-24 shrink-0 text-muted">{label}</span>
+                  <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-violet-100"><span className="absolute inset-y-0 left-0 rounded-full bg-violet-500" style={{ width: `${value}%` }} /></span>
+                  <span className="w-9 shrink-0 text-right font-medium tabular-nums">{value}%</span>
+                </div>
+              );
+            })}
+          </dl>
+          <p className="mt-3 text-sm">{state.result.disc.behavior[0]}</p>
+          <p className="mt-3 text-xs font-semibold">Recomendações</p><ul className="mt-1 space-y-1 text-sm">{state.result.disc.recommendations.map(item => <li key={item}>✓ {item}</li>)}</ul>
+          <p className="mt-3 text-xs font-semibold">Estilo</p><p className="mt-1 text-sm">Escrita: {state.result.disc.writingStyle.join('; ')}. Conversa: {state.result.disc.speakingStyle.join('; ')}.</p>
+          <p className="mt-3 text-xs font-semibold">Evite</p><ul className="mt-1 space-y-1 text-sm">{state.result.disc.avoid.map(item => <li key={item}>· {item}</li>)}</ul>
+          <p className="mt-3 text-xs font-semibold">Perguntas sugeridas</p><ul className="mt-1 space-y-1 text-sm">{state.result.disc.questions.map(item => <li key={item}>? {item}</li>)}</ul>
+        </div>
         {state.result.handoff && <div className="rounded-xl border border-border p-4 text-sm"><h3 className="mb-2 font-semibold">Encaminhamento para revisão humana</h3><p>{state.result.handoff.summary}</p><p className="mt-2 break-all">Responsáveis sugeridos: {state.result.handoff.recipients.join(', ')}</p><p className="mt-2">{state.result.handoff.nextStep}</p><p className="mt-2 text-muted">{state.saved?'Cadência automática deste lead interrompida. Encaminhamento registrado para consulta.':'Não foi possível registrar o encaminhamento.'} Nenhum e-mail ou mensagem foi enviado.</p></div>}
         <p className="text-xs text-muted">{state.saved ? 'Contexto e preparação salvos nas notas do lead.' : 'Preparação não salva.'} Revisão humana obrigatória antes de qualquer envio.</p>
       </>}

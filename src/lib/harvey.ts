@@ -1,6 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { analyzeDisc, type DiscAnalysis } from './disc';
+import { analyzeDiscContextual } from './disc-ai';
 import { aiCompleteFree, aiProvider } from './ai';
 
 const leadSchema = z.object({ id: z.string(), orgId: z.string(), ownerId: z.string().nullable(), fullName: z.string().max(300), company: z.string().max(500), headline: z.string().max(1000), stage: z.string() });
@@ -72,7 +73,7 @@ export async function generateCommercial(ctx: CommercialContext, rawInput: Comme
     plan = validateCommercialPlan(JSON.parse(content), input);
   } catch { throw new Error('AI_INVALID_RESPONSE'); }
   const offer = input.offers[plan.offerIndex];
-  const disc = analyzeDisc({ text: `${input.lead.fullName} ${input.lead.company} ${input.lead.headline} ${input.inbound}`, evidence: plan.evidence.map((item) => item.quote) });
+  const disc = await analyzeDiscContextual({ text: `${input.lead.fullName} ${input.lead.company} ${input.lead.headline} ${input.inbound}`, evidence: plan.evidence.map((item) => item.quote) });
   // Any inbound text remains a human review, even if classification is wrong.
   const reason = optOut.test(input.inbound) ? 'opt_out' : input.inbound.trim() && plan.intent === 'outreach' ? 'unexpected' : plan.intent;
   const handoff = reason === 'outreach' ? null : {

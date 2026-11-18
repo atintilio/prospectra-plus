@@ -10,8 +10,13 @@ test('identifica tendência de dominância e recomenda comunicação direta', ()
   expect(result.primary).toBe('D');
   expect(result.recommendations).toContain('Vá direto ao ponto e comece pelo resultado esperado.');
   expect(result.avoid).toContain('Evite textos longos antes de apresentar a proposta.');
-  expect(result.archetype).toBe('Executor');
+  expect(result.archetype).toBe('Captain'); // modelo Crystal: D puro = Captain
   expect(result.behavior.length).toBeGreaterThan(0);
+  // percentuais somam 100 e o primário domina
+  const sum = result.percentages.d + result.percentages.i + result.percentages.s + result.percentages.c;
+  expect(sum).toBe(100);
+  expect(result.percentages.d).toBeGreaterThanOrEqual(result.percentages.c);
+  expect(result.intensity).toBe(result.percentages.d);
 });
 
 test('transforma evidências públicas em recomendações rastreáveis', () => {
