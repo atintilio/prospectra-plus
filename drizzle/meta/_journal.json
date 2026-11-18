@@ -113,6 +113,13 @@
       "when": 1793537200000,
       "tag": "0015_safe_pacing",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793537400000,
+      "tag": "0016_schema_compat2",
+      "breakpoints": true
     }
   ]
 }
