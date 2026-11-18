@@ -3,7 +3,8 @@
 # Uso na VPS:  nohup bash scripts/deploy-vps-release.sh > /root/pp-deploy.log 2>&1 &
 set -euo pipefail
 cd /opt/prospectra-plus-current
-export DATABASE_URL="$(grep '^DATABASE_URL=' /etc/prospectra-plus/app.env | cut -d= -f2-)"
+# Lê o DATABASE_URL do app.env removendo aspas em volta (systemd aceita aspas; o shell, não).
+export DATABASE_URL="$(grep -m1 '^DATABASE_URL=' /etc/prospectra-plus/app.env | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
 echo "[deploy] versao: $(git rev-parse --short HEAD) ($(date -u +%H:%M:%S) UTC)"
 echo "[deploy] pnpm install..."; pnpm install
 echo "[deploy] build (aplica migracoes 0012/0013 + compila)..."; pnpm build
