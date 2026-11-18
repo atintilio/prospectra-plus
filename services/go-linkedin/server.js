@@ -15,10 +15,10 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'prospectra-
 
 app.post('/acoes', async (req, res) => {
   if (!GO_SECRET || req.get('x-go-secret') !== GO_SECRET) return res.status(401).json({ error: 'nao autorizado' });
-  const { tarefa_id, conta_id, tipo, profile_url, texto, webhook_url } = req.body || {};
+  const { tarefa_id, conta_id, tipo, profile_url, texto, webhook_url, account_id, org_id } = req.body || {};
   if (!tarefa_id || !conta_id || !tipo || !profile_url) return res.status(400).json({ error: 'tarefa_id, conta_id, tipo e profile_url sao obrigatorios' });
   if (!TIPOS.includes(tipo)) return res.status(400).json({ error: 'tipo invalido' });
-  await redis.rpush(QUEUE, JSON.stringify({ tarefa_id, conta_id, tipo, profile_url, texto: texto || '', webhook_url: webhook_url || '', enqueued_at: new Date().toISOString() }));
+  await redis.rpush(QUEUE, JSON.stringify({ tarefa_id, conta_id, tipo, profile_url, texto: texto || '', webhook_url: webhook_url || '', account_id: account_id || '', org_id: org_id || '', enqueued_at: new Date().toISOString() }));
   return res.status(201).json({ tarefa_id, status: 'enfileirada' });
 });
 

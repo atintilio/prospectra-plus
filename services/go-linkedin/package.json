@@ -4,6 +4,16 @@
   "version": "0.1.0",
   "description": "Conector de automação do LinkedIn para o Prospectra+ (fila Redis + /acoes + callbacks)",
   "type": "commonjs",
-  "scripts": { "api": "node server.js", "worker": "node worker.js" },
-  "dependencies": { "express": "4.21.2", "ioredis": "5.4.2" }
+  "scripts": {
+    "api": "node server.js",
+    "worker": "node worker.js",
+    "login": "node login.js",
+    "postinstall": "patchright install chromium || true"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "ghost-cursor": "1.4.1",
+    "ioredis": "5.4.2",
+    "patchright": "1.50.0"
+  }
 }

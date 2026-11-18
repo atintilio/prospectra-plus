@@ -51,6 +51,7 @@ export async function pushDueActionsToGo(
     const go: GoAction = {
       actionId: action.id, contaId: account.providerId, tipo: action.type as GoActionType,
       profileUrl: lead.linkedinUrl, texto: action.body,
+      accountId: account.id, orgId: action.orgId, // para o Go reportar saúde da conta
     };
     try {
       const { tarefaId } = await client.enqueue(go, webhookUrl);

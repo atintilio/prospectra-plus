@@ -34,7 +34,8 @@ export function goEnabled(): boolean {
 }
 
 export type GoActionType = 'invite' | 'message' | 'comment' | 'react';
-export type GoAction = { actionId: string; contaId: string; tipo: GoActionType; profileUrl: string; texto: string };
+// accountId/orgId permitem ao Go reportar a saúde da conta (limite/checkpoint) de volta.
+export type GoAction = { actionId: string; contaId: string; tipo: GoActionType; profileUrl: string; texto: string; accountId?: string; orgId?: string };
 
 export class GoError extends Error {}
 
@@ -62,6 +63,7 @@ export class GoClient {
         body: JSON.stringify({
           tarefa_id: action.actionId, conta_id: action.contaId, tipo: action.tipo,
           profile_url: action.profileUrl, texto: action.texto, webhook_url: webhookUrl,
+          ...(action.accountId ? { account_id: action.accountId } : {}), ...(action.orgId ? { org_id: action.orgId } : {}),
         }),
         cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000),
       });
