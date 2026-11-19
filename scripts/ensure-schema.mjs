@@ -20,7 +20,17 @@ const files = (await readdir(dir)).filter((f) => /^\d+_.*\.sql$/.test(f)).sort()
 // Erros esperados ao reaplicar (objeto já existe / não existe) — contam como "skip".
 const BENIGN = /already exists|does not exist|duplicate|exists, skipping|multiple primary keys/i;
 
+function summarize(stmt) {
+  const s = stmt.replace(/\s+/g, ' ').trim();
+  let m;
+  if ((m = s.match(/CREATE TABLE(?: IF NOT EXISTS)?\s+"?([a-z_]+)"?/i))) return `tabela ${m[1]}`;
+  if ((m = s.match(/ALTER TABLE\s+"?([a-z_]+)"?\s+ADD COLUMN(?: IF NOT EXISTS)?\s+"?([a-z_]+)"?/i))) return `coluna ${m[1]}.${m[2]}`;
+  if ((m = s.match(/CREATE (?:UNIQUE )?INDEX(?: IF NOT EXISTS)?\s+"?([a-z_]+)"?/i))) return `índice ${m[1]}`;
+  return s.slice(0, 50);
+}
+
 let created = 0, skipped = 0, failed = 0;
+const fixed = [];
 for (const file of files) {
   const raw = await readFile(path.join(dir, file), 'utf8');
   const stmts = raw
@@ -28,7 +38,7 @@ for (const file of files) {
     .map((s) => s.replace(/^\s*--.*$/gm, '').trim().replace(/;\s*$/, ''))
     .filter((s) => s.length > 0);
   for (const stmt of stmts) {
-    try { await sql.unsafe(stmt); created++; }
+    try { await sql.unsafe(stmt); created++; if (/create table|add column|create (unique )?index/i.test(stmt)) fixed.push(summarize(stmt)); }
     catch (e) {
       const msg = (e && e.message) || String(e);
       if (BENIGN.test(msg)) { skipped++; }
@@ -36,6 +46,9 @@ for (const file of files) {
     }
   }
 }
+console.log('\n=== CHECK-UP DO BANCO ===');
+if (fixed.length) { console.log(`ESTAVA FALTANDO (agora criado): ${fixed.length} item(ns):`); fixed.forEach((f) => console.log('  + ' + f)); }
+else { console.log('Nenhuma tabela/coluna faltando — o schema já estava completo.'); }
 
 // Prova rápida: colunas críticas que já nos morderam.
 const probe = await sql.unsafe(`select
